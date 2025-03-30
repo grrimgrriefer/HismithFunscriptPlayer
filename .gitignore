@@ -1,3 +1,4 @@
 ﻿.vs
 rust-website/target
 rust-website/videos
+rust-website/.env

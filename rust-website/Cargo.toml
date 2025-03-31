@@ -10,3 +10,5 @@ env_logger = "0.10"
 actix-web = "4.10.2"
 tokio = { version = "1.0", features = ["full"] }
 actix-files = "0.6.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

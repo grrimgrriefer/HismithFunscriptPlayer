@@ -5,38 +5,50 @@ use actix_web::{
 use actix_files::NamedFile;
 use std::{env, path::PathBuf};
 use log::{info, error};
+use crate::models::build_directory_tree;
 
 pub async fn handle_index() -> HttpResponse {
     info!("Loading index page");
-    let html = r#"
+
+    let smb_base_path = env::var("VIDEO_SHARE_PATH").unwrap();
+    let base_path = PathBuf::from(smb_base_path);
+
+    let directory_tree = match build_directory_tree(&base_path, "") {
+        Ok(tree) => tree,
+        Err(e) => {
+            error!("Failed to read video directory: {}", e);
+            return HttpResponse::InternalServerError()
+                .content_type("text/plain; charset=utf-8")
+                .body("Failed to load video directory.");
+        }
+    };
+
+    let html = format!(
+        r#"
         <!DOCTYPE html>
         <html>
             <head>
                 <title>Video Player</title>
-                <style>
-                    body {
-                        display: flex;
-                        flex-direction: column;
-                        align-items: center;
-                        background-color:rgb(37, 37, 37);
-                        font-family: Arial, sans-serif;
-                    }
-                    video {
-                        max-width: 100%;
-                        box-shadow: 0 0 10px rgba(0,0,0,0.2);
-                        margin: 20px;
-                    }
-                </style>
+                <link rel="stylesheet" href="/static/styles.css">
+                <script>
+                    window.directoryTree = {tree};
+                </script>
+                <script src="/static/directory_tree.js"></script>
             </head>
             <body>
-                <h1>Video Player</h1>
-                <video width="640" height="360" controls preload="metadata">
-                    <source src="/video/sample3.mp4" type="video/mp4">
-                    Your browser does not support the video tag.
-                </video>
+                <button id="toggle-directory">Toggle Directory</button>
+                <div id="directory-container">
+                    <h1>Video Player</h1>
+                    <div id="directory-tree"></div>
+                </div>
+                <div id="video-container" class="hidden">
+                    <div id="video-player"></div>
+                </div>
             </body>
         </html>
-    "#;
+        "#,
+        tree = serde_json::to_string(&directory_tree).unwrap()
+    );
 
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")

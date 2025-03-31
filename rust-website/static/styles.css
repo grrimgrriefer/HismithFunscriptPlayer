@@ -109,3 +109,15 @@ button#toggle-directory {
 button#toggle-directory:hover {
     background-color: rgb(100, 100, 100);
 }
+
+#funscript-box {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 16px;
+    z-index: 3;
+}

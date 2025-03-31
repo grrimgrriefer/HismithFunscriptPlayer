@@ -1,10 +1,11 @@
+import { playVideo } from './video_player.js';
+
 document.addEventListener('DOMContentLoaded', () => {
     const directoryTree = window.directoryTree;
 
     function toggleFolder(id) {
         const element = document.getElementById(id);
 
-        // Collapse all other folders if this is a root folder
         if (element.parentElement.parentElement.id === 'directory-tree') {
             document.querySelectorAll('#directory-tree ul').forEach(ul => {
                 if (ul.id !== id) {
@@ -13,7 +14,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Toggle the clicked folder
         if (element.classList.contains('hidden')) {
             element.classList.remove('hidden');
         } else {
@@ -42,39 +42,13 @@ document.addEventListener('DOMContentLoaded', () => {
             file.href = '#';
             file.onclick = (e) => {
                 e.preventDefault();
-                playVideo(`/video/${node.path}`);
+                playVideo(`/video/${node.path}`, `/funscripts/${node.path.replace('.mp4', '.funscript')}`);
             };
             li.appendChild(file);
         }
         parent.appendChild(li);
     }
 
-    function playVideo(videoUrl) {
-        const videoPlayer = document.getElementById('video-player');
-        const videoElement = document.createElement('video');
-        videoElement.src = videoUrl;
-        videoElement.controls = true;
-        videoElement.autoplay = true;
-        videoElement.style.width = '100%';
-
-        videoPlayer.innerHTML = ''; // Clear any existing video
-        videoPlayer.appendChild(videoElement);
-
-        // Hide the directory tree and show the video player
-        document.getElementById('directory-container').classList.add('hidden');
-        document.getElementById('video-container').classList.remove('hidden');
-    }
-
-    function toggleDirectory() {
-        const directoryContainer = document.getElementById('directory-container');
-        if (directoryContainer.classList.contains('hidden')) {
-            directoryContainer.classList.remove('hidden');
-        } else {
-            directoryContainer.classList.add('hidden');
-        }
-    }
-
-    // Render the directory tree
     const rootUl = document.createElement('ul');
     directoryTree.children.forEach(child => {
         if (child.is_dir) {
@@ -100,6 +74,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('directory-tree').appendChild(rootUl);
 
-    // Add event listener to toggle directory button
-    document.getElementById('toggle-directory').onclick = toggleDirectory;
+    document.getElementById('toggle-directory').onclick = () => {
+        const directoryContainer = document.getElementById('directory-container');
+        if (directoryContainer.classList.contains('hidden')) {
+            directoryContainer.classList.remove('hidden');
+        } else {
+            directoryContainer.classList.add('hidden');
+        }
+    };
 });

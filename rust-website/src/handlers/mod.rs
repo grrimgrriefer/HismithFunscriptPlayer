@@ -33,7 +33,7 @@ pub async fn handle_index() -> HttpResponse {
                 <script>
                     window.directoryTree = {tree};
                 </script>
-                <script src="/static/directory_tree.js"></script>
+                <script src="/static/directory_tree.js?v={version}" type="module"></script>
             </head>
             <body>
                 <button id="toggle-directory">Toggle Directory</button>
@@ -47,8 +47,10 @@ pub async fn handle_index() -> HttpResponse {
             </body>
         </html>
         "#,
-        tree = serde_json::to_string(&directory_tree).unwrap()
+        tree = serde_json::to_string(&directory_tree).unwrap(),
+        version = chrono::Utc::now().timestamp()
     );
+
 
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
@@ -56,9 +58,12 @@ pub async fn handle_index() -> HttpResponse {
 }
 
 pub async fn handle_video(req: HttpRequest, path: web::Path<String>) -> Result<HttpResponse, Error> {
-    let filename = path.into_inner();
+    let mut filename = path.into_inner();
     info!("Attempting to serve video: {}", &filename);
-
+    if filename.starts_with('/') || filename.starts_with('\\') 
+    {
+        filename = filename[1..].to_string();
+    }
     let smb_base_path = env::var("VIDEO_SHARE_PATH").unwrap();
     let path = PathBuf::from(smb_base_path).join(&filename);
 
@@ -87,4 +92,25 @@ pub async fn handle_video(req: HttpRequest, path: web::Path<String>) -> Result<H
     );
 
     Ok(response)
+}
+
+pub async fn handle_funscript(path: web::Path<String>, req: HttpRequest) -> Result<HttpResponse, Error> {
+    let mut filename = path.into_inner();
+    info!("Attempting to serve funscript: {}", &filename);
+    if filename.starts_with('/') || filename.starts_with('\\') 
+    {
+        filename = filename[1..].to_string();
+    }
+    let smb_base_path = env::var("FUNSCRIPT_SHARE_PATH").unwrap();
+    let path = PathBuf::from(smb_base_path).join(&filename);
+
+    match NamedFile::open_async(&path).await {
+        Ok(file) => Ok(file.into_response(&req)),
+        Err(e) => {
+            error!("Failed to open funscript file: {}", e);
+            Ok(HttpResponse::NotFound()
+                .content_type("text/plain; charset=utf-8")
+                .body("Failed to load funscript file."))
+        }
+    }
 }

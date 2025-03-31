@@ -7,6 +7,7 @@ pub fn setup_routes(cfg: &mut web::ServiceConfig) {
         web::scope("")
             .route("/", web::get().to(handlers::handle_index))
             .route("/video/{filename:.*}", web::get().to(handlers::handle_video))
+            .route("/funscripts/{filename:.*}", web::get().to(handlers::handle_funscript))
             .service(Files::new("/static", "./static").show_files_listing())
     );
 }

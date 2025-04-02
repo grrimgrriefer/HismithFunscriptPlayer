@@ -4,9 +4,13 @@ const TARGET_MIN = 0; // machine value
 const TARGET_MAX = 100; // machine value
 
 export const intensityPattern = (actions) => {
-  const newActions = createNewPositions(actions, intensityPosition);
-  const smoothed = smoothPattern(newActions, PATTERN_GENERATION_RATE, PATTERN_GENERATION_TICK_MAX_CHANGE);
-  return normalizePattern(smoothed.actions, smoothed.min, smoothed.max, TARGET_MIN, TARGET_MAX);
+  if (actions.length > 0) {
+    actions[0].pos = 0;
+    actions[actions.length - 1].pos = 0;
+  }
+  const newActions = createNewPositions(actions);
+  const smoothed = teaseSmoothPattern(newActions, PATTERN_GENERATION_RATE, PATTERN_GENERATION_TICK_MAX_CHANGE);
+  return teaseNormalizePattern(smoothed.actions, smoothed.min, smoothed.max, TARGET_MIN, TARGET_MAX);
 };
 
 const intensityPosition = (a0, a1) => {
@@ -15,20 +19,12 @@ const intensityPosition = (a0, a1) => {
   return Math.min(100, Math.floor((deltaPos / deltaTime) * 100));
 };
 
-const createNewPositions = (actions, positionFunction) => {
+const createNewPositions = (actions) => {
   const length = actions.length - 1;
   for (let i = 0; i < length; i++) {
-    actions[i].pos = positionFunction(actions[i], actions[i + 1]);
+    actions[i].pos = intensityPosition(actions[i], actions[i + 1]);
   }
   return actions;
-};
-
-const smoothPattern = (newActions, patternGenerationRate, patternGenerationTickMaxChange) => {
-  return teaseSmoothPattern(newActions, patternGenerationRate, patternGenerationTickMaxChange);
-};
-
-const normalizePattern = (actions, min, max, targetMin, targetMax) => {
-  return teaseNormalizePattern(actions, min, max, targetMin, targetMax);
 };
 
 const teaseNormalizePattern = (actions, min, max, targetMin, targetMax) => {
@@ -61,6 +57,9 @@ const teaseSmoothPattern = (actions, patternGenerationRate, patternGenerationTic
   let a0 = a1;
   let sample = (a0.at * inverseRate) - (100 * inverseTickChange);
 
+  const pauseThreshold = 500; // Keep pos at 0 for 500ms after a pause
+  let lastNonZeroTime = 0;
+
   for (; sample < totalSamples; sample++) {
     const ms = sample * patternGenerationRate;
 
@@ -84,6 +83,18 @@ const teaseSmoothPattern = (actions, patternGenerationRate, patternGenerationTic
     const steps = Math.ceil(Math.abs(dpos) * inverseTickChange);
     const samplesLeft = Math.floor(distFromNow * inverseRate);
 
+    // Adjust ramp-up based on the duration of the pause
+    const pauseDuration = ms - (newActions.length > 0 ? newActions[newActions.length - 1].at : 0);
+
+    if (pauseDuration > pauseThreshold && current === 0) {
+      // Keep pos at 0 during the pause threshold
+      newActions.push({
+        at: ms,
+        pos: 0,
+      });
+      continue;
+    }
+
     if (steps >= samplesLeft) {
       const target = position;
 
@@ -98,9 +109,42 @@ const teaseSmoothPattern = (actions, patternGenerationRate, patternGenerationTic
           at: ms,
           pos: current,
         });
+
+        if (current > 0) {
+          lastNonZeroTime = ms;
+        }
       }
     } else {
       sample += Math.max(1, samplesLeft - steps + 1) - 1; // Adjust sample increment
+    }
+  }
+
+  // Handle looping or fading (unchanged)
+  if (window.isLoopEnabled && newActions.length > 0) {
+    const firstAction = newActions[0];
+    const lastAction = newActions[newActions.length - 1];
+    const loopDeltaPos = firstAction.pos - lastAction.pos;
+    const loopSteps = Math.ceil(Math.abs(loopDeltaPos) * inverseTickChange);
+
+    for (let i = 1; i <= loopSteps; i++) {
+      const loopMs = lastAction.at + i * patternGenerationRate;
+      const loopPos = lastAction.pos + Math.sign(loopDeltaPos) * Math.min(Math.abs(loopDeltaPos), i * patternGenerationTickMaxChange);
+
+      newActions.push({
+        at: loopMs,
+        pos: Math.max(0, Math.min(100, loopPos)),
+      });
+    }
+  } else if (!window.isLoopEnabled && newActions.length > 0) {
+    const fadeDuration = 1000; // 1 second in milliseconds
+    const fadeSteps = Math.floor(fadeDuration / patternGenerationRate);
+    for (let i = 0; i < fadeSteps; i++) {
+      const fadeInFactor = i / fadeSteps;
+      newActions[i].pos = Math.floor(newActions[i].pos * fadeInFactor);
+
+      const fadeOutFactor = (fadeSteps - i) / fadeSteps;
+      const index = newActions.length - (fadeSteps - i);
+      newActions[index].pos = Math.floor(newActions[index].pos * fadeOutFactor);
     }
   }
 

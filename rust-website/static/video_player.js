@@ -11,8 +11,42 @@ export function playVideo(videoUrl, funscriptUrl) {
     videoPlayer.innerHTML = ''; // Clear any existing video
     videoPlayer.appendChild(videoElement);
 
-    // Load the funscript
-    loadFunscript(funscriptUrl);
+    // Function to reload the funscript and regenerate values
+    const reloadFunscript = () => {
+        loadFunscript(funscriptUrl);
+    };
+
+    // Load the funscript initially
+    reloadFunscript();
+
+    // Add a loop toggle button
+    let loopToggle = document.getElementById('loop-toggle');
+    if (!loopToggle) {
+        loopToggle = document.createElement('button');
+        loopToggle.id = 'loop-toggle';
+        loopToggle.textContent = 'Loop: Off';
+        loopToggle.style.position = 'absolute';
+        loopToggle.style.top = '50px';
+        loopToggle.style.left = '10px';
+        loopToggle.style.zIndex = '3';
+        loopToggle.style.backgroundColor = 'rgb(70, 70, 70)';
+        loopToggle.style.color = 'white';
+        loopToggle.style.border = 'none';
+        loopToggle.style.padding = '10px 20px';
+        loopToggle.style.cursor = 'pointer';
+        loopToggle.style.borderRadius = '5px';
+
+        loopToggle.onclick = () => {
+            videoElement.loop = !videoElement.loop;
+            loopToggle.textContent = `Loop: ${videoElement.loop ? 'On' : 'Off'}`;
+            window.isLoopEnabled = videoElement.loop; // Update global loop state
+
+            // Regenerate the funscript values when toggling loop
+            reloadFunscript();
+        };
+
+        document.body.appendChild(loopToggle);
+    }
 
     // Create or update the funscript display box
     let funscriptBox = document.getElementById('funscript-box');

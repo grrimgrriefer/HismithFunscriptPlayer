@@ -19,6 +19,7 @@ pub async fn handle_index() -> HttpResponse {
             error!("Failed to read video directory: {}", e);
             return HttpResponse::InternalServerError()
                 .content_type("text/plain; charset=utf-8")
+                .insert_header(("Cache-Control", "no-store"))
                 .body("Failed to load video directory.");
         }
     };

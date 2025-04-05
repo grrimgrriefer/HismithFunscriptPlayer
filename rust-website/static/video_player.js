@@ -131,6 +131,45 @@ export function playVideo(videoUrl, funscriptUrl) {
         requestAnimationFrame(updateProgressBars); // Schedule the next update
     }
 
+    // Add an intensity multiplier slider
+    let intensitySlider = document.getElementById('intensity-slider');
+    if (!intensitySlider) {
+        intensitySlider = document.createElement('input');
+        intensitySlider.id = 'intensity-slider';
+        intensitySlider.type = 'range';
+        intensitySlider.min = '0.5';
+        intensitySlider.max = '2.0';
+        intensitySlider.step = '0.1';
+        intensitySlider.value = '1.0';
+        intensitySlider.style.position = 'absolute';
+        intensitySlider.style.top = '100px';
+        intensitySlider.style.left = '10px';
+        intensitySlider.style.zIndex = '3';
+
+        const sliderLabel = document.createElement('label');
+        sliderLabel.textContent = 'Intensity Multiplier: ';
+        sliderLabel.style.position = 'absolute';
+        sliderLabel.style.top = '75px';
+        sliderLabel.style.left = '10px';
+        sliderLabel.style.zIndex = '3';
+        sliderLabel.style.color = 'white';
+
+        const sliderValue = document.createElement('span');
+        sliderValue.id = 'slider-value';
+        sliderValue.textContent = intensitySlider.value;
+        sliderValue.style.color = 'white';
+
+        sliderLabel.appendChild(sliderValue);
+        document.body.appendChild(sliderLabel);
+        document.body.appendChild(intensitySlider);
+
+        intensitySlider.oninput = () => {
+            sliderValue.textContent = intensitySlider.value;
+            window.intensityMultiplier = parseFloat(intensitySlider.value); // Update global multiplier
+            reloadFunscript(); // Regenerate the intensity pattern with the new multiplier
+        };
+    }
+
     videoElement.onplay = () => {
         requestAnimationFrame(updateProgressBars); // Start updating when the video plays
     };

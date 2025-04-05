@@ -1,7 +1,7 @@
 const PATTERN_GENERATION_RATE = 100; // ms
 const PATTERN_GENERATION_TICK_MAX_CHANGE = 10; // %
-const TARGET_MIN = 0; // machine value
-const TARGET_MAX = 100; // machine value
+const TARGET_MIN = 0; // hard limit
+const TARGET_MAX = 100; // hard limit
 
 export const intensityPattern = (actions) => {
   if (actions.length > 0) {
@@ -9,8 +9,8 @@ export const intensityPattern = (actions) => {
     actions[actions.length - 1].pos = 0;
   }
   const newActions = createNewPositions(actions);
-  const smoothed = teaseSmoothPattern(newActions, PATTERN_GENERATION_RATE, PATTERN_GENERATION_TICK_MAX_CHANGE);
-  return teaseNormalizePattern(smoothed.actions, smoothed.min, smoothed.max, TARGET_MIN, TARGET_MAX);
+  const smoothed = smoothPattern(newActions, PATTERN_GENERATION_RATE, PATTERN_GENERATION_TICK_MAX_CHANGE);
+  return normalizePattern(smoothed.actions);
 };
 
 const intensityPosition = (a0, a1) => {
@@ -27,19 +27,17 @@ const createNewPositions = (actions) => {
   return actions;
 };
 
-const teaseNormalizePattern = (actions, min, max, targetMin, targetMax) => {
+const normalizePattern = (actions) => {
   if (!actions) return actions;
 
-  const range = max - min;
-  const targetRange = targetMax - targetMin;
+  const multiplier = window.intensityMultiplier || 1.0; // Default to 1.0 if not set
 
   return actions.map((action) => {
-    const normalizedPos = ((action.pos - min) / range) * targetRange + targetMin;
-    return { ...action, pos: Math.floor(normalizedPos) };
+    return { ...action, pos: Math.min(TARGET_MAX, Math.max(TARGET_MIN, Math.floor(action.pos * multiplier))) };
   });
 };
 
-const teaseSmoothPattern = (actions, patternGenerationRate, patternGenerationTickMaxChange) => {
+const smoothPattern = (actions, patternGenerationRate, patternGenerationTickMaxChange) => {
   const length = actions[actions.length - 1].at;
   const inverseRate = 1 / patternGenerationRate;
   const inverseTickChange = 1 / patternGenerationTickMaxChange;

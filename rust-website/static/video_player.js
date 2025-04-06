@@ -1,4 +1,6 @@
 import { loadFunscript, getCurrentFunscriptAction, getCurrentIntensity } from './funscript_handler.js';
+import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js';
+import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js';
 
 export function playVideo(videoUrl, funscriptUrl) {
     const videoPlayer = document.getElementById('video-player');
@@ -19,155 +21,40 @@ export function playVideo(videoUrl, funscriptUrl) {
     // Load the funscript initially
     reloadFunscript();
 
-    // Add a loop toggle button
-    let loopToggle = document.getElementById('loop-toggle');
-    if (!loopToggle) {
-        loopToggle = document.createElement('button');
-        loopToggle.id = 'loop-toggle';
-        loopToggle.textContent = 'Loop: Off';
-        loopToggle.style.position = 'absolute';
-        loopToggle.style.top = '50px';
-        loopToggle.style.left = '10px';
-        loopToggle.style.zIndex = '3';
-        loopToggle.style.backgroundColor = 'rgb(70, 70, 70)';
-        loopToggle.style.color = 'white';
-        loopToggle.style.border = 'none';
-        loopToggle.style.padding = '10px 20px';
-        loopToggle.style.cursor = 'pointer';
-        loopToggle.style.borderRadius = '5px';
-
-        loopToggle.onclick = () => {
-            videoElement.loop = !videoElement.loop;
-            loopToggle.textContent = `Loop: ${videoElement.loop ? 'On' : 'Off'}`;
-            window.isLoopEnabled = videoElement.loop; // Update global loop state
-
-            // Regenerate the funscript values when toggling loop
-            reloadFunscript();
-        };
-
-        document.body.appendChild(loopToggle);
-    }
-
     // Create or update the funscript display box
-    let funscriptBox = document.getElementById('funscript-box');
-    if (!funscriptBox) {
-        funscriptBox = document.createElement('div');
-        funscriptBox.id = 'funscript-box';
-        funscriptBox.style.position = 'absolute';
-        funscriptBox.style.bottom = '10px';
-        funscriptBox.style.right = '10px';
-        funscriptBox.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-        funscriptBox.style.color = 'white';
-        funscriptBox.style.padding = '10px';
-        funscriptBox.style.borderRadius = '5px';
-        funscriptBox.style.fontSize = '16px';
-        funscriptBox.style.width = '200px';
-        funscriptBox.style.height = '50px'; // Increased height to fit two bars
-        funscriptBox.style.display = 'flex';
-        funscriptBox.style.flexDirection = 'column';
-        funscriptBox.style.alignItems = 'center';
-        funscriptBox.style.overflow = 'hidden';
-        funscriptBox.style.border = '1px solid white';
-
-        // Create the position progress bar
-        const positionBar = document.createElement('div');
-        positionBar.id = 'position-bar';
-        positionBar.style.height = '50%';
-        positionBar.style.width = '0%';
-        positionBar.style.backgroundColor = 'lime';
-        positionBar.style.transition = 'width 0.1s ease-out';
-        positionBar.style.position = 'relative';
-
-        const positionText = document.createElement('span');
-        positionText.id = 'position-text';
-        positionText.style.position = 'absolute';
-        positionText.style.width = '100%';
-        positionText.style.textAlign = 'center';
-        positionText.style.color = 'black';
-        positionText.style.fontWeight = 'bold';
-        positionBar.appendChild(positionText);
-
-        // Create the intensity progress bar
-        const intensityBar = document.createElement('div');
-        intensityBar.id = 'intensity-bar';
-        intensityBar.style.height = '50%';
-        intensityBar.style.width = '0%';
-        intensityBar.style.backgroundColor = 'orange';
-        intensityBar.style.transition = 'width 0.1s ease-out';
-        intensityBar.style.position = 'relative';
-
-        const intensityText = document.createElement('span');
-        intensityText.id = 'intensity-text';
-        intensityText.style.position = 'absolute';
-        intensityText.style.width = '100%';
-        intensityText.style.textAlign = 'center';
-        intensityText.style.color = 'black';
-        intensityText.style.fontWeight = 'bold';
-        intensityBar.appendChild(intensityText);
-
-        funscriptBox.appendChild(positionBar);
-        funscriptBox.appendChild(intensityBar);
-        document.body.appendChild(funscriptBox);
-    }
+    createFunscriptDisplayBox();
 
     // Update the funscript display as the video plays
     function updateProgressBars() {
         const currentTime = videoElement.currentTime * 1000; // Convert to milliseconds
         const currentAction = getCurrentFunscriptAction(currentTime);
-        if (currentAction) {
-            // Update position bar
-            const positionBar = document.getElementById('position-bar');
-            const positionText = document.getElementById('position-text');
-            positionBar.style.width = `${Math.round(currentAction.pos)}%`;
-            positionText.textContent = `${Math.round(currentAction.pos)}%`;
-
-            // Update intensity bar
-            const intensityBar = document.getElementById('intensity-bar');
-            const intensityText = document.getElementById('intensity-text');
-            const intensity = getCurrentIntensity(currentTime);
-            intensityBar.style.width = `${intensity}%`;
-            intensityText.textContent = `${Math.round(intensity)}`;
-        }
+        const intensity = getCurrentIntensity(currentTime);
+        updateFunscriptDisplayBox(currentAction, intensity);
         requestAnimationFrame(updateProgressBars); // Schedule the next update
     }
 
-    // Add an intensity multiplier slider
-    let intensitySlider = document.getElementById('intensity-slider');
-    if (!intensitySlider) {
-        intensitySlider = document.createElement('input');
-        intensitySlider.id = 'intensity-slider';
-        intensitySlider.type = 'range';
-        intensitySlider.min = '0.5';
-        intensitySlider.max = '2.0';
-        intensitySlider.step = '0.1';
-        intensitySlider.value = '1.0';
-        intensitySlider.style.position = 'absolute';
-        intensitySlider.style.top = '100px';
-        intensitySlider.style.left = '10px';
-        intensitySlider.style.zIndex = '3';
+    // Create or update the settings menu
+    createSettingsMenu(reloadFunscript);
 
-        const sliderLabel = document.createElement('label');
-        sliderLabel.textContent = 'Intensity Multiplier: ';
-        sliderLabel.style.position = 'absolute';
-        sliderLabel.style.top = '75px';
-        sliderLabel.style.left = '10px';
-        sliderLabel.style.zIndex = '3';
-        sliderLabel.style.color = 'white';
+    // Add a button to toggle the settings menu
+    let settingsButton = document.getElementById('settings-button');
+    if (!settingsButton) {
+        settingsButton = document.createElement('button');
+        settingsButton.id = 'settings-button';
+        settingsButton.textContent = 'Settings';
+        settingsButton.style.position = 'absolute';
+        settingsButton.style.top = '10px';
+        settingsButton.style.right = '10px';
+        settingsButton.style.backgroundColor = 'rgb(70, 70, 70)';
+        settingsButton.style.color = 'white';
+        settingsButton.style.border = 'none';
+        settingsButton.style.padding = '10px 20px';
+        settingsButton.style.cursor = 'pointer';
+        settingsButton.style.borderRadius = '5px';
+        settingsButton.style.zIndex = '10';
+        settingsButton.onclick = toggleSettingsMenu;
 
-        const sliderValue = document.createElement('span');
-        sliderValue.id = 'slider-value';
-        sliderValue.textContent = intensitySlider.value;
-        sliderValue.style.color = 'white';
-
-        sliderLabel.appendChild(sliderValue);
-        document.body.appendChild(sliderLabel);
-        document.body.appendChild(intensitySlider);
-
-        intensitySlider.oninput = () => {
-            sliderValue.textContent = intensitySlider.value;
-            window.intensityMultiplier = parseFloat(intensitySlider.value); // Update global multiplier
-            reloadFunscript(); // Regenerate the intensity pattern with the new multiplier
-        };
+        document.body.appendChild(settingsButton);
     }
 
     videoElement.onplay = () => {

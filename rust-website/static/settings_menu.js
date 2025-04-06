@@ -1,0 +1,133 @@
+export function createSettingsMenu(reloadFunscript) {
+    let settingsMenu = document.getElementById('settings-menu');
+    if (!settingsMenu) {
+        settingsMenu = document.createElement('div');
+        settingsMenu.id = 'settings-menu';
+        settingsMenu.style.position = 'absolute';
+        settingsMenu.style.top = '10px';
+        settingsMenu.style.right = '10px';
+        settingsMenu.style.width = '250px';
+        settingsMenu.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+        settingsMenu.style.color = 'white';
+        settingsMenu.style.padding = '10px';
+        settingsMenu.style.borderRadius = '5px';
+        settingsMenu.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
+        settingsMenu.style.display = 'none'; // Hidden by default
+        settingsMenu.style.zIndex = '10';
+
+        // Add the loop toggle button
+        const loopToggle = document.createElement('button');
+        loopToggle.id = 'loop-toggle';
+        loopToggle.textContent = 'Loop: Off';
+        loopToggle.style.backgroundColor = 'rgb(70, 70, 70)';
+        loopToggle.style.color = 'white';
+        loopToggle.style.border = 'none';
+        loopToggle.style.padding = '5px 10px';
+        loopToggle.style.cursor = 'pointer';
+        loopToggle.style.borderRadius = '3px';
+        loopToggle.style.marginBottom = '10px';
+        loopToggle.onclick = () => {
+            const videoElement = document.querySelector('video');
+            videoElement.loop = !videoElement.loop;
+            loopToggle.textContent = `Loop: ${videoElement.loop ? 'On' : 'Off'}`;
+            window.isLoopEnabled = videoElement.loop; // Update global loop state
+            reloadFunscript(); // Regenerate the funscript values when toggling loop
+        };
+        settingsMenu.appendChild(loopToggle);
+
+        // Add the intensity multiplier slider
+        const intensitySliderLabel = document.createElement('label');
+        intensitySliderLabel.textContent = 'Intensity Multiplier: ';
+        intensitySliderLabel.style.display = 'block';
+        intensitySliderLabel.style.marginBottom = '5px';
+
+        // Add a span to display the current value
+        const intensityValueDisplay = document.createElement('span');
+        intensityValueDisplay.id = 'intensity-value-display';
+        intensityValueDisplay.textContent = '1.0'; // Default value
+        intensityValueDisplay.style.marginLeft = '10px';
+        intensityValueDisplay.style.color = 'white';
+
+        const intensitySlider = document.createElement('input');
+        intensitySlider.id = 'intensity-slider';
+        intensitySlider.type = 'range';
+        intensitySlider.min = '0.3';
+        intensitySlider.max = '3.0';
+        intensitySlider.step = '0.1';
+        intensitySlider.value = '1.0';
+        intensitySlider.style.width = '100%';
+        intensitySlider.oninput = () => {
+            window.intensityMultiplier = parseFloat(intensitySlider.value); // Update global multiplier
+            intensityValueDisplay.textContent = intensitySlider.value; // Update the displayed value
+            reloadFunscript(); // Regenerate the intensity pattern with the new multiplier
+        };
+
+        intensitySliderLabel.appendChild(intensityValueDisplay); // Add the value display next to the label
+        settingsMenu.appendChild(intensitySliderLabel);
+        settingsMenu.appendChild(intensitySlider);
+
+        // Add the hard limit input field with lock/unlock
+        const hardLimitInputLabel = document.createElement('label');
+        hardLimitInputLabel.textContent = 'Max Intensity Limit: ';
+        hardLimitInputLabel.style.display = 'block';
+        hardLimitInputLabel.style.marginBottom = '5px';
+        hardLimitInputLabel.style.pointerEvents = 'none'; // Ensure the button itself is clickable
+
+        const hardLimitLockButton = document.createElement('button');
+        hardLimitLockButton.id = 'hard-limit-lock-button';
+        hardLimitLockButton.textContent = 'Unlock';
+        hardLimitLockButton.style.backgroundColor = 'rgb(70, 70, 70)';
+        hardLimitLockButton.style.color = 'white';
+        hardLimitLockButton.style.border = 'none';
+        hardLimitLockButton.style.padding = '5px 10px';
+        hardLimitLockButton.style.cursor = 'pointer';
+        hardLimitLockButton.style.borderRadius = '3px';
+        hardLimitLockButton.style.marginBottom = '10px';
+        hardLimitLockButton.style.pointerEvents = 'auto'; // Ensure the button itself is clickable
+
+        const hardLimitInput = document.createElement('input');
+        hardLimitInput.id = 'hard-limit-input';
+        hardLimitInput.type = 'number';
+        hardLimitInput.min = '0';
+        hardLimitInput.max = '100';
+        hardLimitInput.value = '80';
+        hardLimitInput.style.width = '100%';
+        hardLimitInput.disabled = true; // Initially disabled
+
+        hardLimitLockButton.onclick = () => {
+            if (hardLimitInput.disabled) {
+                hardLimitInput.disabled = false;
+                hardLimitLockButton.textContent = 'Lock';
+            } else {
+                hardLimitInput.disabled = true;
+                hardLimitLockButton.textContent = 'Unlock';
+            }
+        };
+
+        hardLimitInput.onchange = () => {
+            const value = parseInt(hardLimitInput.value, 10);
+            if (value >= 0 && value <= 100) {
+                window.hardLimitMax = value; // Update global hard limit
+                reloadFunscript(); // Regenerate the intensity pattern with the new limit
+            } else {
+                alert('Please enter a value between 0 and 100.');
+                hardLimitInput.value = window.hardLimitMax || 80; // Reset to the current value
+            }
+        };
+
+        hardLimitInputLabel.appendChild(hardLimitLockButton); // Add the lock button next to the label
+        hardLimitInputLabel.appendChild(hardLimitInput); // Add the input field
+        settingsMenu.appendChild(hardLimitInputLabel);
+
+        document.body.appendChild(settingsMenu);
+    }
+
+    return settingsMenu;
+}
+
+export function toggleSettingsMenu() {
+    const settingsMenu = document.getElementById('settings-menu');
+    if (settingsMenu) {
+        settingsMenu.style.display = settingsMenu.style.display === 'none' ? 'block' : 'none';
+    }
+}

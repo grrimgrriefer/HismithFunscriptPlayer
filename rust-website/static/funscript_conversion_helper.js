@@ -1,7 +1,6 @@
-const PATTERN_GENERATION_RATE = 100; // ms
-const PATTERN_GENERATION_TICK_MAX_CHANGE = 10; // %
-const TARGET_MIN = 0; // hard limit
-const TARGET_MAX = 100; // hard limit
+const PATTERN_GENERATION_RATE = 50; // ms
+const PATTERN_GENERATION_TICK_MAX_CHANGE = 2; // %
+const HARD_LIMIT_MIN = 0;
 
 export const intensityPattern = (actions) => {
   if (actions.length > 0) {
@@ -10,7 +9,7 @@ export const intensityPattern = (actions) => {
   }
   const newActions = createNewPositions(actions);
   const smoothed = smoothPattern(newActions, PATTERN_GENERATION_RATE, PATTERN_GENERATION_TICK_MAX_CHANGE);
-  return normalizePattern(smoothed.actions);
+  return normalizePattern(actions);
 };
 
 const intensityPosition = (a0, a1) => {
@@ -31,9 +30,10 @@ const normalizePattern = (actions) => {
   if (!actions) return actions;
 
   const multiplier = window.intensityMultiplier || 1.0; // Default to 1.0 if not set
+  const hardLimitMax = Math.min(100, window.hardLimitMax || 80); // Clamp to 100 maximum
 
   return actions.map((action) => {
-    return { ...action, pos: Math.min(TARGET_MAX, Math.max(TARGET_MIN, Math.floor(action.pos * multiplier))) };
+    return { ...action, pos: Math.min(hardLimitMax, Math.max(HARD_LIMIT_MIN, Math.floor(action.pos * multiplier))) };
   });
 };
 
@@ -49,13 +49,10 @@ const smoothPattern = (actions, patternGenerationRate, patternGenerationTickMaxC
   let position = 0;
   const newActions = [];
 
-  let max = 0;
-  let min = null;
   let a1 = actions[0];
   let a0 = a1;
   let sample = (a0.at * inverseRate) - (100 * inverseTickChange);
 
-  const pauseThreshold = 500; // Keep pos at 0 for 500ms after a pause
   let lastNonZeroTime = 0;
 
   for (; sample < totalSamples; sample++) {
@@ -70,10 +67,15 @@ const smoothPattern = (actions, patternGenerationRate, patternGenerationTickMaxC
         a0 = a1;
         actionIndex++;
         a1 = actions[actionIndex];
+
         positions += a1.pos * (a1.at - a0.at);
       }
 
-      position = Math.floor(positions / (a1.at - old.at));
+      if (positions === 0) {
+        position = 0;
+      } else {
+        position = Math.floor(positions / (a1.at - old.at));
+      }
     }
 
     const distFromNow = a1.at - ms;
@@ -81,27 +83,12 @@ const smoothPattern = (actions, patternGenerationRate, patternGenerationTickMaxC
     const steps = Math.ceil(Math.abs(dpos) * inverseTickChange);
     const samplesLeft = Math.floor(distFromNow * inverseRate);
 
-    // Adjust ramp-up based on the duration of the pause
-    const pauseDuration = ms - (newActions.length > 0 ? newActions[newActions.length - 1].at : 0);
-
-    if (pauseDuration > pauseThreshold && current === 0) {
-      // Keep pos at 0 during the pause threshold
-      newActions.push({
-        at: ms,
-        pos: 0,
-      });
-      continue;
-    }
-
     if (steps >= samplesLeft) {
       const target = position;
 
       if (current !== target) {
         current += Math.sign(target - current) * Math.min(Math.abs(target - current), patternGenerationTickMaxChange);
         current = Math.max(0, Math.min(100, current));
-
-        max = Math.max(max, current);
-        min = min === null ? current : Math.min(min, current);
 
         newActions.push({
           at: ms,
@@ -113,7 +100,7 @@ const smoothPattern = (actions, patternGenerationRate, patternGenerationTickMaxC
         }
       }
     } else {
-      sample += Math.max(1, samplesLeft - steps + 1) - 1; // Adjust sample increment
+      sample += Math.max(1, samplesLeft - steps + 1) - 1;
     }
   }
 
@@ -146,9 +133,5 @@ const smoothPattern = (actions, patternGenerationRate, patternGenerationTickMaxC
     }
   }
 
-  return {
-    min,
-    max,
-    actions: newActions,
-  };
+  return newActions;
 };

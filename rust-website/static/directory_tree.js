@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
             file.href = '#';
             file.onclick = (e) => {
                 e.preventDefault();
-                playVideo(`/video/${node.path}`, `/funscripts/${node.path.replace('.mp4', '.funscript')}`);
+                playVideo(`/site/video/${node.path}`, `/site/funscripts/${node.path.replace('.mp4', '.funscript')}`);
             };
             li.appendChild(file);
         }

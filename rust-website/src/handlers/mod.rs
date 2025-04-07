@@ -34,7 +34,7 @@ pub async fn handle_index() -> HttpResponse {
                 <script>
                     window.directoryTree = {tree};
                 </script>
-                <script src="/static/directory_tree.js?v={version}" type="module"></script>
+                <script src="/site/static/directory_tree.js?v={version}" type="module"></script>
             </head>
             <body>
                 <button id="toggle-directory">Toggle Directory</button>

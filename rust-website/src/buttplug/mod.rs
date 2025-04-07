@@ -1,17 +1,31 @@
-use async_std::io;
-use std::sync::{Arc, Mutex};
-use std::{thread, time::Duration};
-use buttplug::{client::{device::ScalarValueCommand, ButtplugClientEvent, ButtplugClient, ButtplugClientError}, util::in_process_client, core::connector::new_json_ws_client_connector};
-use futures::StreamExt;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use std::{thread, time::Duration, sync::Arc};
+use buttplug::{client::{device::ScalarValueCommand, ButtplugClientEvent, ButtplugClient, ButtplugClientError, ButtplugClientDevice}, core::connector::new_json_ws_client_connector};use futures::StreamExt;
+use once_cell::sync::OnceCell;
 
-async fn wait_for_input() {
-    let stdin = io::stdin();
-    let mut line = String::new();
-    stdin.read_line(&mut line).await;
+static DEVICE_MANAGER: OnceCell<DeviceManager> = OnceCell::new();
+
+pub struct DeviceManager {
+    client: ButtplugClient,
+    device: Option<Arc<ButtplugClientDevice>>,
 }
 
-pub async fn do_the_thing() -> Result<(), ButtplugClientError> {
+impl DeviceManager {
+    fn new(client: ButtplugClient) -> Self {
+        Self {
+            client,
+            device: None,
+        }
+    }
+
+    pub async fn oscillate(&self, value: f64) -> Result<(), ButtplugClientError> {
+        if let Some(device) = &self.device {
+            device.oscillate(&ScalarValueCommand::ScalarValue(value)).await?;
+        }
+        Ok(())
+    }
+}
+
+pub async fn initialize_device() -> Result<(), ButtplugClientError> {
     let connector = new_json_ws_client_connector("ws://127.0.0.1:12345/buttplug");
     let client = ButtplugClient::new("Video player Client");
     client.connect(connector).await?;
@@ -35,43 +49,34 @@ pub async fn do_the_thing() -> Result<(), ButtplugClientError> {
     });
 
     client.start_scanning().await?;
-
+    thread::sleep(Duration::from_secs(3));
     client.stop_scanning().await?;
     thread::sleep(Duration::from_secs(3));
-    // maybe make it wait a bit to scan or smth
 
-    // if no devices are connected, we can't do anything gg
     if client.devices().is_empty() {
         println!("No devices connected, exiting");
         return Ok(());
     }
-
-    println!("Devices:");
-    for device in client.devices() {
-        println!("- {}", device.name());
-    }
-
-    let stop = Arc::new(Mutex::new(false));
-    let clone: Arc<Mutex<bool>> = Arc::clone(&stop);
-
-    thread::spawn(move || {
-        thread::sleep(Duration::from_secs(20));
-        let mut s = clone.lock().unwrap();
-        *s = true;
-    });
-
-    let test_device = &client.devices()[0];
-    loop { // this needs to be 10s only
-        test_device
-            .oscillate(&ScalarValueCommand::ScalarValue(0.2))
-            .await?;
-        let should_stop = stop.lock().unwrap();
-        if *should_stop {
-            break;
+    else
+    {
+        println!("Devices:");
+        for device in client.devices() {
+            println!("- {}", device.name());
+        }
+    
+        if !client.devices().is_empty() {
+            let mut manager = DeviceManager::new(client);
+            manager.device = Some(manager.client.devices()[0].clone());
+            DEVICE_MANAGER.set(manager).ok();
         }
     }
 
-  client.disconnect().await?;
+    Ok(())
+}
 
-  Ok(())
+pub async fn oscillate(value: f64) -> Result<(), ButtplugClientError> {
+    if let Some(manager) = DEVICE_MANAGER.get() {
+        manager.oscillate(value).await?;
+    }
+    Ok(())
 }

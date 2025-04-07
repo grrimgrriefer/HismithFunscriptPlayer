@@ -1,6 +1,7 @@
 import { loadFunscript, getCurrentFunscriptAction, getCurrentIntensity } from './funscript_handler.js';
 import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js';
 import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js';
+import { initWebSocket, sendOscillateValue } from './socket.js';
 
 export function playVideo(videoUrl, funscriptUrl) {
     const videoPlayer = document.getElementById('video-player');
@@ -30,11 +31,16 @@ export function playVideo(videoUrl, funscriptUrl) {
         const currentAction = getCurrentFunscriptAction(currentTime);
         const intensity = getCurrentIntensity(currentTime);
         updateFunscriptDisplayBox(currentAction, intensity);
+        if (intensity !== undefined) {
+            sendOscillateValue(intensity / 100);
+        }
         requestAnimationFrame(updateProgressBars); // Schedule the next update
     }
 
     // Create or update the settings menu
     createSettingsMenu(reloadFunscript);
+
+    initWebSocket();
 
     // Add a button to toggle the settings menu
     let settingsButton = document.getElementById('settings-button');

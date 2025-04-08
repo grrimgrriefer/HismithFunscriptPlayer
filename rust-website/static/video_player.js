@@ -25,21 +25,38 @@ export function playVideo(videoUrl, funscriptUrl) {
     // Create or update the funscript display box
     createFunscriptDisplayBox();
 
+    let isTransitioning = false;
+    let transitionStartTime = 0;
+    let transitionTargetValue = 0;
+    const TRANSITION_DURATION = 1000; // 1 second in milliseconds
+
     // Update the funscript display as the video plays
     function updateProgressBars() {
-        const currentTime = videoElement.currentTime * 1000; // Convert to milliseconds
+        const currentTime = videoElement.currentTime * 1000;
         const currentAction = getCurrentFunscriptAction(currentTime);
         const intensity = getCurrentIntensity(currentTime);
         updateFunscriptDisplayBox(currentAction, intensity);
-        if (intensity !== undefined) {
-            sendOscillateValue(intensity / 100);
+
+        let finalIntensity = intensity;
+        if (isTransitioning) {
+            const elapsed = Date.now() - transitionStartTime;
+            const progress = Math.min(elapsed / TRANSITION_DURATION, 1);
+            finalIntensity = lerpIntensity(transitionStartValue, transitionTargetValue, progress);
+            if (progress === 1) {
+                isTransitioning = false;
+            }
         }
+        if (finalIntensity !== undefined) {
+            throttledSendOscillateValue(finalIntensity / 100);
+        }
+
         requestAnimationFrame(updateProgressBars); // Schedule the next update
     }
 
     // Create or update the settings menu
     createSettingsMenu(reloadFunscript);
 
+    const throttledSendOscillateValue = throttle(sendOscillateValue, 150);
     initWebSocket();
 
     // Add a button to toggle the settings menu
@@ -64,10 +81,34 @@ export function playVideo(videoUrl, funscriptUrl) {
     }
 
     videoElement.onplay = () => {
+        isTransitioning = true;
+        transitionStartTime = Date.now();
+        transitionTargetValue = 1;
         requestAnimationFrame(updateProgressBars); // Start updating when the video plays
+    };
+
+    videoElement.onpause = () => {
+        isTransitioning = true;
+        transitionStartTime = Date.now();
+        transitionTargetValue = 0;
     };
 
     // Hide the directory tree and show the video player
     document.getElementById('directory-container').classList.add('hidden');
     document.getElementById('video-container').classList.remove('hidden');
+}
+
+function throttle(func, limit) {
+    let inThrottle;
+    return function (...args) {
+        if (!inThrottle) {
+            func.apply(this, args);
+            inThrottle = true;
+            setTimeout(() => inThrottle = false, limit);
+        }
+    };
+}
+
+function lerpIntensity(start, end, progress) {
+    return start + (end - start) * progress;
 }

@@ -30,7 +30,7 @@ pub async fn handle_index() -> HttpResponse {
         <html>
             <head>
                 <title>Video Player</title>
-                <link rel="stylesheet" href="/static/styles.css">
+                <link rel="stylesheet" href="/site/static/styles.css">
                 <script>
                     window.directoryTree = {tree};
                 </script>

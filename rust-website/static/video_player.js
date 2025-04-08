@@ -1,14 +1,23 @@
-import { loadFunscript, getCurrentFunscriptAction, getCurrentIntensity } from './funscript_handler.js';
-import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js';
-import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js';
-import { initWebSocket, sendOscillateValue } from './socket.js';
+import { loadFunscript, getCurrentFunscriptAction, getCurrentIntensity } from './funscript_handler.js?v=31';
+import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=31';
+import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=31';
+import { initWebSocket, sendOscillateValue } from './socket.js?v=31';
+
+let currentAnimationFrame = null;
+let isWebSocketInitialized = false;
 
 export function playVideo(videoUrl, funscriptUrl) {
+    if (currentAnimationFrame) {
+        cancelAnimationFrame(currentAnimationFrame);
+        currentAnimationFrame = null;
+    }
+    sendOscillateValue(0);
+
     const videoPlayer = document.getElementById('video-player');
     const videoElement = document.createElement('video');
     videoElement.src = videoUrl;
     videoElement.controls = true;
-    videoElement.autoplay = true;
+    videoElement.autoplay = false;
     videoElement.style.width = '100%';
 
     videoPlayer.innerHTML = ''; // Clear any existing video
@@ -25,10 +34,9 @@ export function playVideo(videoUrl, funscriptUrl) {
     // Create or update the funscript display box
     createFunscriptDisplayBox();
 
-    let isTransitioning = false;
-    let transitionStartTime = 0;
-    let transitionTargetValue = 0;
-    const TRANSITION_DURATION = 1000; // 1 second in milliseconds
+    let transitionStartTime = Date.now();
+    let transitionTargetValue = 1;
+    const TRANSITION_DURATION = 1000;
 
     // Update the funscript display as the video plays
     function updateProgressBars() {
@@ -37,27 +45,24 @@ export function playVideo(videoUrl, funscriptUrl) {
         const intensity = getCurrentIntensity(currentTime);
         updateFunscriptDisplayBox(currentAction, intensity);
 
-        let finalIntensity = intensity;
-        if (isTransitioning) {
-            const elapsed = Date.now() - transitionStartTime;
-            const progress = Math.min(elapsed / TRANSITION_DURATION, 1);
-            finalIntensity = lerpIntensity(transitionStartValue, transitionTargetValue, progress);
-            if (progress === 1) {
-                isTransitioning = false;
-            }
-        }
-        if (finalIntensity !== undefined) {
-            throttledSendOscillateValue(finalIntensity / 100);
+        const elapsed = Date.now() - transitionStartTime;
+        const progress = Math.abs(transitionTargetValue - Math.min(elapsed / TRANSITION_DURATION, 1));
+
+        if (intensity !== undefined) {
+            throttledSendOscillateValue(lerpIntensity(0, intensity, progress) / 100);
         }
 
-        requestAnimationFrame(updateProgressBars); // Schedule the next update
+        currentAnimationFrame = requestAnimationFrame(updateProgressBars);
     }
 
     // Create or update the settings menu
     createSettingsMenu(reloadFunscript);
 
     const throttledSendOscillateValue = throttle(sendOscillateValue, 150);
-    initWebSocket();
+    if (!isWebSocketInitialized) {
+        initWebSocket();
+        isWebSocketInitialized = true;
+    }
 
     // Add a button to toggle the settings menu
     let settingsButton = document.getElementById('settings-button');
@@ -81,16 +86,33 @@ export function playVideo(videoUrl, funscriptUrl) {
     }
 
     videoElement.onplay = () => {
-        isTransitioning = true;
+        if (cancelAnimationTimeout) {
+            clearTimeout(cancelAnimationTimeout);
+            cancelAnimationTimeout = null;
+        }
+        if (currentAnimationFrame) {
+            cancelAnimationFrame(currentAnimationFrame);
+        }
         transitionStartTime = Date.now();
-        transitionTargetValue = 1;
-        requestAnimationFrame(updateProgressBars); // Start updating when the video plays
+        transitionTargetValue = 0;
+        currentAnimationFrame = requestAnimationFrame(updateProgressBars);
+        document.documentElement.requestFullscreen();
     };
 
     videoElement.onpause = () => {
-        isTransitioning = true;
+        cancelAnimationTimeout = setTimeout(() => {
+            if (currentAnimationFrame) {
+                cancelAnimationFrame(currentAnimationFrame);
+                currentAnimationFrame = null;
+            }
+        }, 1000);
         transitionStartTime = Date.now();
-        transitionTargetValue = 0;
+        transitionTargetValue = 1;
+        document.exitFullscreen();
+    };
+
+    videoElement.onloadeddata = () => {
+        updateFunscriptDisplayBox(0, 0);
     };
 
     // Hide the directory tree and show the video player

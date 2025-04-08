@@ -1,3 +1,5 @@
+import { getCurrentRawMaxIntensity, getAbsoluteMaximum } from './funscript_handler.js?v=31';
+
 export function createFunscriptDisplayBox() {
     let funscriptBox = document.getElementById('funscript-box');
     if (!funscriptBox) {
@@ -55,9 +57,33 @@ export function createFunscriptDisplayBox() {
         intensityText.style.fontWeight = 'bold';
         intensityBar.appendChild(intensityText);
 
+        // Add a container for the maximum intensity
+        const maxIntensityContainer = document.createElement('div');
+        maxIntensityContainer.id = 'max-intensity-container';
+        maxIntensityContainer.style.marginBottom = '10px';
+        maxIntensityContainer.style.color = 'white';
+
+        const maxIntensityLabel = document.createElement('span');
+        maxIntensityLabel.textContent = 'Max Intensity: ';
+        maxIntensityContainer.appendChild(maxIntensityLabel);
+
+        const maxIntensityValue = document.createElement('span');
+        maxIntensityValue.id = 'max-intensity-value';
+        maxIntensityValue.textContent = getCurrentRawMaxIntensity();
+        maxIntensityContainer.appendChild(maxIntensityValue);
+
+        const clampedNotif = document.createElement('span');
+        clampedNotif.id = 'max-intensity-clamp-notification';
+        clampedNotif.textContent = '';
+        maxIntensityContainer.appendChild(clampedNotif);
+
+        // Add the container to the funscript box
+        funscriptBox.appendChild(maxIntensityContainer);
         funscriptBox.appendChild(positionBar);
         funscriptBox.appendChild(intensityBar);
         document.body.appendChild(funscriptBox);
+
+        updateFunscriptDisplayBox(0, 0);
     }
 }
 
@@ -77,4 +103,10 @@ export function updateFunscriptDisplayBox(currentAction, intensity) {
         intensityBar.style.width = `${intensity}%`;
         intensityText.textContent = `${Math.round(intensity)}`;
     }
+
+    const maxIntensityValue = document.getElementById('max-intensity-value');
+    maxIntensityValue.textContent = getCurrentRawMaxIntensity();
+
+    const clampedNotif = document.getElementById('max-intensity-clamp-notification');
+    clampedNotif.textContent = ' (C: ' + getAbsoluteMaximum() + ')';
 }

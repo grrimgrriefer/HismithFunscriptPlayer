@@ -1,4 +1,4 @@
-import { playVideo } from './video_player.js';
+import { playVideo } from './video_player.js?v=31';
 
 document.addEventListener('DOMContentLoaded', () => {
     const directoryTree = window.directoryTree;

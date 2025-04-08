@@ -1,9 +1,12 @@
+html,
 body {
     font-family: Arial, sans-serif;
     background-color: rgb(37, 37, 37);
     color: rgb(220, 220, 220);
     margin: 0;
     padding: 0;
+    width: 100%;
+    height: 100%;
     overflow: hidden;
 }
 
@@ -62,7 +65,6 @@ h1 {
 }
 
 #video-container {
-    position: absolute;
     top: 0;
     left: 0;
     width: 100%;
@@ -74,9 +76,39 @@ h1 {
     background-color: black;
 }
 
+#video-wrapper {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#video-player {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
 #video-player video {
     max-width: 100%;
     max-height: 100%;
+    object-fit: contain;
+}
+
+/* Fullscreen styles */
+#video-player:fullscreen,
+#video-player:-webkit-full-screen {
+    width: 100vw;
+    height: 100vh;
+}
+
+#video-player:fullscreen video,
+#video-player:-webkit-full-screen video {
+    width: 100%;
+    height: 100%;
     object-fit: contain;
 }
 

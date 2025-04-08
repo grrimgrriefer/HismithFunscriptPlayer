@@ -29,8 +29,9 @@ pub async fn handle_index() -> HttpResponse {
         <!DOCTYPE html>
         <html>
             <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
                 <title>Video Player</title>
-                <link rel="stylesheet" href="/site/static/styles.css">
+                <link rel="stylesheet" href="/site/static/styles.css?v={version}">
                 <script>
                     window.directoryTree = {tree};
                 </script>
@@ -43,7 +44,9 @@ pub async fn handle_index() -> HttpResponse {
                     <div id="directory-tree"></div>
                 </div>
                 <div id="video-container" class="hidden">
-                    <div id="video-player"></div>
+                    <div id="video-wrapper">
+                        <div id="video-player"></div>
+                    </div>
                 </div>
             </body>
         </html>
@@ -98,10 +101,16 @@ pub async fn handle_video(req: HttpRequest, path: web::Path<String>) -> Result<H
 pub async fn handle_funscript(path: web::Path<String>, req: HttpRequest) -> Result<HttpResponse, Error> {
     let mut filename = path.into_inner();
     info!("Attempting to serve funscript: {}", &filename);
-    if filename.starts_with('/') || filename.starts_with('\\') 
-    {
-        filename = filename[1..].to_string();
+
+    if let Some(name) = PathBuf::from(&filename).file_name() {
+        filename = name.to_string_lossy().to_string();
+    } else {
+        error!("Invalid file path: {}", &filename);
+        return Ok(HttpResponse::BadRequest()
+            .content_type("text/plain; charset=utf-8")
+            .body("Invalid file path."));
     }
+
     let smb_base_path = env::var("FUNSCRIPT_SHARE_PATH").unwrap();
     let path = PathBuf::from(smb_base_path).join(&filename);
 

@@ -22,7 +22,7 @@ impl DeviceManager {
 
         let value_ref = manager.latest_value.clone();
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_millis(150));
+            let mut interval = tokio::time::interval(Duration::from_millis(250));
             loop {
                 interval.tick().await;
                 if let Some(device_manager) = DEVICE_MANAGER.get() {

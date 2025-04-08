@@ -1,7 +1,12 @@
-import { intensityPattern } from './funscript_conversion_helper.js';
+import { intensityPattern } from './funscript_conversion_helper.js?v=31';
 
 let funscriptActions = [];
 let intensityActions = [];
+
+let currentRawMaxIntensity = 0;
+let intensityMulitplier = 1;
+
+let absoluteMax = 60;
 
 export function loadFunscript(funscriptUrl) {
     fetch(funscriptUrl)
@@ -10,6 +15,7 @@ export function loadFunscript(funscriptUrl) {
             funscriptActions = data.actions || [];
             const actionsCopy = funscriptActions.map(action => ({ ...action }));
             intensityActions = intensityPattern(actionsCopy);
+            currentRawMaxIntensity = Math.max(...intensityActions.map(action => action.pos));
         })
         .catch(error => {
             console.error('Failed to load funscript:', error);
@@ -85,5 +91,21 @@ export function getCurrentIntensity(currentTime) {
     const t = (currentTime - previousAction.at) / (nextAction.at - previousAction.at);
     const interpolatedIntensity = previousAction.pos + t * (nextAction.pos - previousAction.pos);
 
-    return interpolatedIntensity;
+    return Math.min(Math.floor(interpolatedIntensity * intensityMulitplier), absoluteMax);
+}
+
+export function getCurrentRawMaxIntensity() {
+    return Math.floor(currentRawMaxIntensity * intensityMulitplier);
+}
+
+export function setIntensityMultiplier(multiplier) {
+    intensityMulitplier = multiplier;
+}
+
+export function setAbsoluteMaximum(max) {
+    absoluteMax = max;
+}
+
+export function getAbsoluteMaximum() {
+    return absoluteMax;
 }

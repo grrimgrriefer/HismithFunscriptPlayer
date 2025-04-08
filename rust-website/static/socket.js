@@ -1,6 +1,14 @@
+import { getAbsoluteMaximum } from './funscript_handler.js?v=31';
+
 let ws = null;
 
 export function initWebSocket() {
+    // Check if websocket already exists and is connected/connecting
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+        console.error('WebSocket connection already exists');
+        return Promise.reject(new Error('WebSocket connection already exists'));
+    }
+
     try {
         console.log('Attempting WebSocket connection...');
         ws = new WebSocket(`ws://192.168.178.8:5441/ws`);
@@ -17,7 +25,6 @@ export function initWebSocket() {
         ws.onclose = (event) => {
             console.log('WebSocket closed with code:', event.code);
             console.log('WebSocket close reason:', event.reason);
-            // Try to reconnect after 1 second
             setTimeout(initWebSocket, 1000);
         };
 
@@ -31,6 +38,6 @@ export function initWebSocket() {
 
 export function sendOscillateValue(value) {
     if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(value.toString());
+        ws.send(Math.min(value, (getAbsoluteMaximum() / 100)).toString());
     }
 }

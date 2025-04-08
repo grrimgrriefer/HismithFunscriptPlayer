@@ -1,3 +1,5 @@
+import { setAbsoluteMaximum, getAbsoluteMaximum, setIntensityMultiplier } from './funscript_handler.js?v=31';
+
 export function createSettingsMenu(reloadFunscript) {
     let settingsMenu = document.getElementById('settings-menu');
     if (!settingsMenu) {
@@ -30,8 +32,7 @@ export function createSettingsMenu(reloadFunscript) {
             const videoElement = document.querySelector('video');
             videoElement.loop = !videoElement.loop;
             loopToggle.textContent = `Loop: ${videoElement.loop ? 'On' : 'Off'}`;
-            window.isLoopEnabled = videoElement.loop; // Update global loop state
-            reloadFunscript(); // Regenerate the funscript values when toggling loop
+            reloadFunscript();
         };
         settingsMenu.appendChild(loopToggle);
 
@@ -57,9 +58,8 @@ export function createSettingsMenu(reloadFunscript) {
         intensitySlider.value = '1.0';
         intensitySlider.style.width = '100%';
         intensitySlider.oninput = () => {
-            window.intensityMultiplier = parseFloat(intensitySlider.value); // Update global multiplier
             intensityValueDisplay.textContent = intensitySlider.value; // Update the displayed value
-            reloadFunscript(); // Regenerate the intensity pattern with the new multiplier
+            setIntensityMultiplier(parseFloat(intensitySlider.value));
         };
 
         intensitySliderLabel.appendChild(intensityValueDisplay); // Add the value display next to the label
@@ -90,7 +90,7 @@ export function createSettingsMenu(reloadFunscript) {
         hardLimitInput.type = 'number';
         hardLimitInput.min = '0';
         hardLimitInput.max = '100';
-        hardLimitInput.value = '80';
+        hardLimitInput.value = getAbsoluteMaximum().toString();
         hardLimitInput.style.width = '100%';
         hardLimitInput.disabled = true; // Initially disabled
 
@@ -107,11 +107,10 @@ export function createSettingsMenu(reloadFunscript) {
         hardLimitInput.onchange = () => {
             const value = parseInt(hardLimitInput.value, 10);
             if (value >= 0 && value <= 100) {
-                window.hardLimitMax = value; // Update global hard limit
-                reloadFunscript(); // Regenerate the intensity pattern with the new limit
+                setAbsoluteMaximum(value);
             } else {
                 alert('Please enter a value between 0 and 100.');
-                hardLimitInput.value = window.hardLimitMax || 80; // Reset to the current value
+                setAbsoluteMaximum(80); // Reset to the current value
             }
         };
 

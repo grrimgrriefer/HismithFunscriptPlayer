@@ -153,3 +153,17 @@ button#toggle-directory:hover {
     font-size: 16px;
     z-index: 3;
 }
+
+#directory-tree li:nth-child(odd) {
+    background-color: rgba(80, 80, 80, 0.9);
+}
+
+#directory-tree li:nth-child(even) {
+    background-color: rgba(50, 50, 50, 0.9);
+}
+
+/* Optional: Add some padding for better readability */
+#directory-tree li {
+    padding: 5px;
+    border-radius: 3px;
+}

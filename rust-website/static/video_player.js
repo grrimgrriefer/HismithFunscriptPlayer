@@ -1,13 +1,13 @@
-import { loadFunscript, getCurrentFunscriptAction, getCurrentIntensity } from './funscript_handler.js?v=1';
-import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=1';
-import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=1';
-import { initWebSocket, sendOscillateValue } from './socket.js?v=1';
+import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentRawMaxIntensity, setIntensityMultiplier } from './funscript_handler.js?v=20';
+import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=20';
+import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=20';
+import { initWebSocket, sendOscillateValue } from './socket.js?v=20';
 
 let currentAnimationFrame = null;
 let isWebSocketInitialized = false;
 let cancelAnimationTimeout = null;
 
-export function playVideo(videoUrl, funscriptUrl) {
+export async function playVideo(videoUrl, funscriptUrl) {
     if (currentAnimationFrame) {
         cancelAnimationFrame(currentAnimationFrame);
         currentAnimationFrame = null;
@@ -24,13 +24,11 @@ export function playVideo(videoUrl, funscriptUrl) {
     videoPlayer.innerHTML = ''; // Clear any existing video
     videoPlayer.appendChild(videoElement);
 
-    // Function to reload the funscript and regenerate values
-    const reloadFunscript = () => {
-        loadFunscript(funscriptUrl);
-    };
+    await loadFunscript(funscriptUrl);
 
-    // Load the funscript initially
-    reloadFunscript();
+    if ((getAbsoluteMaximum() * 1.2) < getCurrentRawMaxIntensity()) {
+        setIntensityMultiplier(1.2 * getAbsoluteMaximum() / getCurrentRawMaxIntensity());
+    }
 
     // Create or update the funscript display box
     createFunscriptDisplayBox();
@@ -42,9 +40,8 @@ export function playVideo(videoUrl, funscriptUrl) {
     // Update the funscript display as the video plays
     function updateProgressBars() {
         const currentTime = videoElement.currentTime * 1000;
-        const currentAction = getCurrentFunscriptAction(currentTime);
         const intensity = getCurrentIntensity(currentTime);
-        updateFunscriptDisplayBox(currentAction, intensity);
+        updateFunscriptDisplayBox(currentTime);
 
         const elapsed = Date.now() - transitionStartTime;
         const progress = Math.abs(transitionTargetValue - Math.min(elapsed / TRANSITION_DURATION, 1));
@@ -57,7 +54,7 @@ export function playVideo(videoUrl, funscriptUrl) {
     }
 
     // Create or update the settings menu
-    createSettingsMenu(reloadFunscript);
+    createSettingsMenu();
 
     const throttledSendOscillateValue = throttle(sendOscillateValue, 150);
     if (!isWebSocketInitialized) {
@@ -113,7 +110,8 @@ export function playVideo(videoUrl, funscriptUrl) {
     };
 
     videoElement.onloadeddata = () => {
-        updateFunscriptDisplayBox(0, 0);
+        updateFunscriptDisplayBox(0);
+        updateProgressBars();
     };
 
     // Hide the directory tree and show the video player

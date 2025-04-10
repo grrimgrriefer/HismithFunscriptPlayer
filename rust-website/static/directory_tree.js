@@ -1,4 +1,4 @@
-import { playVideo } from './video_player.js?v=1';
+import { playVideo } from './video_player.js?v=20';
 
 document.addEventListener('DOMContentLoaded', () => {
     const directoryTree = window.directoryTree;
@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ul.className = 'hidden';
             node.children.forEach(child => renderTree(child, ul));
             li.appendChild(ul);
-        } else {
+        } else if (node.name.endsWith('.mp4') || node.name.endsWith('.avi') || node.name.endsWith('.mkv')) {
             const file = document.createElement('a');
             file.textContent = node.name;
             file.href = '#';
@@ -45,6 +45,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 playVideo(`/site/video/${node.path}`, `/site/funscripts/${node.path.replace('.mp4', '.funscript')}`);
             };
             li.appendChild(file);
+        } else {
+            return;
         }
         parent.appendChild(li);
     }

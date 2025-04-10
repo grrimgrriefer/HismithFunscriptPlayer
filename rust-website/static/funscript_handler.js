@@ -1,13 +1,13 @@
-let funscriptActions = [];
-let intensityActions = [];
+export let funscriptActions = [];
+export let intensityActions = [];
 
 let currentRawMaxIntensity = 0;
-let intensityMulitplier = 1;
 
-let absoluteMax = 100;
+let intensityMulitplier = 1; // Default multiplier
+let absoluteMax = 50; // Default maximum intensity
 
-export function loadFunscript(funscriptUrl) {
-    fetch(funscriptUrl)
+export async function loadFunscript(funscriptUrl) {
+    await fetch(funscriptUrl)
         .then(response => response.json())
         .then(data => {
             funscriptActions = data.original.actions || [];
@@ -21,42 +21,11 @@ export function loadFunscript(funscriptUrl) {
         });
 }
 
-export function getCurrentFunscriptAction(currentTime) {
-    if (funscriptActions.length === 0) {
-        return null;
-    }
-
-    // Find the two closest actions
-    let previousAction = null;
-    let nextAction = null;
-
-    for (let i = 0; i < funscriptActions.length; i++) {
-        if (funscriptActions[i].at <= currentTime) {
-            previousAction = funscriptActions[i];
-        } else {
-            nextAction = funscriptActions[i];
-            break;
-        }
-    }
-
-    // If there's no next action, return the last action's position
-    if (!nextAction) {
-        return { pos: previousAction.pos };
-    }
-
-    // If there's no previous action, return the first action's position
-    if (!previousAction) {
-        return { pos: nextAction.pos };
-    }
-
-    // Perform linear interpolation between the two actions
-    const t = (currentTime - previousAction.at) / (nextAction.at - previousAction.at);
-    const interpolatedPos = previousAction.pos + t * (nextAction.pos - previousAction.pos);
-
-    return { pos: interpolatedPos };
+export function getCurrentIntensity(currentTime) {
+    return Math.min(getCurrentIntensityUnclamped(currentTime), absoluteMax);
 }
 
-export function getCurrentIntensity(currentTime) {
+export function getCurrentIntensityUnclamped(currentTime) {
     if (intensityActions.length === 0) {
         return 0;
     }
@@ -88,7 +57,7 @@ export function getCurrentIntensity(currentTime) {
     const t = (currentTime - previousAction.at) / (nextAction.at - previousAction.at);
     const interpolatedIntensity = previousAction.pos + t * (nextAction.pos - previousAction.pos);
 
-    return Math.min(Math.floor(interpolatedIntensity * intensityMulitplier), absoluteMax);
+    return Math.floor(interpolatedIntensity * intensityMulitplier);
 }
 
 export function getCurrentRawMaxIntensity() {
@@ -97,6 +66,14 @@ export function getCurrentRawMaxIntensity() {
 
 export function setIntensityMultiplier(multiplier) {
     intensityMulitplier = multiplier;
+
+    // Emit a custom event to notify about the update
+    const event = new CustomEvent('intensityMultiplierUpdated', { detail: { multiplier } });
+    window.dispatchEvent(event);
+}
+
+export function getIntensityMultiplier() {
+    return intensityMulitplier;
 }
 
 export function setAbsoluteMaximum(max) {

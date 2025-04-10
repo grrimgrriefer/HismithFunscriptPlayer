@@ -1,6 +1,6 @@
-import { setAbsoluteMaximum, getAbsoluteMaximum, setIntensityMultiplier } from './funscript_handler.js?v=1';
+import { setAbsoluteMaximum, getAbsoluteMaximum, setIntensityMultiplier } from './funscript_handler.js?v=20';
 
-export function createSettingsMenu(reloadFunscript) {
+export function createSettingsMenu() {
     let settingsMenu = document.getElementById('settings-menu');
     if (!settingsMenu) {
         settingsMenu = document.createElement('div');
@@ -32,7 +32,6 @@ export function createSettingsMenu(reloadFunscript) {
             const videoElement = document.querySelector('video');
             videoElement.loop = !videoElement.loop;
             loopToggle.textContent = `Loop: ${videoElement.loop ? 'On' : 'Off'}`;
-            reloadFunscript();
         };
         settingsMenu.appendChild(loopToggle);
 
@@ -61,6 +60,13 @@ export function createSettingsMenu(reloadFunscript) {
             intensityValueDisplay.textContent = intensitySlider.value; // Update the displayed value
             setIntensityMultiplier(parseFloat(intensitySlider.value));
         };
+
+        // Listen for the custom event and update the slider value
+        window.addEventListener('intensityMultiplierUpdated', (event) => {
+            const newMultiplier = event.detail.multiplier;
+            intensitySlider.value = newMultiplier.toString();
+            intensityValueDisplay.textContent = intensitySlider.value;
+        });
 
         intensitySliderLabel.appendChild(intensityValueDisplay); // Add the value display next to the label
         settingsMenu.appendChild(intensitySliderLabel);

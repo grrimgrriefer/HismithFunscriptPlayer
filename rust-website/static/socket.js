@@ -1,4 +1,4 @@
-import { getAbsoluteMaximum } from './funscript_handler.js?v=1';
+import { getAbsoluteMaximum } from './funscript_handler.js?v=20';
 
 let ws = null;
 
@@ -38,6 +38,6 @@ export function initWebSocket() {
 
 export function sendOscillateValue(value) {
     if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(Math.min(value, (getAbsoluteMaximum() / 100)).toString());
+        ws.send(Math.max(0, Math.min(value, (getAbsoluteMaximum() / 100))).toString());
     }
 }

@@ -1,4 +1,4 @@
-import { intensityPattern } from './funscript_conversion_helper.js?v=31';
+import { calculateThrustIntensityByScaledSpeed } from './funscript_conversion_helper.js?v=46';
 
 let funscriptActions = [];
 let intensityActions = [];
@@ -6,7 +6,7 @@ let intensityActions = [];
 let currentRawMaxIntensity = 0;
 let intensityMulitplier = 1;
 
-let absoluteMax = 60;
+let absoluteMax = 100;
 
 export function loadFunscript(funscriptUrl) {
     fetch(funscriptUrl)
@@ -14,7 +14,7 @@ export function loadFunscript(funscriptUrl) {
         .then(data => {
             funscriptActions = data.actions || [];
             const actionsCopy = funscriptActions.map(action => ({ ...action }));
-            intensityActions = intensityPattern(actionsCopy);
+            intensityActions = calculateThrustIntensityByScaledSpeed(actionsCopy);
             currentRawMaxIntensity = Math.max(...intensityActions.map(action => action.pos));
         })
         .catch(error => {

@@ -1,12 +1,12 @@
 use actix_web::{web};
 use actix_files::Files;
 use crate::handlers;
-use crate::websocket;
+use crate::intiface_socket;
 
 pub fn setup_routes(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::resource("/ws")
-            .route(web::get().to(websocket::handle_ws_start))
+            .route(web::get().to(intiface_socket::handle_ws_start))
     ).service(
         web::scope("/site")
             .route("/", web::get().to(handlers::handle_index))

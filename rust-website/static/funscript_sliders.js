@@ -1,4 +1,4 @@
-import { getCurrentRawMaxIntensity, getAbsoluteMaximum } from './funscript_handler.js?v=31';
+import { getCurrentRawMaxIntensity, getAbsoluteMaximum } from './funscript_handler.js?v=46';
 
 export function createFunscriptDisplayBox() {
     let funscriptBox = document.getElementById('funscript-box');

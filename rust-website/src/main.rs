@@ -6,6 +6,7 @@ use rust_website::buttplug;
 use env_logger::Env;
 use dotenv::dotenv;
 use tokio::task;
+use crate::buttplug::device_manager;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -14,7 +15,7 @@ async fn main() -> std::io::Result<()> {
 
     // Spawn the `initialize_device` function in the background
     task::spawn(async {
-        if let Err(e) = buttplug::initialize_device().await {
+        if let Err(e) = device_manager::initialize_device().await {
             eprintln!("Error running initialize_device: {}", e);
         }
     });

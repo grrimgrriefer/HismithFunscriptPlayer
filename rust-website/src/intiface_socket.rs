@@ -2,7 +2,7 @@ use actix::{Actor, StreamHandler};
 use actix_web_actors::ws;
 use actix_web::{web, HttpRequest, HttpResponse, Error};
 use actix::ActorContext;
-use crate::buttplug;
+use crate::buttplug::device_manager;
 
 pub struct OscillateSocket;
 
@@ -19,7 +19,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for OscillateSocket {
                     let clamped = value.max(0.0).min(1.0);
                     
                     // Spawn oscillate command in background
-                    let fut = buttplug::oscillate(clamped);
+                    let fut = device_manager::oscillate(clamped);
                     actix::spawn(async move {
                         if let Err(e) = fut.await {
                             println!("Error oscillating: {}", e);

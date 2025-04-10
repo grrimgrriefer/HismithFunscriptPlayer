@@ -1,10 +1,11 @@
-import { loadFunscript, getCurrentFunscriptAction, getCurrentIntensity } from './funscript_handler.js?v=31';
-import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=31';
-import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=31';
-import { initWebSocket, sendOscillateValue } from './socket.js?v=31';
+import { loadFunscript, getCurrentFunscriptAction, getCurrentIntensity } from './funscript_handler.js?v=46';
+import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=46';
+import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=46';
+import { initWebSocket, sendOscillateValue } from './socket.js?v=46';
 
 let currentAnimationFrame = null;
 let isWebSocketInitialized = false;
+let cancelAnimationTimeout = null;
 
 export function playVideo(videoUrl, funscriptUrl) {
     if (currentAnimationFrame) {
@@ -105,7 +106,7 @@ export function playVideo(videoUrl, funscriptUrl) {
                 cancelAnimationFrame(currentAnimationFrame);
                 currentAnimationFrame = null;
             }
-        }, 1000);
+        }, 1100);
         transitionStartTime = Date.now();
         transitionTargetValue = 1;
         document.exitFullscreen();

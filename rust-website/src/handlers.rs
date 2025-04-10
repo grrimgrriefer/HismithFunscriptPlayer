@@ -5,7 +5,7 @@ use actix_web::{
 use actix_files::NamedFile;
 use std::{env, path::PathBuf};
 use log::{info, error};
-use crate::models::build_directory_tree;
+use crate::directory_browser;
 
 pub async fn handle_index() -> HttpResponse {
     info!("Loading index page");
@@ -13,7 +13,7 @@ pub async fn handle_index() -> HttpResponse {
     let smb_base_path = env::var("VIDEO_SHARE_PATH").unwrap();
     let base_path = PathBuf::from(smb_base_path);
 
-    let directory_tree = match build_directory_tree(&base_path, "") {
+    let directory_tree = match directory_browser::build_directory_tree(&base_path, "") {
         Ok(tree) => tree,
         Err(e) => {
             error!("Failed to read video directory: {}", e);

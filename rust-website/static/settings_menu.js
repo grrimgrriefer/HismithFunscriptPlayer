@@ -1,4 +1,4 @@
-import { setAbsoluteMaximum, getAbsoluteMaximum, setIntensityMultiplier } from './funscript_handler.js?v=31';
+import { setAbsoluteMaximum, getAbsoluteMaximum, setIntensityMultiplier } from './funscript_handler.js?v=46';
 
 export function createSettingsMenu(reloadFunscript) {
     let settingsMenu = document.getElementById('settings-menu');
@@ -98,9 +98,11 @@ export function createSettingsMenu(reloadFunscript) {
             if (hardLimitInput.disabled) {
                 hardLimitInput.disabled = false;
                 hardLimitLockButton.textContent = 'Lock';
+                hardLimitInputLabel.style.pointerEvents = 'auto';
             } else {
                 hardLimitInput.disabled = true;
                 hardLimitLockButton.textContent = 'Unlock';
+                hardLimitInputLabel.style.pointerEvents = 'none';
             }
         };
 

@@ -1,4 +1,4 @@
-import { getAbsoluteMaximum } from './funscript_handler.js?v=46';
+import { getAbsoluteMaximum } from './funscript_handler.js?v=1';
 
 let ws = null;
 

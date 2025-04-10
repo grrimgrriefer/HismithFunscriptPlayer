@@ -1,7 +1,7 @@
-import { loadFunscript, getCurrentFunscriptAction, getCurrentIntensity } from './funscript_handler.js?v=46';
-import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=46';
-import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=46';
-import { initWebSocket, sendOscillateValue } from './socket.js?v=46';
+import { loadFunscript, getCurrentFunscriptAction, getCurrentIntensity } from './funscript_handler.js?v=1';
+import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=1';
+import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=1';
+import { initWebSocket, sendOscillateValue } from './socket.js?v=1';
 
 let currentAnimationFrame = null;
 let isWebSocketInitialized = false;

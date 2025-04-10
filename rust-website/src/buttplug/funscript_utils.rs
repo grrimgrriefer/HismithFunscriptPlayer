@@ -188,10 +188,6 @@ pub fn calculate_thrust_intensity_by_scaled_speed(
              if !raw_intensity.is_finite() {
                  raw_intensity = 0.0;
              }
-
-        } else {
-            // Handle zero duration window (should only happen if t=0 and window_radius=0 or at max_time)
-             raw_intensity = 0.0;
         }
 
         // Round time to the nearest sample rate interval

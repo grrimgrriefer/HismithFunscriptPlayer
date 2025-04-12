@@ -4,9 +4,11 @@ export let intensityActions = [];
 let currentRawMaxIntensity = 0;
 
 let intensityMulitplier = 1; // Default multiplier
-let absoluteMax = 50; // Default maximum intensity
+let absoluteMax = 60; // Default maximum intensity
 
 export async function loadFunscript(funscriptUrl) {
+    funscriptActions = [];
+    intensityActions = [];
     await fetch(funscriptUrl)
         .then(response => response.json())
         .then(data => {

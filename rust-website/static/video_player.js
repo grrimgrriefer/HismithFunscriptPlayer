@@ -1,10 +1,10 @@
-import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentRawMaxIntensity, setIntensityMultiplier } from './funscript_handler.js?v=20';
-import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=20';
-import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=20';
-import { initWebSocket, sendOscillateValue } from './socket.js?v=20';
+import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentRawMaxIntensity, setIntensityMultiplier } from './funscript_handler.js?v=25';
+import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=25';
+import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=25';
+import { initWebSocket, sendOscillateValue } from './socket.js?v=25';
 
 let currentAnimationFrame = null;
-let isWebSocketInitialized = false;
+let isInitialized = false;
 let cancelAnimationTimeout = null;
 
 export async function playVideo(videoUrl, funscriptUrl) {
@@ -24,11 +24,27 @@ export async function playVideo(videoUrl, funscriptUrl) {
     videoPlayer.innerHTML = ''; // Clear any existing video
     videoPlayer.appendChild(videoElement);
 
-    await loadFunscript(funscriptUrl);
-
-    if ((getAbsoluteMaximum() * 1.2) < getCurrentRawMaxIntensity()) {
-        setIntensityMultiplier(1.2 * getAbsoluteMaximum() / getCurrentRawMaxIntensity());
+    // Add a spinner element
+    let spinner = document.getElementById('loading-spinner');
+    if (!spinner) {
+        spinner = document.createElement('div');
+        spinner.id = 'loading-spinner';
+        spinner.style.position = 'absolute';
+        spinner.style.top = '50%';
+        spinner.style.left = '50%';
+        spinner.style.transform = 'translate(-50%, -50%)';
+        spinner.style.border = '8px solid #f3f3f3';
+        spinner.style.borderTop = '8px solid #3498db';
+        spinner.style.borderRadius = '50%';
+        spinner.style.width = '50px';
+        spinner.style.height = '50px';
+        spinner.style.animation = 'spin 1s linear infinite';
+        spinner.style.zIndex = '20';
+        videoPlayer.appendChild(spinner);
     }
+    spinner.style.display = 'block'; // Show spinner
+
+    await loadFunscript(funscriptUrl);
 
     // Create or update the funscript display box
     createFunscriptDisplayBox();
@@ -56,10 +72,14 @@ export async function playVideo(videoUrl, funscriptUrl) {
     // Create or update the settings menu
     createSettingsMenu();
 
+    if ((getAbsoluteMaximum() * 1.2) < getCurrentRawMaxIntensity()) {
+        setIntensityMultiplier(1.2 * getAbsoluteMaximum() / getCurrentRawMaxIntensity());
+    }
+
     const throttledSendOscillateValue = throttle(sendOscillateValue, 150);
-    if (!isWebSocketInitialized) {
+    if (!isInitialized) {
         initWebSocket();
-        isWebSocketInitialized = true;
+        isInitialized = true;
     }
 
     // Add a button to toggle the settings menu
@@ -94,7 +114,13 @@ export async function playVideo(videoUrl, funscriptUrl) {
         transitionStartTime = Date.now();
         transitionTargetValue = 0;
         currentAnimationFrame = requestAnimationFrame(updateProgressBars);
-        document.documentElement.requestFullscreen();
+
+        try {
+            document.documentElement.requestFullscreen();
+        }
+        catch (e) {
+            console.error('Error requesting fullscreen:', e);
+        }
     };
 
     videoElement.onpause = () => {
@@ -106,7 +132,12 @@ export async function playVideo(videoUrl, funscriptUrl) {
         }, 1100);
         transitionStartTime = Date.now();
         transitionTargetValue = 1;
-        document.exitFullscreen();
+        try {
+            document.exitFullscreen();
+        }
+        catch (e) {
+            console.error('Error exiting fullscreen:', e);
+        }
     };
 
     videoElement.onloadeddata = () => {
@@ -117,6 +148,8 @@ export async function playVideo(videoUrl, funscriptUrl) {
     // Hide the directory tree and show the video player
     document.getElementById('directory-container').classList.add('hidden');
     document.getElementById('video-container').classList.remove('hidden');
+
+    spinner.style.display = 'none';
 }
 
 function throttle(func, limit) {

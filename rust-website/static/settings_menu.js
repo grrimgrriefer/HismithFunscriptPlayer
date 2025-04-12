@@ -1,4 +1,4 @@
-import { setAbsoluteMaximum, getAbsoluteMaximum, setIntensityMultiplier } from './funscript_handler.js?v=25';
+import { setAbsoluteMaximum, getAbsoluteMaximum, setIntensityMultiplier } from './funscript_handler.js?v=29';
 
 export function createSettingsMenu() {
     let settingsMenu = document.getElementById('settings-menu');

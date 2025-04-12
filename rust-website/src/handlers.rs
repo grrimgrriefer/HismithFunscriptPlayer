@@ -108,23 +108,15 @@ pub async fn handle_video(req: HttpRequest, path: web::Path<String>) -> Result<H
     Ok(response)
 }
 
-fn get_original_funscript_path(
-    requested_path_str: &str,
-    base_path_str: &str,
-) -> Result<(PathBuf, String), String> { // Removed intensity_filepath from return
-    let base_path = PathBuf::from(base_path_str);
-
-    // Get just the filename part safely
-    let filename_only = Path::new(requested_path_str)
-        .file_name()
-        .ok_or_else(|| format!("Invalid requested path: {}", requested_path_str))?
-        .to_string_lossy()
-        .to_string();
-
-    let original_filepath = base_path.join(&filename_only);
-
-    Ok((original_filepath, filename_only)) // Return only original path and filename
+fn get_funscript_path_for_video(
+    requested_video_path: &str,
+    video_base_path: &str,
+) -> Result<PathBuf, String> {
+    let video_path = PathBuf::from(video_base_path).join(requested_video_path);
+    let funscript_path = video_path.with_extension("funscript");
+    Ok(funscript_path)
 }
+
 
 async fn read_and_deserialize_funscript(filepath: &Path) -> Result<FunscriptData, String> {
     let content = fs::read_to_string(filepath)
@@ -172,14 +164,13 @@ fn generate_intensity_funscript(
 
 // --- Updated handle_funscript function ---
 pub async fn handle_funscript(path: web::Path<String>) -> HttpResponse {
-    let original_filename_req = path.into_inner();
-    info!("Handling funscript request for: {}", &original_filename_req);
+    let requested_video_path = path.into_inner();
+    info!("Handling funscript request for video: {}", &requested_video_path);
 
-    let funscript_base_path_str = match env::var("FUNSCRIPT_SHARE_PATH") {
+    let video_base_path = match env::var("VIDEO_SHARE_PATH") {
         Ok(p) => p,
         Err(e) => {
-            error!("FUNSCRIPT_SHARE_PATH environment variable not set: {}", e);
-            // Still return JSON structure for consistency
+            error!("VIDEO_SHARE_PATH environment variable not set: {}", e);
             return HttpResponse::InternalServerError().json(FunscriptResponse {
                 original: None,
                 intensity: None,
@@ -187,74 +178,66 @@ pub async fn handle_funscript(path: web::Path<String>) -> HttpResponse {
         }
     };
 
-    // 1. Determine Original Path
-    let (original_filepath, filename_only) =
-        match get_original_funscript_path(&original_filename_req, &funscript_base_path_str) {
-            Ok(paths) => paths,
-            Err(e) => {
-                error!("Path determination error: {}", e);
-                return HttpResponse::BadRequest().json(FunscriptResponse {
-                    original: None,
-                    intensity: None,
-                });
-            }
-        };
+    // 1. Determine .funscript path next to video
+    let funscript_filepath = match get_funscript_path_for_video(&requested_video_path, &video_base_path) {
+        Ok(p) => p,
+        Err(e) => {
+            error!("Path determination error: {}", e);
+            return HttpResponse::BadRequest().json(FunscriptResponse {
+                original: None,
+                intensity: None,
+            });
+        }
+    };
+
+    let filename_only = funscript_filepath.file_name()
+        .map(|f| f.to_string_lossy().to_string())
+        .unwrap_or_else(|| requested_video_path.clone());
 
     // 2. Attempt to load original funscript
-    let original_result = read_and_deserialize_funscript(&original_filepath).await;
+    let original_result = read_and_deserialize_funscript(&funscript_filepath).await;
 
-    // --- Store potential intensity error message BEFORE moving result ---
     let mut intensity_error_message: Option<String> = None;
-    // ---
 
     // 3. Always attempt to generate intensity data *if* original loaded
     let intensity_result = match &original_result {
          Ok(orig_data) => {
               info!("Original loaded, generating intensity for: {}", &filename_only);
-              // Call the generation function (no longer async, no longer saves)
               match generate_intensity_funscript(orig_data) {
                    Ok(generated_data) => {
                         info!("Successfully generated intensity for: {}", &filename_only);
                         Ok(generated_data)
                    },
                    Err(e) => {
-                        error!("Failed to generate intensity for {}: {}", &filename_only, e.clone()); // Clone error for storage
-                        intensity_error_message = Some(e); // Store error message
-                        Err("Intensity generation failed.".to_string()) // Return a generic error or the specific one
+                        error!("Failed to generate intensity for {}: {}", &filename_only, e.clone());
+                        intensity_error_message = Some(e);
+                        Err("Intensity generation failed.".to_string())
                    }
               }
          }
          Err(e) => {
-              // Original failed to load, cannot generate
               let err_msg = format!("Original funscript failed to load: {}", e);
               info!("Original script {} failed to load, cannot generate intensity: {}", &filename_only, e);
-              intensity_error_message = Some(err_msg.clone()); // Store error message
+              intensity_error_message = Some(err_msg.clone());
               Err(err_msg)
          }
     };
 
-    // 4. Construct the final response payload
-    //    We use .ok() to convert Result<FunscriptData, String> into Option<FunscriptData>
-    //    This MOVES original_result and intensity_result
     let response_payload = FunscriptResponse {
         original: original_result.ok(),
-        intensity: intensity_result.ok(), // This is okay now, error message was stored if needed
+        intensity: intensity_result.ok(),
     };
 
-    // 5. Determine status code: OK only if original was loaded successfully
     let status_code = if response_payload.original.is_some() {
         actix_web::http::StatusCode::OK
     } else {
-        // If original load failed, treat as NotFound
         actix_web::http::StatusCode::NOT_FOUND
     };
 
-     if status_code == actix_web::http::StatusCode::NOT_FOUND {
-        info!("Responding with 404 Not Found for: {}", original_filename_req);
+    if status_code == actix_web::http::StatusCode::NOT_FOUND {
+        info!("Responding with 404 Not Found for: {}", requested_video_path);
     } else {
-         info!("Responding with 200 OK for: {}", original_filename_req);
-         // Log if intensity generation failed for an existing original
-         // Use the stored error message
+         info!("Responding with 200 OK for: {}", requested_video_path);
          if response_payload.intensity.is_none() {
               if let Some(e) = intensity_error_message {
                  warn!("Intensity data is missing for {}: {}", &filename_only, e);
@@ -262,7 +245,6 @@ pub async fn handle_funscript(path: web::Path<String>) -> HttpResponse {
          }
     }
 
-    // 6. Return JSON response
     HttpResponse::build(status_code)
         .content_type("application/json")
         .json(response_payload)

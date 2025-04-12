@@ -1,7 +1,7 @@
-import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentRawMaxIntensity, setIntensityMultiplier } from './funscript_handler.js?v=25';
-import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=25';
-import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=25';
-import { initWebSocket, sendOscillateValue } from './socket.js?v=25';
+import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentRawMaxIntensity, setIntensityMultiplier } from './funscript_handler.js?v=29';
+import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=29';
+import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=29';
+import { initWebSocket, sendOscillateValue } from './socket.js?v=29';
 
 let currentAnimationFrame = null;
 let isInitialized = false;
@@ -72,6 +72,7 @@ export async function playVideo(videoUrl, funscriptUrl) {
     // Create or update the settings menu
     createSettingsMenu();
 
+    setIntensityMultiplier(1.0);
     if ((getAbsoluteMaximum() * 1.2) < getCurrentRawMaxIntensity()) {
         setIntensityMultiplier(1.2 * getAbsoluteMaximum() / getCurrentRawMaxIntensity());
     }

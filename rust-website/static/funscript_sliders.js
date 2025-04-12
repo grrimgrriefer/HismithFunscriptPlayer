@@ -1,4 +1,4 @@
-import { getAbsoluteMaximum, funscriptActions, intensityActions, getCurrentIntensity, getCurrentRawMaxIntensity, getCurrentIntensityUnclamped, getIntensityMultiplier } from './funscript_handler.js?v=25';
+import { getAbsoluteMaximum, funscriptActions, intensityActions, getCurrentIntensity, getCurrentRawMaxIntensity, getCurrentIntensityUnclamped, getIntensityMultiplier } from './funscript_handler.js?v=29';
 
 export function createFunscriptDisplayBox() {
     let funscriptBox = document.getElementById('funscript-box');
@@ -113,21 +113,25 @@ export function updateFunscriptDisplayBox(currentTime) {
 
     for (let i = 0; i < funscriptActions.length; i++) {
         const current = funscriptActions[i];
+        const prev = funscriptActions[i - 1];
 
-        if (current.pos === 100) {
-            if (current.at >= startTime && current.at <= (currentTime + range)) {
-                const currentX = (current.at - startTime) * scaleX;
-                const currentY = canvas.height - 30;
+        if (
+            current.pos === 0 &&
+            prev && prev.pos === 100 &&
+            current.at >= startTime &&
+            current.at <= (currentTime + range)
+        ) {
+            const currentX = (current.at - startTime) * scaleX;
+            const currentY = canvas.height - 30;
 
-                if (currentX >= (currentTime - startTime) * scaleX) {
-                    const size = canvas.height * 0.08;
-                    ctx.moveTo(currentX + size, currentY);
-                    ctx.ellipse(currentX, currentY, size, size, 0, 0, 360);
+            if (currentX >= (currentTime - startTime) * scaleX) {
+                const size = canvas.height * 0.08;
+                ctx.moveTo(currentX + size, currentY);
+                ctx.ellipse(currentX, currentY, size, size, 0, 0, 360);
 
-                    const progressX = (currentTime - startTime) * scaleX;
-                    if (Math.abs(currentX - progressX) < 5) { // Allow a small margin of error
-                        hit = true; // Trigger the surge effect
-                    }
+                const progressX = (currentTime - startTime) * scaleX;
+                if (Math.abs(currentX - progressX) < 5) { // Allow a small margin of error
+                    hit = true; // Trigger the surge effect
                 }
             }
         }

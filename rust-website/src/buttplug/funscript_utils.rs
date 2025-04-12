@@ -49,6 +49,36 @@ fn interpolate_position(a0: Option<&Action>, a1: Option<&Action>, time: u64) -> 
     }
 }
 
+/// Condenses consecutive identical positions in actions.
+/// If consecutive identical positions are ≤ `max_gap_ms` apart, merge them into one action at the average time.
+fn condense_identical_positions(actions: &mut Vec<Action>, max_gap_ms: u64) {
+    if actions.is_empty() { return; }
+    let mut condensed = Vec::new();
+    let mut group = vec![actions[0].clone()];
+
+    for a in actions.iter().skip(1) {
+        if (a.pos == group.last().unwrap().pos) && (a.at - group.last().unwrap().at <= max_gap_ms) {
+            group.push(a.clone());
+        } else {
+            // Merge group
+            if group.len() > 1 {
+                let avg_at = group.iter().map(|x| x.at as u128).sum::<u128>() / group.len() as u128;
+                condensed.push(Action { at: avg_at as u64, pos: group[0].pos });
+            } else {
+                condensed.push(group[0].clone());
+            }
+            group = vec![a.clone()];
+        }
+    }
+    // Merge last group
+    if group.len() > 1 {
+        let avg_at = group.iter().map(|x| x.at as u128).sum::<u128>() / group.len() as u128;
+        condensed.push(Action { at: avg_at as u64, pos: group[0].pos });
+    } else {
+        condensed.push(group[0].clone());
+    }
+    *actions = condensed;
+}
 
 // --- Main Function: Calculate Thrust Intensity ---
 /// Calculates thrust intensity based on the total absolute position change
@@ -80,6 +110,10 @@ pub fn calculate_thrust_intensity_by_scaled_speed(
 
     // Sort actions by time - modifies the input slice
     actions.sort_by_key(|a| a.at);
+
+    // Convert to Vec for preprocessing
+    let mut actions_vec = actions.to_vec();
+    condense_identical_positions(&mut actions_vec, 200);
 
     let mut output_actions = Vec::new();
     let min_time = actions.first().unwrap().at;

@@ -36,6 +36,14 @@ pub fn build_directory_tree(path: &PathBuf, relative_path: &str) -> Result<FileN
         }
     }
 
+    children.sort_by(|a, b| {
+        match (a.is_dir, b.is_dir) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+        }
+    });
+
     Ok(FileNode {
         name: path.file_name().unwrap_or_default().to_string_lossy().to_string(),
         path: relative_path.to_string(),

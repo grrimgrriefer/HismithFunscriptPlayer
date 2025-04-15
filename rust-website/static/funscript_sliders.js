@@ -1,4 +1,6 @@
-import { getAbsoluteMaximum, funscriptActions, intensityActions, getCurrentIntensity, getCurrentRawMaxIntensity, getCurrentIntensityUnclamped, getIntensityMultiplier } from './funscript_handler.js?v=29';
+// static/funscript_sliders.js
+
+import { getAbsoluteMaximum, funscriptActions, intensityActions, getCurrentIntensity, getCurrentRawMaxIntensity, getCurrentIntensityUnclamped, getIntensityMultiplier } from './funscript_handler.js?v=31';
 
 export function createFunscriptDisplayBox() {
     let funscriptBox = document.getElementById('funscript-box');

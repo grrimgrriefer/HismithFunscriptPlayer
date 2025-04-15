@@ -1,4 +1,6 @@
-import { getAbsoluteMaximum } from './funscript_handler.js?v=29';
+// static/socket.js
+
+import { getAbsoluteMaximum } from './funscript_handler.js?v=31';
 
 let ws = null;
 
@@ -11,7 +13,7 @@ export function initWebSocket() {
 
     try {
         console.log('Attempting WebSocket connection...');
-        ws = new WebSocket(`ws://192.168.178.8:5441/ws`);
+        ws = new WebSocket(`ws://${window.location.hostname}:5441/ws`);
 
         ws.onopen = () => {
             console.log('WebSocket connected successfully');

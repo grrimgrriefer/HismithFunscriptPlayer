@@ -1,3 +1,5 @@
+// static/funscript_handler.js
+
 export let funscriptActions = [];
 export let intensityActions = [];
 

@@ -1,7 +1,9 @@
-import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentRawMaxIntensity, setIntensityMultiplier } from './funscript_handler.js?v=29';
-import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=29';
-import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=29';
-import { initWebSocket, sendOscillateValue } from './socket.js?v=29';
+// static/video_player.js
+
+import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentRawMaxIntensity, setIntensityMultiplier } from './funscript_handler.js?v=31';
+import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=31';
+import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=31';
+import { initWebSocket, sendOscillateValue } from './socket.js?v=31';
 
 let currentAnimationFrame = null;
 let isInitialized = false;

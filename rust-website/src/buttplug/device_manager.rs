@@ -1,83 +1,94 @@
-// src/device_manager.rs
+// src/buttplug/device_manager.rs
 
-//! Device management module
+//! Device connection and control module
 //! 
-//! This module handles communication with hardware devices through the Buttplug protocol.
+//! This module manages communication with hardware devices through the Buttplug protocol.
 //! It provides functionality to:
-//! - Initialize device connections
-//! - Handle device events (connect/disconnect)
-//! - Send real-time control commands
-//! - Manage device state
+//! - Connect to devices via WebSocket
+//! - Monitor device connections/disconnections
+//! - Send real-time oscillation commands
+//! - Maintain device state
 
 use std::{
-    thread, 
-    time::Duration, 
-    sync::{
-        Arc,
-        atomic::Ordering
-    }
+    sync::Arc,
+    time::Duration,
 };
 use atomic_float::AtomicF64;
 use buttplug::{
     client::{
         device::ScalarValueCommand,
-        ButtplugClientEvent,
         ButtplugClient,
+        ButtplugClientDevice,
         ButtplugClientError,
-        ButtplugClientDevice
+        ButtplugClientEvent,
     },
-    core::connector::new_json_ws_client_connector
+    core::{
+        connector::new_json_ws_client_connector,
+        message::ActuatorType,
+    },
 };
 use futures::StreamExt;
 use once_cell::sync::OnceCell;
+use tokio::sync::{Mutex, RwLock};
 
 /// Global singleton instance of the device manager
-static DEVICE_MANAGER: OnceCell<DeviceManager> = OnceCell::new();
+static DEVICE_MANAGER: OnceCell<Arc<DeviceManager>> = OnceCell::new();
 
 /// Manages communication with connected devices
 /// 
-/// Provides an interface for controlling devices and maintains the connection state.
-/// Uses atomic values for thread-safe communication between the web interface
-/// and device control loop.
+/// This structure maintains the state of the device connection and provides
+/// methods to send commands to the device.
 pub struct DeviceManager {
-    /// Buttplug client for device communication
-    client: ButtplugClient,
-    /// Currently connected device (if any)
-    device: Option<Arc<ButtplugClientDevice>>,
-    /// Current intensity value shared between threads
+    /// Client connection to the Buttplug server
+    #[allow(dead_code)]
+    client: Arc<ButtplugClient>,
+    
+    /// Currently connected device, if any
+    device: Arc<Mutex<Option<Arc<ButtplugClientDevice>>>>,
+    
+    /// Latest command value to be sent to the device
     latest_value: Arc<AtomicF64>,
+    
+    /// Whether the manager is currently scanning for devices
+    scanning: Arc<RwLock<bool>>,
 }
 
 impl DeviceManager {
-    /// Creates a new device manager instance
+    /// Creates a new DeviceManager instance
     /// 
-    /// Sets up a background task that continuously updates the device with
-    /// the latest intensity value at 10Hz (100ms intervals).
-    ///
     /// # Arguments
-    /// * `client` - Initialized Buttplug client
-    ///
+    /// * `client` - Connected Buttplug client
+    /// 
     /// # Returns
-    /// * `DeviceManager` - Configured manager instance
-    fn new(client: ButtplugClient) -> Self {
-        let manager = Self {
-            client,
-            device: None,
-            latest_value: Arc::new(AtomicF64::new(0.0)),
-        };
+    /// * `Arc<DeviceManager>` - Thread-safe reference to the manager
+    fn new(client: Arc<ButtplugClient>) -> Arc<Self> {
+        let device = Arc::new(Mutex::new(None));
+        let latest_value = Arc::new(AtomicF64::new(0.0));
+        let scanning = Arc::new(RwLock::new(false));
 
-        // Start the device update loop
-        let value_ref = manager.latest_value.clone();
+        let manager = Arc::new(Self {
+            client: Arc::clone(&client),
+            device: device.clone(),
+            latest_value: latest_value.clone(),
+            scanning: scanning.clone(),
+        });
+
+        // Start control loop for sending commands
+        let manager_clone = Arc::clone(&manager);
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_millis(100));
             loop {
                 interval.tick().await;
-                if let Some(device_manager) = DEVICE_MANAGER.get() {
-                    if let Some(device) = &device_manager.device {
-                        let value = value_ref.load(Ordering::Relaxed);
-                        if let Err(e) = device.oscillate(&ScalarValueCommand::ScalarValue(value)).await {
-                            eprintln!("Error in update loop: {}", e);
-                        }
+                let device_lock = manager_clone.device.lock().await;
+                if let Some(device) = &*device_lock {
+                    let value = manager_clone
+                        .latest_value
+                        .load(std::sync::atomic::Ordering::Relaxed);
+                    if let Err(e) = device
+                        .oscillate(&ScalarValueCommand::ScalarValue(value))
+                        .await
+                    {
+                        eprintln!("Error sending oscillation command: {}", e);
                     }
                 }
             }
@@ -86,88 +97,146 @@ impl DeviceManager {
         manager
     }
 
-    /// Updates the current intensity value
-    ///
+    /// Sets the oscillation value to be sent to the device
+    /// 
     /// # Arguments
-    /// * `value` - New intensity value between 0.0 and 1.0
+    /// * `value` - Oscillation value between 0.0 and 1.0
     pub async fn set_value(&self, value: f64) {
-        self.latest_value.store(value, Ordering::Relaxed);
+        self.latest_value
+            .store(value, std::sync::atomic::Ordering::Relaxed);
     }
 }
 
-/// Initializes the device connection and scanning
-///
-/// Connects to the Buttplug server, scans for available devices, and sets up
-/// the device manager when a compatible device is found.
-///
+/// Initializes the device connection and event handling loops
+/// 
+/// This function:
+/// 1. Connects to the Buttplug server
+/// 2. Creates a device manager
+/// 3. Starts event monitoring for device connections
+/// 4. Begins periodic device scanning
+/// 
 /// # Returns
-/// * `Ok(())` - Device initialization successful (or no devices found)
-/// * `Err(ButtplugClientError)` - Connection or scanning error
-pub async fn initialize_device() -> Result<(), ButtplugClientError> {
-    // Connect to local Buttplug server
+/// * `Ok(())` - Connection established successfully
+/// * `Err(ButtplugClientError)` - Connection failed
+pub async fn initialize_intiface() -> Result<(), ButtplugClientError> {
+    // Connect to Buttplug server
     let connector = new_json_ws_client_connector("ws://127.0.0.1:12345/buttplug");
     let client = ButtplugClient::new("Video player Client");
 
-    // Handle connection errors
     if let Err(err) = client.connect(connector).await {
-        eprintln!("Failed to connect to the Buttplug server: {}", err);
+        eprintln!("Failed to connect to Buttplug server: {}", err);
         return Err(err);
     }
 
-    // Set up device event handling
-    let mut events = client.event_stream();
+    // Initialize device manager
+    let client = Arc::new(client);
+    let manager = DeviceManager::new(client.clone());
+    DEVICE_MANAGER.set(manager.clone()).ok();
+
+    let device_ref = manager.device.clone();
+    let scanning_flag = manager.scanning.clone();
+    let client_for_events = client.clone();
+
+    // Spawn task to handle Buttplug events
     tokio::spawn(async move {
+        let mut events = client_for_events.event_stream();
         while let Some(event) = events.next().await {
             match event {
+                // Handle device connection
                 ButtplugClientEvent::DeviceAdded(device) => {
-                    println!("Device {} connected", device.name());
+                    println!("Device '{}' connected", device.name());
+
+                    // Check if device supports oscillation
+                    let supports_oscillate = device
+                        .message_attributes()
+                        .scalar_cmd()
+                        .as_ref()
+                        .map(|features| {
+                            features.iter().any(|attr| *attr.actuator_type() == ActuatorType::Oscillate)
+                        })
+                        .unwrap_or(false);
+
+                    if supports_oscillate {
+                        println!("Device supports oscillation. Accepting.");
+                        let mut lock = device_ref.lock().await;
+                        *lock = Some(device);
+
+                        // Stop scanning once device is connected
+                        let mut scanning = scanning_flag.write().await;
+                        if *scanning {
+                            if let Err(e) = client_for_events.stop_scanning().await {
+                                eprintln!("Failed to stop scanning: {}", e);
+                            } else {
+                                println!("Stopped scanning after compatible device connected.");
+                                *scanning = false;
+                            }
+                        }
+                    } else {
+                        println!("Device '{}' does not support oscillation. Ignoring.", device.name());
+                    }
                 }
+
+                // Handle device disconnection
                 ButtplugClientEvent::DeviceRemoved(info) => {
-                    println!("Device {} removed", info.name());
+                    println!("Device '{}' removed", info.name());
+                    let mut lock = device_ref.lock().await;
+                    if let Some(current) = &*lock {
+                        if current.name() == info.name() {
+                            *lock = None;
+                            println!("Cleared removed device from manager");
+                        }
+                    }
                 }
+
                 ButtplugClientEvent::ScanningFinished => {
-                    println!("Device scanning finished");
+                    println!("Device scanning finished.");
                 }
+
                 _ => {}
             }
         }
     });
 
-    // Scan for devices
-    client.start_scanning().await?;
-    thread::sleep(Duration::from_secs(3));
-    client.stop_scanning().await?;
-    thread::sleep(Duration::from_secs(3));
+    // Spawn periodic device scanning task
+    let device_ref = manager.device.clone();
+    let client_for_scan = client.clone();
+    let scanning_flag = manager.scanning.clone();
+    tokio::spawn(async move {
+        loop {
+            let has_device = {
+                let lock = device_ref.lock().await;
+                lock.is_some()
+            };
 
-    // Handle device detection results
-    if client.devices().is_empty() {
-        println!("No devices connected");
-        return Ok(());
-    }
+            // Start scanning if no device is connected
+            if !has_device {
+                let mut scanning = scanning_flag.write().await;
+                if !*scanning {
+                    println!("No device connected, starting scan...");
+                    if let Err(e) = client_for_scan.start_scanning().await {
+                        eprintln!("Error starting scan: {}", e);
+                    } else {
+                        *scanning = true;
+                        println!("Scan started.");
+                    }
+                }
+            }
 
-    // Initialize device manager with first found device
-    println!("Available devices:");
-    for device in client.devices() {
-        println!("- {}", device.name());
-    }
-
-    let mut manager = DeviceManager::new(client);
-    manager.device = Some(manager.client.devices()[0].clone());
-    DEVICE_MANAGER.set(manager).ok();
+            tokio::time::sleep(Duration::from_secs(5)).await;
+        }
+    });
 
     Ok(())
 }
 
 /// Sends an oscillation command to the connected device
-///
-/// Updates the device's intensity value through the device manager.
-///
+/// 
 /// # Arguments
-/// * `value` - Intensity value between 0.0 and 1.0
-///
+/// * `value` - Oscillation intensity between 0.0 and 1.0
+/// 
 /// # Returns
 /// * `Ok(())` - Command sent successfully
-/// * `Err(ButtplugClientError)` - Error sending command
+/// * `Err(ButtplugClientError)` - Command failed
 pub async fn oscillate(value: f64) -> Result<(), ButtplugClientError> {
     if let Some(manager) = DEVICE_MANAGER.get() {
         manager.set_value(value).await;

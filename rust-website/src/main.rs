@@ -21,13 +21,13 @@ use tokio::task;
 /// Default server port
 const SERVER_PORT: u16 = 5441;
 
-/// Starts the web server and initializes device management.
+/// Starts the web server and initializes Intiface management.
 /// 
 /// # Error
 /// Returns an error if:
 /// - The server fails to bind to the specified address
 /// - Environment variables are not properly configured
-/// - Device initialization fails
+/// - Intiface initialization fails
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // Load environment variables from .env file
@@ -36,13 +36,13 @@ async fn main() -> std::io::Result<()> {
     // Initialize logging with default level of 'info'
     env_logger::init_from_env(Env::default().default_filter_or("info"));
 
-    // Initialize device management in background task
-    info!("Starting device initialization...");
+    // Initialize intiface management in background task
+    info!("Starting intiface initialization...");
     task::spawn(async {
-        if let Err(e) = device_manager::initialize_device().await {
-            error!("Device initialization error: {}", e);
+        if let Err(e) = device_manager::initialize_intiface().await {
+            error!("Intiface initialization error: {}", e);
         } else {
-            info!("Device initialization completed");
+            info!("Intiface initialization completed");
         }
     });
 

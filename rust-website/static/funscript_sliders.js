@@ -1,6 +1,6 @@
 // static/funscript_sliders.js
 
-import { getAbsoluteMaximum, funscriptActions, intensityActions, getCurrentIntensity, getCurrentRawMaxIntensity, getCurrentIntensityUnclamped, getIntensityMultiplier } from './funscript_handler.js?v=31';
+import { getAbsoluteMaximum, funscriptActions, intensityActions, getCurrentIntensity, getCurrentVideoMaxIntensity, getCurrentIntensityUnclamped, getIntensityMultiplier } from './funscript_handler.js?v=101';
 
 export function createFunscriptDisplayBox() {
     let funscriptBox = document.getElementById('funscript-box');
@@ -56,7 +56,7 @@ export function updateFunscriptDisplayBox(currentTime) {
     const endTime = currentTime + range;
 
     const scaleX = canvas.width / (2 * range); // Scale to fit 6 seconds (3 before + 3 after)
-    const scaleY = canvas.height / getCurrentRawMaxIntensity();
+    const scaleY = canvas.height / getCurrentVideoMaxIntensity();
 
     if (funscriptActions === undefined || intensityActions === undefined) {
         return;
@@ -67,7 +67,7 @@ export function updateFunscriptDisplayBox(currentTime) {
     ctx.strokeStyle = 'rgba(0, 255, 0, 1)'; // Semi-transparent green
 
     const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    let customGradientValue = 1 - getCurrentIntensity(currentTime) / getCurrentRawMaxIntensity();
+    let customGradientValue = 1 - getCurrentIntensity(currentTime) / getCurrentVideoMaxIntensity();
     if (isNaN(customGradientValue) || !isFinite(customGradientValue)) {
         customGradientValue = 0;
     }
@@ -161,7 +161,7 @@ export function updateFunscriptDisplayBox(currentTime) {
 
     ctx.fillStyle = 'white';
 
-    const rawMaxIntensity = getCurrentRawMaxIntensity();
+    const rawMaxIntensity = getCurrentVideoMaxIntensity();
     const absoluteMax = getAbsoluteMaximum();
 
     let displayText = `Max: ${rawMaxIntensity.toFixed(2)}`;

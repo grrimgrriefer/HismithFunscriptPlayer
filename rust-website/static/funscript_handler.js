@@ -3,7 +3,8 @@
 export let funscriptActions = [];
 export let intensityActions = [];
 
-let currentRawMaxIntensity = 0;
+let currentVideoRawMaxIntensity = 0;
+let currentVideoRawAverageIntensity = 0;
 
 let intensityMulitplier = 1; // Default multiplier
 let absoluteMax = 60; // Default maximum intensity
@@ -11,12 +12,18 @@ let absoluteMax = 60; // Default maximum intensity
 export async function loadFunscript(funscriptUrl) {
     funscriptActions = [];
     intensityActions = [];
+    currentVideoRawMaxIntensity = 0;
+    currentVideoRawAverageIntensity = 0;
     await fetch(funscriptUrl)
         .then(response => response.json())
         .then(data => {
             funscriptActions = data.original.actions || [];
             intensityActions = data.intensity.actions || [];
-            currentRawMaxIntensity = Math.max(...intensityActions.map(action => action.pos));
+            const positions = intensityActions.map(action => action.pos);
+            if (positions.length > 0) {
+                currentVideoRawMaxIntensity = Math.max(...positions);
+                currentVideoRawAverageIntensity = positions.reduce((a, b) => a + b, 0) / positions.length;
+            }
         })
         .catch(error => {
             console.error('Failed to load funscript:', error);
@@ -64,8 +71,8 @@ export function getCurrentIntensityUnclamped(currentTime) {
     return Math.floor(interpolatedIntensity * intensityMulitplier);
 }
 
-export function getCurrentRawMaxIntensity() {
-    return Math.floor(currentRawMaxIntensity * intensityMulitplier);
+export function getCurrentVideoMaxIntensity() {
+    return Math.floor(currentVideoRawMaxIntensity * intensityMulitplier);
 }
 
 export function setIntensityMultiplier(multiplier) {
@@ -86,4 +93,12 @@ export function setAbsoluteMaximum(max) {
 
 export function getAbsoluteMaximum() {
     return absoluteMax;
+}
+
+export function getCurrentVideoRawMaxIntensity() {
+    return currentVideoRawMaxIntensity;
+}
+
+export function getCurrentVideoRawAverageIntensity() {
+    return currentVideoRawAverageIntensity;
 }

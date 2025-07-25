@@ -9,7 +9,8 @@ use crate::{
     handlers::{
         index, 
         video,
-        funscript
+        funscript,
+        metadata
     },
     intiface_socket
 };
@@ -32,6 +33,13 @@ pub fn setup_routes(cfg: &mut web::ServiceConfig) {
         .service(
             web::resource("/ws")
                 .route(web::get().to(intiface_socket::handle_ws_start))
+        )
+        // search route
+        .service(
+            web::scope("/api")
+                .route("/search", web::get().to(metadata::search))
+                .route("/metadata/{id}", web::get().to(metadata::get_metadata))
+                .route("/metadata", web::post().to(metadata::update_metadata))
         )
         // Main site routes
         .service(

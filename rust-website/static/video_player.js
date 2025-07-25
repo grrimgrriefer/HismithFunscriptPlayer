@@ -1,9 +1,10 @@
 // static/video_player.js
 
-import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentRawMaxIntensity, setIntensityMultiplier } from './funscript_handler.js?v=31';
-import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=31';
-import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=31';
-import { initWebSocket, sendOscillateValue } from './socket.js?v=31';
+import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentVideoMaxIntensity, setIntensityMultiplier, getCurrentVideoRawMaxIntensity, getCurrentVideoRawAverageIntensity } from './funscript_handler.js?v=101';
+import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=101';
+import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=101';
+import { initWebSocket, sendOscillateValue } from './socket.js?v=101';
+import { createMetadataPanel, toggleMetadataPanel } from './metadata_panel.js?v=101';
 
 let currentAnimationFrame = null;
 let isInitialized = false;
@@ -75,8 +76,8 @@ export async function playVideo(videoUrl, funscriptUrl) {
     createSettingsMenu();
 
     setIntensityMultiplier(1.0);
-    if ((getAbsoluteMaximum() * 1.2) < getCurrentRawMaxIntensity()) {
-        setIntensityMultiplier(1.2 * getAbsoluteMaximum() / getCurrentRawMaxIntensity());
+    if ((getAbsoluteMaximum() * 1.2) < getCurrentVideoMaxIntensity()) {
+        setIntensityMultiplier(1.2 * getAbsoluteMaximum() / getCurrentVideoMaxIntensity());
     }
 
     const throttledSendOscillateValue = throttle(sendOscillateValue, 150);
@@ -104,6 +105,29 @@ export async function playVideo(videoUrl, funscriptUrl) {
         settingsButton.onclick = toggleSettingsMenu;
 
         document.body.appendChild(settingsButton);
+    }
+
+    createMetadataPanel();
+
+    // Add the metadata button:
+    let metadataButton = document.getElementById('metadata-button');
+    if (!metadataButton) {
+        metadataButton = document.createElement('button');
+        metadataButton.id = 'metadata-button';
+        metadataButton.textContent = 'Metadata';
+        metadataButton.style.position = 'absolute';
+        metadataButton.style.top = '10px';
+        metadataButton.style.right = '120px'; // Position it next to settings
+        metadataButton.style.backgroundColor = 'rgb(70, 70, 70)';
+        metadataButton.style.color = 'white';
+        metadataButton.style.border = 'none';
+        metadataButton.style.padding = '10px 20px';
+        metadataButton.style.cursor = 'pointer';
+        metadataButton.style.borderRadius = '5px';
+        metadataButton.style.zIndex = '10';
+        metadataButton.onclick = toggleMetadataPanel;
+
+        document.body.appendChild(metadataButton);
     }
 
     videoElement.onplay = () => {
@@ -146,6 +170,15 @@ export async function playVideo(videoUrl, funscriptUrl) {
     videoElement.onloadeddata = () => {
         updateFunscriptDisplayBox(0);
         updateProgressBars();
+
+        const metadata = {
+            filename: videoUrl.split('/').pop(),
+            avgIntensity: getCurrentVideoRawAverageIntensity(),
+            maxIntensity: getCurrentVideoRawMaxIntensity(),
+            duration: videoElement.duration
+        };
+
+        window.updateMetadataPanel(metadata);
     };
 
     // Hide the directory tree and show the video player

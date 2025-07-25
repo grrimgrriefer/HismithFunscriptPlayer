@@ -1,6 +1,7 @@
 // static/directory_tree.js
 
-import { playVideo } from './video_player.js?v=31';
+import { playVideo } from './video_player.js?v=101';
+import { createSearchBox } from './search.js?v=101';
 
 document.addEventListener('DOMContentLoaded', () => {
     const directoryTree = window.directoryTree;
@@ -86,4 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
             directoryContainer.classList.add('hidden');
         }
     };
+
+    const directoryContainer = document.getElementById('directory-container');
+    createSearchBox(directoryContainer);
 });

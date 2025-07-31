@@ -1,6 +1,6 @@
 // static/socket.js
 
-import { getAbsoluteMaximum } from './funscript_handler.js?v=101';
+import { getAbsoluteMaximum } from './funscript_handler.js?v=107';
 
 let ws = null;
 

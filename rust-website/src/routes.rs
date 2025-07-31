@@ -40,6 +40,8 @@ pub fn setup_routes(cfg: &mut web::ServiceConfig) {
                 .route("/search", web::get().to(metadata::search))
                 .route("/metadata/{id}", web::get().to(metadata::get_metadata))
                 .route("/metadata", web::post().to(metadata::update_metadata))
+                .route("/tags", web::get().to(metadata::get_all_tags))
+                .route("/video/ensure", web::post().to(metadata::ensure_video))
         )
         // Main site routes
         .service(

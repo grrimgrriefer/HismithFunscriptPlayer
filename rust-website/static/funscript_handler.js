@@ -22,7 +22,7 @@ export async function loadFunscript(funscriptUrl) {
             const positions = intensityActions.map(action => action.pos);
             if (positions.length > 0) {
                 currentVideoRawMaxIntensity = Math.max(...positions);
-                currentVideoRawAverageIntensity = positions.reduce((a, b) => a + b, 0) / positions.length;
+                currentVideoRawAverageIntensity = getTimeWeightedAverage(intensityActions);
             }
         })
         .catch(error => {
@@ -102,3 +102,21 @@ export function getCurrentVideoRawMaxIntensity() {
 export function getCurrentVideoRawAverageIntensity() {
     return currentVideoRawAverageIntensity;
 }
+
+const getTimeWeightedAverage = (actions) => {
+    if (actions.length < 2) return 0;
+
+    let totalWeighted = 0;
+    let totalDuration = 0;
+
+    for (let i = 0; i < actions.length - 1; i++) {
+        const curr = actions[i];
+        const next = actions[i + 1];
+
+        const duration = next.at - curr.at;
+        totalWeighted += curr.pos * duration;
+        totalDuration += duration;
+    }
+
+    return totalWeighted / totalDuration;
+};

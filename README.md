@@ -35,7 +35,8 @@ A web-based video player application built with Rust and JavaScript that synchro
 ```txt
 VIDEO_SHARE_PATH=\\\\your-network-drive\\your-folder
 HOST_IP=192.168.???.???
-```
+```  
+3. (Optional) Create a `predefined_tags.txt` file in the project root to customize the default list of tags. Each tag should be on a new line.
 
 ## Device Integration
 

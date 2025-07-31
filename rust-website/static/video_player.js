@@ -1,10 +1,10 @@
 // static/video_player.js
 
-import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentVideoMaxIntensity, setIntensityMultiplier, getCurrentVideoRawMaxIntensity, getCurrentVideoRawAverageIntensity } from './funscript_handler.js?v=101';
-import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=101';
-import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=101';
-import { initWebSocket, sendOscillateValue } from './socket.js?v=101';
-import { createMetadataPanel, toggleMetadataPanel } from './metadata_panel.js?v=101';
+import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentVideoMaxIntensity, setIntensityMultiplier, getCurrentVideoRawMaxIntensity, getCurrentVideoRawAverageIntensity } from './funscript_handler.js?v=107';
+import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=107';
+import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=107';
+import { initWebSocket, sendOscillateValue } from './socket.js?v=107';
+import { createMetadataPanel, toggleMetadataPanel } from './metadata_panel.js?v=107';
 
 let currentAnimationFrame = null;
 let isInitialized = false;
@@ -47,15 +47,6 @@ export async function playVideo(videoUrl, funscriptUrl) {
     }
     spinner.style.display = 'block'; // Show spinner
 
-    await loadFunscript(funscriptUrl);
-
-    // Create or update the funscript display box
-    createFunscriptDisplayBox();
-
-    let transitionStartTime = Date.now();
-    let transitionTargetValue = 1;
-    const TRANSITION_DURATION = 1000;
-
     // Update the funscript display as the video plays
     function updateProgressBars() {
         const currentTime = videoElement.currentTime * 1000;
@@ -74,12 +65,6 @@ export async function playVideo(videoUrl, funscriptUrl) {
 
     // Create or update the settings menu
     createSettingsMenu();
-
-    setIntensityMultiplier(1.0);
-    if ((getAbsoluteMaximum() * 1.2) < getCurrentVideoMaxIntensity()) {
-        setIntensityMultiplier(1.2 * getAbsoluteMaximum() / getCurrentVideoMaxIntensity());
-    }
-
     const throttledSendOscillateValue = throttle(sendOscillateValue, 150);
     if (!isInitialized) {
         initWebSocket();
@@ -107,7 +92,7 @@ export async function playVideo(videoUrl, funscriptUrl) {
         document.body.appendChild(settingsButton);
     }
 
-    createMetadataPanel();
+    await createMetadataPanel();
 
     // Add the metadata button:
     let metadataButton = document.getElementById('metadata-button');
@@ -129,6 +114,10 @@ export async function playVideo(videoUrl, funscriptUrl) {
 
         document.body.appendChild(metadataButton);
     }
+
+    let transitionStartTime = Date.now();
+    let transitionTargetValue = 1;
+    const TRANSITION_DURATION = 1000;
 
     videoElement.onplay = () => {
         if (cancelAnimationTimeout) {
@@ -167,25 +156,60 @@ export async function playVideo(videoUrl, funscriptUrl) {
         }
     };
 
-    videoElement.onloadeddata = () => {
+    // Start loading funscript, but don't await it here.
+    const funscriptPromise = loadFunscript(funscriptUrl);
+
+    // Create or update the funscript display box while things are loading
+    createFunscriptDisplayBox();
+
+    videoElement.onloadeddata = async () => {
+        // Now, wait for the funscript to finish loading.
+        await funscriptPromise;
+
+        // Now that both video and funscript data are ready, we can initialize things that depend on them.
+        setIntensityMultiplier(1.0);
+        if ((getAbsoluteMaximum() * 1.2) < getCurrentVideoMaxIntensity()) {
+            setIntensityMultiplier(1.2 * getAbsoluteMaximum() / getCurrentVideoMaxIntensity());
+        }
+
         updateFunscriptDisplayBox(0);
         updateProgressBars();
+        const videoPath = videoUrl.substring('/site/video/'.length);
+        const filename = videoPath.split('/').pop();
+        let dbMetadata = {};
+
+        try {
+            const response = await fetch('/api/video/ensure', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: videoPath, filename: filename })
+            });
+            if (response.ok) {
+                dbMetadata = await response.json();
+            } else {
+                console.error('Failed to ensure video metadata:', await response.text());
+            }
+        } catch (error) {
+            console.error('Failed to fetch video metadata:', error);
+        }
 
         const metadata = {
-            filename: videoUrl.split('/').pop(),
+            ...dbMetadata,
+            filename: filename,
             avgIntensity: getCurrentVideoRawAverageIntensity(),
             maxIntensity: getCurrentVideoRawMaxIntensity(),
-            duration: videoElement.duration
+            duration: videoElement.duration,
         };
 
         window.updateMetadataPanel(metadata);
+
+        // Hide the spinner only when all data is loaded and UI is ready.
+        spinner.style.display = 'none';
     };
 
     // Hide the directory tree and show the video player
     document.getElementById('directory-container').classList.add('hidden');
     document.getElementById('video-container').classList.remove('hidden');
-
-    spinner.style.display = 'none';
 }
 
 function throttle(func, limit) {

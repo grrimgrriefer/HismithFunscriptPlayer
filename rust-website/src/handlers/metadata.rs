@@ -74,6 +74,43 @@ pub async fn update_metadata(
     }
 }
 
+#[derive(Deserialize)]
+pub struct EnsureVideoPayload {
+    path: String,
+    filename: String,
+}
+
+pub async fn ensure_video(
+    payload: web::Json<EnsureVideoPayload>,
+    db: web::Data<Database>,
+) -> HttpResponse {
+    match db.get_or_create_video(&payload.path, &payload.filename) {
+        Ok(metadata) => HttpResponse::Ok().json(metadata),
+        Err(e) => {
+            log::error!("Failed to ensure video exists: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Failed to get or create video metadata"
+            }))
+        }
+    }
+}
+
+pub async fn get_all_tags(
+    db: web::Data<Database>,
+) -> HttpResponse {
+    match db.get_all_tags() {
+        Ok(tags) => HttpResponse::Ok()
+            .content_type("application/json")
+            .json(tags),
+        Err(e) => {
+            log::error!("Failed to get all tags: {}", e);
+            HttpResponse::InternalServerError()
+                .content_type("application/json")
+                .json(serde_json::json!({ "error": "Failed to retrieve tags" }))
+        }
+    }
+}
+
 pub async fn get_metadata(
     id: web::Path<i64>,
     db: web::Data<Database>,

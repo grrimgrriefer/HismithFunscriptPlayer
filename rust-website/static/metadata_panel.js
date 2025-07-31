@@ -1,9 +1,7 @@
-const predefinedTags = [
-    'Favorite', 'Fast', 'Slow', 'Intense', 'Gentle',
-    'Long', 'Short', 'Rhythmic', 'Random', 'Complex'
-].sort();
+let availableTags = [];
+let currentVideoData = null;
 
-export function createMetadataPanel() {
+export async function createMetadataPanel() {
     let metadataPanel = document.getElementById('metadata-panel');
     if (!metadataPanel) {
         metadataPanel = document.createElement('div');
@@ -32,8 +30,7 @@ export function createMetadataPanel() {
                 <div class="form-group">
                     <label>Tags:</label>
                     <select id="tags-dropdown">
-                        <option value="">Select a tag...</option>
-                        ${predefinedTags.map(tag => `<option value="${tag}">${tag}</option>`).join('')}
+                        <option value="">Loading tags...</option>
                     </select>
                     <div id="tags-list" class="selected-tags"></div>
                 </div>
@@ -49,6 +46,24 @@ export function createMetadataPanel() {
         metadataPanel.innerHTML = content;
         document.body.appendChild(metadataPanel);
         setupMetadataHandlers(metadataPanel);
+
+        // Fetch tags and populate dropdown
+        try {
+            const response = await fetch('/api/tags');
+            if (response.ok) {
+                availableTags = await response.json(); // Rely on backend for case-insensitive sorting
+                const tagsDropdown = metadataPanel.querySelector('#tags-dropdown');
+                tagsDropdown.innerHTML = '<option value="">Select a tag...</option>'; // Reset
+                availableTags.forEach(tag => {
+                    tagsDropdown.innerHTML += `<option value="${tag}">${tag}</option>`;
+                });
+            } else {
+                throw new Error('Failed to fetch tags');
+            }
+        } catch (error) {
+            console.error('Error fetching tags:', error);
+            metadataPanel.querySelector('#tags-dropdown').innerHTML = '<option value="">Error loading tags</option>';
+        }
     }
     return metadataPanel;
 }
@@ -57,7 +72,6 @@ function setupMetadataHandlers(panel) {
     const tagsDropdown = panel.querySelector('#tags-dropdown');
     const tagsList = panel.querySelector('#tags-list');
     const saveButton = panel.querySelector('#save-metadata');
-    let currentVideoId = null;
 
     // Handle tag selection
     tagsDropdown.addEventListener('change', () => {
@@ -89,9 +103,10 @@ function setupMetadataHandlers(panel) {
 
     // Update metadata with runtime data
     window.updateMetadataPanel = (videoData) => {
-        currentVideoId = videoData.id;
+        currentVideoData = videoData;
 
-        // Update title (filename)
+        // Always update the DOM, even if hidden. It's cheap and simplifies logic.
+        // When the panel is made visible, it will have the correct data.
         panel.querySelector('#video-title').textContent = videoData.filename;
 
         // Update runtime stats
@@ -102,15 +117,13 @@ function setupMetadataHandlers(panel) {
         panel.querySelector('#video-duration').textContent =
             formatDuration(videoData.duration);
 
-        // Update rating if exists
-        if (videoData.rating) {
-            panel.querySelector('#video-rating').value = videoData.rating;
-        }
+        // Update rating if it exists, otherwise reset to "Not Rated"
+        panel.querySelector('#video-rating').value = videoData.rating || "";
 
         // Clear and reload tags
         tagsList.innerHTML = '';
         videoData.tags?.forEach(tag => {
-            if (predefinedTags.includes(tag)) {
+            if (availableTags.includes(tag)) {
                 addTag(tag);
             }
         });
@@ -118,10 +131,15 @@ function setupMetadataHandlers(panel) {
 
     // Handle save button
     saveButton.addEventListener('click', async () => {
-        if (!currentVideoId) return;
+        if (!currentVideoData || !currentVideoData.id) {
+            const message = "Cannot save: No current video data or video ID is missing.";
+            console.error(message, currentVideoData);
+            alert(message + " The video might not be properly registered in the database.");
+            return;
+        }
 
         const metadata = {
-            id: currentVideoId,
+            id: currentVideoData.id,
             rating: parseInt(panel.querySelector('#video-rating').value) || null,
             tags: getSelectedTags()
         };
@@ -146,15 +164,19 @@ function setupMetadataHandlers(panel) {
 }
 
 function formatDuration(seconds) {
-    if (!seconds) return '-';
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
+    if (!seconds || isNaN(seconds)) return '-';
+
+    const totalSeconds = Math.round(seconds);
+    const minutes = Math.floor(totalSeconds / 60);
+    const remainingSeconds = totalSeconds % 60;
+
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 }
 
 export function toggleMetadataPanel() {
     const panel = document.getElementById('metadata-panel');
     if (panel) {
-        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        const isHidden = panel.style.display === 'none';
+        panel.style.display = isHidden ? 'block' : 'none';
     }
 }

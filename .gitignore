@@ -5,3 +5,4 @@ rust-website/.env
 .DS_Store
 rust-website/run.sh
 rust-website/predefined_tags.txt
+rust-website/videos.db

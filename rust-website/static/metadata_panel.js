@@ -140,6 +140,7 @@ function setupMetadataHandlers(panel) {
 
         const metadata = {
             id: currentVideoData.id,
+            title: panel.querySelector('#video-title').value,
             rating: parseInt(panel.querySelector('#video-rating').value) || null,
             tags: getSelectedTags()
         };

@@ -1,4 +1,4 @@
-import { playVideo } from './video_player.js?v=107';
+import { playVideo } from './video_player.js?v=109';
 
 function debounce(func, wait) {
     let timeout;

@@ -1,7 +1,7 @@
 // static/directory_tree.js
 
-import { playVideo } from './video_player.js?v=107';
-import { createSearchBox } from './search.js?v=107';
+import { playVideo } from './video_player.js?v=109';
+import { createSearchBox } from './search.js?v=109';
 
 document.addEventListener('DOMContentLoaded', () => {
     const directoryTree = window.directoryTree;

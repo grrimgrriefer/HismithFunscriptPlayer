@@ -39,7 +39,7 @@ impl Database {
     pub fn get_video_metadata(&self, video_id: i64) -> Result<VideoMetadata> {
         let conn = self.conn.lock().unwrap();
         let mut metadata = conn.query_row(
-            "SELECT v.*, r.rating 
+            "SELECT v.id, v.filename, v.title, v.path, v.avg_intensity, v.max_intensity, v.duration, r.rating 
              FROM videos v 
              LEFT JOIN ratings r ON v.id = r.video_id 
              WHERE v.id = ?1",
@@ -53,7 +53,7 @@ impl Database {
                     avg_intensity: row.get(4)?,
                     max_intensity: row.get(5)?,
                     duration: row.get(6)?,
-                    rating: row.get(8)?,
+                    rating: row.get(7)?,
                     tags: Vec::new(), // We'll populate this next
                 })
             },

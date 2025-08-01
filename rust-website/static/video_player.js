@@ -1,6 +1,6 @@
 // static/video_player.js
 
-import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentVideoMaxIntensity, setIntensityMultiplier, getCurrentVideoRawMaxIntensity, getCurrentVideoRawAverageIntensity } from './funscript_handler.js?v=109';
+import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentVideoMaxIntensity, setIntensityMultiplier, getCurrentVideoRawMaxIntensity, getCurrentVideoRawAverageIntensity, funscriptActions } from './funscript_handler.js?v=109';
 import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=109';
 import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=109';
 import { initWebSocket, sendOscillateValue } from './socket.js?v=109';
@@ -199,6 +199,7 @@ export async function playVideo(videoUrl, funscriptUrl) {
             avgIntensity: getCurrentVideoRawAverageIntensity(),
             maxIntensity: getCurrentVideoRawMaxIntensity(),
             duration: videoElement.duration,
+            hasFunscript: funscriptActions.length > 0,
         };
 
         window.updateMetadataPanel(metadata);

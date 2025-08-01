@@ -138,18 +138,21 @@ function setupMetadataHandlers(panel) {
             return;
         }
 
-        const metadata = {
+        const payload = {
             id: currentVideoData.id,
-            title: panel.querySelector('#video-title').value,
             rating: parseInt(panel.querySelector('#video-rating').value) || null,
-            tags: getSelectedTags()
+            tags: getSelectedTags(),
+            avg_intensity: currentVideoData.avgIntensity ? Math.round(currentVideoData.avgIntensity) : null,
+            max_intensity: currentVideoData.maxIntensity ? Math.round(currentVideoData.maxIntensity) : null,
+            duration: currentVideoData.duration,
+            has_funscript: currentVideoData.hasFunscript,
         };
 
         try {
             const response = await fetch('/api/metadata', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(metadata)
+                body: JSON.stringify(payload)
             });
 
             if (response.ok) {

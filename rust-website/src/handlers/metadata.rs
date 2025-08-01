@@ -1,7 +1,7 @@
 // src/handlers/search.rs
 
 use actix_web::{web, HttpResponse};
-use crate::db::database::Database;
+use crate::db::database::{Database, VideoMetadataUpdatePayload};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -31,46 +31,37 @@ pub async fn search(
 #[derive(Deserialize)]
 pub struct MetadataUpdate {
     id: i64,
-    title: Option<String>,
     rating: Option<i32>,
-    tags: Vec<String>,
+    tags: Option<Vec<String>>,
+    avg_intensity: Option<f64>,
+    max_intensity: Option<f64>,
+    duration: Option<f64>,
+    has_funscript: Option<bool>,
 }
 
 pub async fn update_metadata(
-    metadata: web::Json<MetadataUpdate>,
+    payload: web::Json<MetadataUpdate>,
     db: web::Data<Database>,
 ) -> HttpResponse {
-    let mut success = true;
+    let db_payload = VideoMetadataUpdatePayload {
+        id: payload.id,
+        rating: payload.rating,
+        tags: payload.tags.clone(),
+        avg_intensity: payload.avg_intensity.map(|f| f.round() as i64),
+        max_intensity: payload.max_intensity.map(|f| f.round() as i64),
+        duration: payload.duration.map(|d| d.round() as i64),
+        has_funscript: payload.has_funscript,
+    };
 
-    // Update title if provided
-    if let Some(title) = &metadata.title {
-        if let Err(e) = db.get_ref().update_title(metadata.id, title) {
-            log::error!("Failed to update title: {}", e);
-            success = false;
+    match db.update_video_metadata(&db_payload) {
+        Ok(_) => HttpResponse::Ok().json(serde_json::json!({ "status": "success" })),
+        Err(e) => {
+            log::error!("Failed to update metadata: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "status": "error",
+                "message": "Failed to update metadata"
+            }))
         }
-    }
-
-    // Update rating if provided
-    if let Some(rating) = metadata.rating {
-        if let Err(e) = db.get_ref().set_rating(metadata.id, rating) {
-            log::error!("Failed to update rating: {}", e);
-            success = false;
-        }
-    }
-
-    // Update tags
-    if let Err(e) = db.get_ref().update_tags(metadata.id, &metadata.tags) {
-        log::error!("Failed to update tags: {}", e);
-        success = false;
-    }
-
-    if success {
-        HttpResponse::Ok().json(serde_json::json!({ "status": "success" }))
-    } else {
-        HttpResponse::InternalServerError().json(serde_json::json!({
-            "status": "error",
-            "message": "Failed to update metadata"
-        }))
     }
 }
 

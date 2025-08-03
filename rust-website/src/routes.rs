@@ -41,6 +41,9 @@ pub fn setup_routes(cfg: &mut web::ServiceConfig) {
                 .route("/metadata/{id}", web::get().to(metadata::get_metadata))
                 .route("/metadata", web::post().to(metadata::update_metadata))
                 .route("/tags", web::get().to(metadata::get_all_tags))
+                .route("/videos/cleanup-check", web::get().to(metadata::cleanup_check))
+                .route("/videos/remap", web::post().to(metadata::remap_video))
+                .route("/videos/untracked", web::get().to(metadata::get_untracked_videos))
                 .route("/video/ensure", web::post().to(metadata::ensure_video))
         )
         // Main site routes

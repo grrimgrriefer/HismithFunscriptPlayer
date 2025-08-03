@@ -1,4 +1,4 @@
-import { playVideo } from './video_player.js?v=110';
+import { playVideo } from './video_player.js?v=112';
 
 function debounce(func, wait) {
     let timeout;
@@ -10,6 +10,33 @@ function debounce(func, wait) {
         clearTimeout(timeout);
         timeout = setTimeout(later, wait);
     };
+}
+
+async function addUntrackedVideo(path, resultItem) {
+    resultItem.style.pointerEvents = 'none';
+    resultItem.style.color = '#aaa';
+    try {
+        const response = await fetch('/api/video/ensure', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: path })
+        });
+        if (response.ok) {
+            resultItem.style.transition = 'opacity 0.5s ease-out';
+            resultItem.style.opacity = '0';
+            setTimeout(() => resultItem.remove(), 500);
+        } else {
+            const errorData = await response.json();
+            alert(`Failed to add video: ${errorData.error || 'Unknown error'}`);
+            resultItem.style.pointerEvents = 'auto';
+            resultItem.style.color = '#ff5555';
+        }
+    } catch (error) {
+        console.error('Failed to add video:', error);
+        alert('An error occurred while adding the video.');
+        resultItem.style.pointerEvents = 'auto';
+        resultItem.style.color = '#ff5555';
+    }
 }
 
 export function createSearchBox(container) {
@@ -37,6 +64,10 @@ export function createSearchBox(container) {
             <span>-</span>
             <input type="number" id="max-intensity" placeholder="Max" min="0" max="100">
         </div>
+        <div class="filter-group">
+            <input type="checkbox" id="show-untracked">
+            <label for="show-untracked" class="untracked-label">Show untracked files</label>
+        </div>
     `;
     searchBox.appendChild(filterContainer);
 
@@ -47,7 +78,50 @@ export function createSearchBox(container) {
     const directoryTree = document.getElementById('directory-tree');
     container.insertBefore(searchBox, directoryTree);
 
+    const filterInputs = filterContainer.querySelectorAll('input:not(#show-untracked)');
+    const untrackedCheckbox = document.getElementById('show-untracked');
+
     const performSearch = debounce(async () => {
+        const showUntracked = untrackedCheckbox.checked;
+
+        directoryTree.style.display = 'none';
+        resultsContainer.innerHTML = '<div class="search-result-item">Loading...</div>';
+
+        if (showUntracked) {
+            try {
+                const response = await fetch('/api/videos/untracked');
+                if (!response.ok) throw new Error('Failed to fetch untracked videos.');
+                const untrackedFiles = await response.json();
+
+                resultsContainer.innerHTML = '';
+                if (untrackedFiles.length === 0) {
+                    resultsContainer.innerHTML = '<div class="search-result-item">No untracked videos found.</div>';
+                    return;
+                }
+
+                untrackedFiles.forEach(path => {
+                    const resultItem = document.createElement('div');
+                    resultItem.className = 'search-result-item untracked-item';
+
+                    const title = document.createElement('a');
+                    title.href = '#';
+                    title.textContent = path;
+                    title.title = 'Click to add to database';
+                    title.onclick = (e) => {
+                        e.preventDefault();
+                        addUntrackedVideo(path, resultItem);
+                    };
+                    resultItem.appendChild(title);
+                    resultsContainer.appendChild(resultItem);
+                });
+
+            } catch (error) {
+                console.error('Untracked search failed:', error);
+                resultsContainer.innerHTML = `<div class="search-result-item" style="color: #ff5555;">Error: ${error.message}</div>`;
+            }
+            return;
+        }
+
         const query = input.value;
         const minDuration = document.getElementById('min-duration').value;
         const maxDuration = document.getElementById('max-duration').value;
@@ -80,7 +154,6 @@ export function createSearchBox(container) {
             }
             const results = await response.json();
 
-            directoryTree.style.display = 'none';
             resultsContainer.innerHTML = '';
 
             if (results.length === 0) {
@@ -146,13 +219,23 @@ export function createSearchBox(container) {
             });
         } catch (error) {
             console.error('Search failed:', error);
-            directoryTree.style.display = 'none';
             resultsContainer.innerHTML = `<div class="search-result-item" style="color: #ff5555;">Error: ${error.message}</div>`;
         }
     }, 300);
 
+    const toggleFilters = (disabled) => {
+        input.disabled = disabled;
+        filterInputs.forEach(i => i.disabled = disabled);
+    };
+
+    untrackedCheckbox.addEventListener('change', () => {
+        const isChecked = untrackedCheckbox.checked;
+        toggleFilters(isChecked);
+        performSearch();
+    });
+
     input.addEventListener('input', performSearch);
-    filterContainer.querySelectorAll('input').forEach(filterInput => {
+    filterInputs.forEach(filterInput => {
         filterInput.addEventListener('input', performSearch);
     });
 }

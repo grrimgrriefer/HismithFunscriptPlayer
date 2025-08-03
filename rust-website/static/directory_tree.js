@@ -1,7 +1,23 @@
 // static/directory_tree.js
 
-import { playVideo } from './video_player.js?v=110';
-import { createSearchBox } from './search.js?v=110';
+import { playVideo } from './video_player.js?v=112';
+import { createSearchBox } from './search.js?v=112';
+import { createCleanupModal } from './cleanup_modal.js?v=112';
+
+async function checkForOrphanedVideos() {
+    try {
+        const response = await fetch('/api/videos/cleanup-check');
+        if (!response.ok) {
+            throw new Error('Failed to check for orphaned videos.');
+        }
+        const suggestions = await response.json();
+        if (suggestions && suggestions.length > 0) {
+            suggestions.forEach(suggestion => createCleanupModal(suggestion));
+        }
+    } catch (error) {
+        console.error('Cleanup check failed:', error);
+    }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     const directoryTree = window.directoryTree;
@@ -90,4 +106,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const directoryContainer = document.getElementById('directory-container');
     createSearchBox(directoryContainer);
+
+    checkForOrphanedVideos();
 });

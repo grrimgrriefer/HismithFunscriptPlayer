@@ -7,10 +7,12 @@
 //! to display video files in the web interface.
 
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     fs
 };
 use serde::Serialize;
+use std::collections::HashMap;
+use walkdir::WalkDir;
 
 /// Represents a node in the file system tree structure
 ///
@@ -101,4 +103,24 @@ pub fn build_directory_tree(path: &PathBuf, relative_path: &str) -> Result<FileN
         is_dir: true,
         children: Some(children),
     })
+}
+
+pub fn get_all_files_with_size(base_path: &Path) -> Result<HashMap<PathBuf, u64>, std::io::Error> {
+    let mut file_map = HashMap::new();
+    for entry in WalkDir::new(base_path).into_iter().filter_map(|e| e.ok()) {
+        let path = entry.path();
+        if path.is_file() {
+            if let Ok(metadata) = fs::metadata(path) {
+                if let Ok(relative_path) = path.strip_prefix(base_path) {
+                    // We only care about video files, you can add more extensions if needed
+                    if let Some(ext) = relative_path.extension().and_then(|e| e.to_str()) {
+                        if matches!(ext.to_lowercase().as_str(), "mp4" | "mkv" | "webm" | "mov") {
+                            file_map.insert(relative_path.to_path_buf(), metadata.len());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(file_map)
 }

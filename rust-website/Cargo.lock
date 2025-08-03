@@ -2929,6 +2929,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tokio-stream",
+ "walkdir",
 ]
 
 [[package]]

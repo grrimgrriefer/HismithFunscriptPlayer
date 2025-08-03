@@ -2,7 +2,11 @@
 
 use actix_web::{web, HttpResponse};
 use crate::db::database::{Database, VideoMetadataUpdatePayload};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
+use std::env;
+use std::path::PathBuf;
+use crate::directory_browser;
 
 #[derive(Deserialize)]
 pub struct MetadataUpdate {
@@ -95,4 +99,129 @@ pub async fn get_metadata(
                 }))
         }
     }
+}
+
+#[derive(Serialize)]
+pub struct CleanupSuggestion {
+    orphan_id: i64,
+    orphan_path: String,
+    potential_match_path: String,
+}
+
+pub async fn cleanup_check(db: web::Data<Database>) -> HttpResponse {
+    let base_path_str = match env::var("VIDEO_SHARE_PATH") {
+        Ok(p) => p,
+        Err(_) => return HttpResponse::InternalServerError().json("VIDEO_SHARE_PATH not set"),
+    };
+    let base_path = PathBuf::from(base_path_str);
+
+    let db_videos = match db.get_all_videos_for_check() {
+        Ok(v) => v,
+        Err(e) => {
+            log::error!("Cleanup check failed to query DB: {}", e);
+            return HttpResponse::InternalServerError().json("Failed to query database");
+        }
+    };
+
+    let disk_files = match directory_browser::get_all_files_with_size(&base_path) {
+        Ok(f) => f,
+        Err(e) => {
+            log::error!("Cleanup check failed to scan directory: {}", e);
+            return HttpResponse::InternalServerError().json("Failed to scan video directory");
+        }
+    };
+
+    let mut orphans = Vec::new();
+    for video in &db_videos {
+        if !base_path.join(&video.path).exists() {
+            orphans.push(video);
+        }
+    }
+
+    let files_on_disk_by_size: HashMap<i64, String> = disk_files
+        .into_iter()
+        .map(|(path, size)| (size as i64, path.to_string_lossy().into_owned()))
+        .collect();
+
+    let suggestions: Vec<CleanupSuggestion> = orphans
+        .into_iter()
+        .filter_map(|orphan| {
+            files_on_disk_by_size
+                .get(&orphan.file_size)
+                .map(|match_path| CleanupSuggestion {
+                    orphan_id: orphan.id,
+                    orphan_path: orphan.path.clone(),
+                    potential_match_path: match_path.clone(),
+                })
+        })
+        .collect();
+
+    HttpResponse::Ok().json(suggestions)
+}
+
+#[derive(Deserialize)]
+pub struct RemapPayload {
+    orphan_id: i64,
+    new_path: String,
+}
+
+pub async fn remap_video(
+    payload: web::Json<RemapPayload>,
+    db: web::Data<Database>,
+) -> HttpResponse {
+    match db.video_exists_by_path(&payload.new_path) {
+        Ok(Some(_existing_id)) => {
+            match db.delete_video(payload.orphan_id) {
+                Ok(_) => HttpResponse::Ok().json("Orphan deleted as target already exists."),
+                Err(_) => HttpResponse::InternalServerError().json("Failed to delete orphan."),
+            }
+        }
+        Ok(None) => {
+            match db.update_video_path(payload.orphan_id, &payload.new_path) {
+                Ok(_) => HttpResponse::Ok().json("Video path remapped successfully."),
+                Err(_) => HttpResponse::InternalServerError().json("Failed to remap video path."),
+            }
+        }
+        Err(_) => HttpResponse::InternalServerError().json("Database error during check."),
+    }
+}
+
+pub async fn get_untracked_videos(db: web::Data<Database>) -> HttpResponse {
+    let base_path_str = match env::var("VIDEO_SHARE_PATH") {
+        Ok(p) => p,
+        Err(_) => return HttpResponse::InternalServerError().json("VIDEO_SHARE_PATH not set"),
+    };
+    let base_path = PathBuf::from(base_path_str);
+
+    let db_paths = match db.get_all_video_paths() {
+        Ok(p) => p,
+        Err(e) => {
+            log::error!("Failed to get video paths from DB: {}", e);
+            return HttpResponse::InternalServerError().json("Failed to query database");
+        }
+    };
+
+    let disk_files = match directory_browser::get_all_files_with_size(&base_path) {
+        Ok(f) => f,
+        Err(e) => {
+            log::error!("Failed to scan directory for untracked files: {}", e);
+            return HttpResponse::InternalServerError().json("Failed to scan video directory");
+        }
+    };
+
+    let mut untracked_files: Vec<String> = disk_files
+        .keys()
+        .filter_map(|disk_path| {
+            let path_str = disk_path.to_string_lossy().to_string();
+            if !db_paths.contains(&path_str) {
+                Some(path_str)
+            } else {
+                None
+            }
+        })
+        .collect();
+    
+    untracked_files.sort();
+
+    HttpResponse::Ok().json(untracked_files)
 }

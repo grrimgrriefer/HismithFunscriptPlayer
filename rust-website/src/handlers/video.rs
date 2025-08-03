@@ -23,7 +23,7 @@ use std::{
     env, 
     path::PathBuf
 };
-use crate::db::database::{Database, VideoMetadata};
+use crate::db::database::{Database};
 use serde::Deserialize;
 
 /// Handles video file streaming requests

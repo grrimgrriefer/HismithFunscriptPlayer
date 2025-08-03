@@ -1,12 +1,19 @@
 // src/db/database.rs
 
-use rusqlite::{params_from_iter, Connection, Result};
+use rusqlite::{params_from_iter, Connection, Result, params, OptionalExtension};
 use serde::Serialize;
 use std::collections::HashSet;
 use std::fs;
 use std::sync::Mutex;
-use std::path::{PathBuf};
+use std::path::PathBuf;
 use std::env;
+
+#[derive(Serialize)]
+pub struct OrphanVideoInfo {
+    pub id: i64,
+    pub path: String,
+    pub file_size: i64,
+}
 
 #[derive(Serialize)]
 pub struct VideoMetadata {
@@ -241,6 +248,18 @@ impl Database {
         Ok(sorted_tags)
     }
 
+    pub fn get_all_video_paths(&self) -> Result<HashSet<String>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT path FROM videos")?;
+        let paths_iter = stmt.query_map([], |row| row.get(0))?;
+        
+        let mut paths = HashSet::new();
+        for path_result in paths_iter {
+            paths.insert(path_result?);
+        }
+        Ok(paths)
+    }
+
     //---  UPDATE METHODS
 
     pub fn add_video(&self, path: &str, filename: &str) -> Result<i64> {
@@ -300,6 +319,52 @@ impl Database {
         }
 
         tx.commit()?;
+        Ok(())
+    }
+
+    pub fn get_all_videos_for_check(&self) -> Result<Vec<OrphanVideoInfo>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT id, path, file_size FROM videos WHERE file_size > 0")?;
+        let videos_iter = stmt.query_map([], |row| {
+            Ok(OrphanVideoInfo {
+                id: row.get(0)?,
+                path: row.get(1)?,
+                file_size: row.get(2)?,
+            })
+        })?;
+        videos_iter.collect()
+    }
+
+    pub fn video_exists_by_path(&self, path: &str) -> Result<Option<i64>> {
+        let conn = self.conn.lock().unwrap();
+        conn.query_row(
+            "SELECT id FROM videos WHERE path = ?1",
+            [path],
+            |row| row.get(0),
+        )
+        .optional()
+    }
+
+    pub fn delete_video(&self, video_id: i64) -> Result<()> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        tx.execute("DELETE FROM video_tags WHERE video_id = ?1", [video_id])?;
+        tx.execute("DELETE FROM videos WHERE id = ?1", [video_id])?;
+        tx.commit()
+    }
+
+    pub fn update_video_path(&self, video_id: i64, new_path: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let new_filename = PathBuf::from(new_path)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+
+        conn.execute(
+            "UPDATE videos SET path = ?1, filename = ?2 WHERE id = ?3",
+            params![new_path, new_filename, video_id],
+        )?;
         Ok(())
     }
 }

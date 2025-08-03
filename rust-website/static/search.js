@@ -19,7 +19,7 @@ export function createSearchBox(container) {
     const input = document.createElement('input');
     input.type = 'text';
     input.id = 'video-search';
-    input.placeholder = 'Search videos...';
+    input.placeholder = 'Search by filename or tag...';
 
     const resultsContainer = document.createElement('div');
     resultsContainer.id = 'search-results';
@@ -42,10 +42,25 @@ export function createSearchBox(container) {
 
         try {
             const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+            if (!response.ok) {
+                let errorMsg = 'Search failed.';
+                try {
+                    const errorData = await response.json();
+                    if (errorData && errorData.error) {
+                        errorMsg = errorData.error;
+                    }
+                } catch (e) { /* Response was not JSON */ }
+                throw new Error(errorMsg);
+            }
             const results = await response.json();
 
             directoryTree.style.display = 'none';
             resultsContainer.innerHTML = '';
+
+            if (results.length === 0) {
+                resultsContainer.innerHTML = '<div class="search-result-item">No videos found.</div>';
+                return;
+            }
 
             results.forEach(video => {
                 const resultItem = document.createElement('div');
@@ -53,7 +68,7 @@ export function createSearchBox(container) {
 
                 const title = document.createElement('a');
                 title.href = '#';
-                title.textContent = video.title || video.filename;
+                title.textContent = video.filename;
                 title.onclick = (e) => {
                     e.preventDefault();
                     playVideo(`/site/video/${video.path}`, `/site/funscripts/${video.path.replace('.mp4', '.funscript')}`);
@@ -89,6 +104,8 @@ export function createSearchBox(container) {
             });
         } catch (error) {
             console.error('Search failed:', error);
+            directoryTree.style.display = 'none';
+            resultsContainer.innerHTML = `<div class="search-result-item" style="color: #ff5555;">Error: ${error.message}</div>`;
         }
     }, 300));
 }

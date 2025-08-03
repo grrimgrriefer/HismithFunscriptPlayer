@@ -84,21 +84,43 @@ impl Database {
     pub fn search_videos(&self, query: &str) -> Result<Vec<VideoMetadata>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT DISTINCT v.id
+            "SELECT
+                v.id, v.path, v.filename, v.file_size, v.rating, v.duration, v.avg_intensity, v.max_intensity, v.has_funscript,
+                GROUP_CONCAT(t.name)
              FROM videos v
              LEFT JOIN video_tags vt ON v.id = vt.video_id
              LEFT JOIN tags t ON vt.tag_id = t.id
-             WHERE v.filename LIKE ?1
-             OR t.name LIKE ?1",
+             WHERE v.id IN (
+                SELECT DISTINCT v_inner.id
+                FROM videos v_inner
+                LEFT JOIN video_tags vt_inner ON v_inner.id = vt_inner.video_id
+                LEFT JOIN tags t_inner ON vt_inner.tag_id = t_inner.id
+                WHERE v_inner.filename LIKE ?1 OR t_inner.name LIKE ?1
+             )
+             GROUP BY v.id",
         )?;
 
-        let video_ids = stmt
-            .query_map([format!("%{}%", query)], |row| row.get::<_, i64>(0))?
-            .collect::<Result<Vec<_>, _>>()?;
+        let videos_iter = stmt.query_map([format!("%{}%", query)], |row| {
+            let tags_str: Option<String> = row.get(9)?;
+            let tags = tags_str
+                .map(|s| s.split(',').map(String::from).collect())
+                .unwrap_or_else(Vec::new);
 
-        video_ids.into_iter()
-            .map(|id| self.get_video_metadata(id))
-            .collect()
+            Ok(VideoMetadata {
+                id: row.get(0)?,
+                path: row.get(1)?,
+                filename: row.get(2)?,
+                file_size: row.get(3)?,
+                rating: row.get(4)?,
+                duration: row.get(5)?,
+                avg_intensity: row.get(6)?,
+                max_intensity: row.get(7)?,
+                has_funscript: row.get(8)?,
+                tags,
+            })
+        })?;
+
+        videos_iter.collect()
     }
 
     pub fn get_or_create_video(&self, path: &str, filename: &str) -> Result<VideoMetadata> {

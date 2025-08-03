@@ -37,7 +37,7 @@ pub fn setup_routes(cfg: &mut web::ServiceConfig) {
         // search route
         .service(
             web::scope("/api")
-                .route("/search", web::get().to(metadata::search))
+                .route("/search", web::get().to(video::search_videos))
                 .route("/metadata/{id}", web::get().to(metadata::get_metadata))
                 .route("/metadata", web::post().to(metadata::update_metadata))
                 .route("/tags", web::get().to(metadata::get_all_tags))

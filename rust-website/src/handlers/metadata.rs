@@ -5,30 +5,6 @@ use crate::db::database::{Database, VideoMetadataUpdatePayload};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
-pub struct SearchQuery {
-    q: String,
-}
-
-pub async fn search(
-    query: web::Query<SearchQuery>,
-    db: web::Data<Database>,
-) -> HttpResponse {
-    match db.search_videos(&query.q) {
-        Ok(videos) => HttpResponse::Ok()
-            .content_type("application/json")
-            .json(videos),
-        Err(e) => {
-            log::error!("Search failed: {}", e);
-            HttpResponse::InternalServerError()
-                .content_type("application/json")
-                .json(serde_json::json!({
-                    "error": "Search failed"
-                }))
-        }
-    }
-}
-
-#[derive(Deserialize)]
 pub struct MetadataUpdate {
     id: i64,
     rating: Option<i32>,

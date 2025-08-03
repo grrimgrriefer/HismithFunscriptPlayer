@@ -1,4 +1,4 @@
-import { playVideo } from './video_player.js?v=109';
+import { playVideo } from './video_player.js?v=110';
 
 function debounce(func, wait) {
     let timeout;
@@ -20,28 +20,54 @@ export function createSearchBox(container) {
     input.type = 'text';
     input.id = 'video-search';
     input.placeholder = 'Search by filename or tag...';
+    searchBox.appendChild(input);
+
+    const filterContainer = document.createElement('div');
+    filterContainer.className = 'filter-container';
+    filterContainer.innerHTML = `
+        <div class="filter-group">
+            <label for="min-duration">Duration (s):</label>
+            <input type="number" id="min-duration" placeholder="Min">
+            <span>-</span>
+            <input type="number" id="max-duration" placeholder="Max">
+        </div>
+        <div class="filter-group">
+            <label for="min-intensity">Avg Intensity (%):</label>
+            <input type="number" id="min-intensity" placeholder="Min" min="0" max="100">
+            <span>-</span>
+            <input type="number" id="max-intensity" placeholder="Max" min="0" max="100">
+        </div>
+    `;
+    searchBox.appendChild(filterContainer);
 
     const resultsContainer = document.createElement('div');
     resultsContainer.id = 'search-results';
-    resultsContainer.className = 'search-results';
-
-    searchBox.appendChild(input);
     searchBox.appendChild(resultsContainer);
 
-    // Insert before directory-tree
     const directoryTree = document.getElementById('directory-tree');
     container.insertBefore(searchBox, directoryTree);
 
-    input.addEventListener('input', debounce(async (e) => {
-        const query = e.target.value;
-        if (query.length < 2) {
+    const performSearch = debounce(async () => {
+        const query = input.value;
+        const minDuration = document.getElementById('min-duration').value;
+        const maxDuration = document.getElementById('max-duration').value;
+        const minIntensity = document.getElementById('min-intensity').value;
+        const maxIntensity = document.getElementById('max-intensity').value;
+
+        if (query.length < 2 && !minDuration && !maxDuration && !minIntensity && !maxIntensity) {
             resultsContainer.innerHTML = '';
             directoryTree.style.display = 'block';
             return;
         }
 
+        const params = new URLSearchParams({ q: query });
+        if (minDuration) params.append('min_duration', minDuration);
+        if (maxDuration) params.append('max_duration', maxDuration);
+        if (minIntensity) params.append('min_avg_intensity', minIntensity);
+        if (maxIntensity) params.append('max_avg_intensity', maxIntensity);
+
         try {
-            const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+            const response = await fetch(`/api/search?${params.toString()}`);
             if (!response.ok) {
                 let errorMsg = 'Search failed.';
                 try {
@@ -84,6 +110,15 @@ export function createSearchBox(container) {
                     metadata.appendChild(rating);
                 }
 
+                if (video.duration) {
+                    const duration = document.createElement('span');
+                    duration.className = 'duration';
+                    const minutes = Math.floor(video.duration / 60);
+                    const seconds = Math.round(video.duration % 60).toString().padStart(2, '0');
+                    duration.textContent = `🕒 ${minutes}:${seconds}`;
+                    metadata.appendChild(duration);
+                }
+
                 if (video.avg_intensity) {
                     const intensity = document.createElement('span');
                     intensity.className = 'intensity';
@@ -91,7 +126,14 @@ export function createSearchBox(container) {
                     metadata.appendChild(intensity);
                 }
 
-                if (video.tags && video.tags.length > 0) {
+                if (video.max_intensity) {
+                    const maxIntensity = document.createElement('span');
+                    maxIntensity.className = 'intensity';
+                    maxIntensity.textContent = `🔥 ${video.max_intensity.toFixed(1)}`;
+                    metadata.appendChild(maxIntensity);
+                }
+
+                if (video.tags && video.tags.length > 0 && video.tags[0] !== null) {
                     const tags = document.createElement('span');
                     tags.className = 'tags';
                     tags.textContent = `🏷️ ${video.tags.join(', ')}`;
@@ -107,5 +149,10 @@ export function createSearchBox(container) {
             directoryTree.style.display = 'none';
             resultsContainer.innerHTML = `<div class="search-result-item" style="color: #ff5555;">Error: ${error.message}</div>`;
         }
-    }, 300));
+    }, 300);
+
+    input.addEventListener('input', performSearch);
+    filterContainer.querySelectorAll('input').forEach(filterInput => {
+        filterInput.addEventListener('input', performSearch);
+    });
 }

@@ -1,6 +1,6 @@
 // src/db/database.rs
 
-use rusqlite::{Connection, Result};
+use rusqlite::{params_from_iter, Connection, Result};
 use serde::Serialize;
 use std::collections::HashSet;
 use std::fs;
@@ -81,26 +81,54 @@ impl Database {
         Ok(metadata)
     }
 
-    pub fn search_videos(&self, query: &str) -> Result<Vec<VideoMetadata>> {
+    pub fn search_videos(
+        &self,
+        query: &str,
+        min_duration: Option<i64>,
+        max_duration: Option<i64>,
+        min_avg_intensity: Option<f64>,
+        max_avg_intensity: Option<f64>,
+    ) -> Result<Vec<VideoMetadata>> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
+        let mut sql = String::from(
             "SELECT
                 v.id, v.path, v.filename, v.file_size, v.rating, v.duration, v.avg_intensity, v.max_intensity, v.has_funscript,
                 GROUP_CONCAT(t.name)
              FROM videos v
              LEFT JOIN video_tags vt ON v.id = vt.video_id
              LEFT JOIN tags t ON vt.tag_id = t.id
-             WHERE v.id IN (
+             WHERE (v.id IN (
                 SELECT DISTINCT v_inner.id
                 FROM videos v_inner
                 LEFT JOIN video_tags vt_inner ON v_inner.id = vt_inner.video_id
                 LEFT JOIN tags t_inner ON vt_inner.tag_id = t_inner.id
                 WHERE v_inner.filename LIKE ?1 OR t_inner.name LIKE ?1
-             )
-             GROUP BY v.id",
-        )?;
+             ))",
+        );
 
-        let videos_iter = stmt.query_map([format!("%{}%", query)], |row| {
+        let mut params: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(format!("%{}%", query))];
+
+        if let Some(val) = min_duration {
+            sql.push_str(" AND v.duration >= ?");
+            params.push(Box::new(val));
+        }
+        if let Some(val) = max_duration {
+            sql.push_str(" AND v.duration <= ?");
+            params.push(Box::new(val));
+        }
+        if let Some(val) = min_avg_intensity {
+            sql.push_str(" AND v.avg_intensity >= ?");
+            params.push(Box::new(val));
+        }
+        if let Some(val) = max_avg_intensity {
+            sql.push_str(" AND v.avg_intensity <= ?");
+            params.push(Box::new(val));
+        }
+
+        sql.push_str(" GROUP BY v.id");
+
+        let mut stmt = conn.prepare(&sql)?;
+        let videos_iter = stmt.query_map(params_from_iter(params), |row| {
             let tags_str: Option<String> = row.get(9)?;
             let tags = tags_str
                 .map(|s| s.split(',').map(String::from).collect())

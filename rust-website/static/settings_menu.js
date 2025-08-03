@@ -1,6 +1,6 @@
 // static/settings_menu.js
 
-import { setAbsoluteMaximum, getAbsoluteMaximum, setIntensityMultiplier } from './funscript_handler.js?v=109';
+import { setAbsoluteMaximum, getAbsoluteMaximum, setIntensityMultiplier } from './funscript_handler.js?v=110';
 
 export function createSettingsMenu() {
     let settingsMenu = document.getElementById('settings-menu');

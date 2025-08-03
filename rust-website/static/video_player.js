@@ -1,10 +1,10 @@
 // static/video_player.js
 
-import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentVideoMaxIntensity, setIntensityMultiplier, getCurrentVideoRawMaxIntensity, getCurrentVideoRawAverageIntensity, funscriptActions } from './funscript_handler.js?v=109';
-import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=109';
-import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=109';
-import { initWebSocket, sendOscillateValue } from './socket.js?v=109';
-import { createMetadataPanel, toggleMetadataPanel } from './metadata_panel.js?v=109';
+import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentVideoMaxIntensity, setIntensityMultiplier, getCurrentVideoRawMaxIntensity, getCurrentVideoRawAverageIntensity, funscriptActions } from './funscript_handler.js?v=110';
+import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=110';
+import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=110';
+import { initWebSocket, sendOscillateValue } from './socket.js?v=110';
+import { createMetadataPanel, toggleMetadataPanel } from './metadata_panel.js?v=110';
 
 let currentAnimationFrame = null;
 let isInitialized = false;

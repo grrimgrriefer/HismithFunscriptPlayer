@@ -332,3 +332,45 @@ button#toggle-directory:hover {
     border: 1px solid rgb(80, 80, 80);
     border-radius: 4px;
 }
+
+.search-result-item .video-metadata {
+    font-size: 0.9em;
+    color: #aaa;
+    margin-top: 5px;
+}
+
+.video-metadata span {
+    margin-right: 12px;
+    color: #aaa;
+    font-size: 0.9em;
+    display: inline-block;
+}
+
+.filter-container {
+    display: flex;
+    gap: 20px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.filter-group label {
+    font-size: 0.9em;
+    color: #ccc;
+}
+
+.filter-group input {
+    background-color: #2d2d2d;
+    color: #f0f0f0;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 4px 8px;
+    width: 70px;
+}

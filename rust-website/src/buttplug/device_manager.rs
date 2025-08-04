@@ -1,3 +1,5 @@
+// src/buttplug/device_manager.js
+
 //! Device connection and control module
 //! 
 //! This module manages communication with hardware devices through the Buttplug protocol.

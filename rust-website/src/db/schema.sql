@@ -1,9 +1,11 @@
+-- src/db/schema.sql
+
 -- SQL schema for the video metadata database
 CREATE TABLE IF NOT EXISTS videos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     filename TEXT NOT NULL UNIQUE,
     path TEXT NOT NULL UNIQUE,
-    file_size INTEGER NOT NULL,
+    file_size INTEGER NOT NULL UNIQUE,
     avg_intensity INTEGER,
     max_intensity INTEGER,
     duration INTEGER,  -- in seconds

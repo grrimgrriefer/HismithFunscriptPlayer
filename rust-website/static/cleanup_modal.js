@@ -1,3 +1,5 @@
+// static/cleanup_modal.js
+
 async function handleRemap(orphanId, newPath, modalElement) {
     try {
         const response = await fetch('/api/videos/remap', {

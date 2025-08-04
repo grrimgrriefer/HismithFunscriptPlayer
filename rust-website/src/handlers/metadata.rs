@@ -1,9 +1,9 @@
-// src/handlers/search.rs
+// src/handlers/metadata.rs
 
 use actix_web::{web, HttpResponse};
-use crate::db::database::{Database, VideoMetadataUpdatePayload};
+use crate::db::database::{Database, VideoMetadataUpdatePayload, GetOrCreateResult};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use std::env;
 use std::path::PathBuf;
 use crate::directory_browser;
@@ -56,7 +56,15 @@ pub async fn ensure_video(
     db: web::Data<Database>,
 ) -> HttpResponse {
     match db.get_or_create_video(&payload.path, &payload.filename) {
-        Ok(metadata) => HttpResponse::Ok().json(metadata),
+        Ok(GetOrCreateResult::Created(metadata)) => HttpResponse::Created().json(metadata),
+        Ok(GetOrCreateResult::FoundByPath(metadata)) => HttpResponse::Ok().json(metadata),
+        Ok(GetOrCreateResult::FoundByContent(mut metadata)) => {
+            if let Ok(base_path) = env::var("VIDEO_SHARE_PATH") {
+                let full_path = PathBuf::from(base_path).join(&metadata.path);
+                metadata.path = format!("file://{}", full_path.to_string_lossy());
+            }
+            HttpResponse::Conflict().json(metadata)
+        }
         Err(e) => {
             log::error!("Failed to ensure video exists: {}", e);
             HttpResponse::InternalServerError().json(serde_json::json!({
@@ -138,21 +146,27 @@ pub async fn cleanup_check(db: web::Data<Database>) -> HttpResponse {
         }
     }
 
-    let files_on_disk_by_size: HashMap<i64, String> = disk_files
-        .into_iter()
-        .map(|(path, size)| (size as i64, path.to_string_lossy().into_owned()))
-        .collect();
+    let mut files_on_disk_by_size: HashMap<i64, Vec<String>> = HashMap::new();
+    for (path, size) in disk_files {
+        files_on_disk_by_size
+            .entry(size as i64)
+            .or_default()
+            .push(path.to_string_lossy().into_owned());
+    }
 
     let suggestions: Vec<CleanupSuggestion> = orphans
         .into_iter()
         .filter_map(|orphan| {
-            files_on_disk_by_size
-                .get(&orphan.file_size)
-                .map(|match_path| CleanupSuggestion {
-                    orphan_id: orphan.id,
-                    orphan_path: orphan.path.clone(),
-                    potential_match_path: match_path.clone(),
-                })
+            if let Some(matching_files) = files_on_disk_by_size.get(&orphan.file_size) {
+                if matching_files.len() == 1 {
+                    return Some(CleanupSuggestion {
+                        orphan_id: orphan.id,
+                        orphan_path: orphan.path.clone(),
+                        potential_match_path: matching_files[0].clone(),
+                    });
+                }
+            }
+            None
         })
         .collect();
 
@@ -170,10 +184,14 @@ pub async fn remap_video(
     db: web::Data<Database>,
 ) -> HttpResponse {
     match db.video_exists_by_path(&payload.new_path) {
-        Ok(Some(_existing_id)) => {
-            match db.delete_video(payload.orphan_id) {
-                Ok(_) => HttpResponse::Ok().json("Orphan deleted as target already exists."),
-                Err(_) => HttpResponse::InternalServerError().json("Failed to delete orphan."),
+        Ok(Some(existing_id)) => {
+            if db.delete_video(existing_id).is_err() {
+                return HttpResponse::InternalServerError().json("Failed to delete stale record at target path.");
+            }
+
+            match db.update_video_path(payload.orphan_id, &payload.new_path) {
+                Ok(_) => HttpResponse::Ok().json("Stale record deleted and video path remapped successfully."),
+                Err(_) => HttpResponse::InternalServerError().json("Failed to remap video path after deleting stale record."),
             }
         }
         Ok(None) => {

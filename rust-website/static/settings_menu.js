@@ -1,6 +1,6 @@
 // static/settings_menu.js
 
-import { setAbsoluteMaximum, getAbsoluteMaximum, setIntensityMultiplier } from './funscript_handler.js?v=112';
+import { setAbsoluteMaximum, getAbsoluteMaximum, setIntensityMultiplier } from './funscript_handler.js?v=136';
 
 export function createSettingsMenu() {
     let settingsMenu = document.getElementById('settings-menu');
@@ -8,7 +8,7 @@ export function createSettingsMenu() {
         settingsMenu = document.createElement('div');
         settingsMenu.id = 'settings-menu';
         settingsMenu.style.position = 'absolute';
-        settingsMenu.style.top = '10px';
+        settingsMenu.style.top = '60px';
         settingsMenu.style.right = '10px';
         settingsMenu.style.width = '250px';
         settingsMenu.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';

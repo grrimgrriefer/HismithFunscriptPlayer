@@ -29,6 +29,14 @@ pub struct VideoMetadata {
     pub tags: Vec<String>,
 }
 
+#[derive(Serialize)]
+#[serde(tag = "status", content = "video")]
+pub enum GetOrCreateResult {
+    Created(VideoMetadata),
+    FoundByPath(VideoMetadata),
+    FoundByContent(VideoMetadata),
+}
+
 pub struct Database {
     conn: Mutex<Connection>,
 }
@@ -158,7 +166,11 @@ impl Database {
         videos_iter.collect()
     }
 
-    pub fn get_or_create_video(&self, path: &str, filename: &str) -> Result<VideoMetadata> {
+    pub fn get_or_create_video(
+        &self,
+        path: &str,
+        filename: &str,
+    ) -> Result<GetOrCreateResult, rusqlite::Error> {
         // Construct the full path to the video file.
         let base_path = match env::var("VIDEO_SHARE_PATH") {
             Ok(p) => p,
@@ -171,42 +183,66 @@ impl Database {
         };
         let full_path = PathBuf::from(base_path).join(path);
 
-        let video_id = {
+        enum VideoFindStatus { Created, FoundByPath, FoundByContent }
+
+        let (video_id, status) = {
             let mut conn = self.conn.lock().unwrap();
             let tx = conn.transaction()?;
 
-            // Try to find the video by its path first, since it's unique.
-            let existing_id: Result<i64, _> =
-                tx.query_row("SELECT id FROM videos WHERE path = ?1", [path], |row| {
+            let id_and_status_result = if let Some(id) = tx
+                .query_row("SELECT id FROM videos WHERE path = ?1", [path], |row| {
                     row.get(0)
-                });
+                })
+                .optional()?
+            {
+                Ok((id, VideoFindStatus::FoundByPath))
+            } else {
+                // Video not found by path, so get file size and try to insert.
+                let file_size = match fs::metadata(&full_path) {
+                    Ok(meta) => meta.len() as i64,
+                    Err(e) => {
+                        log::error!("Failed to get metadata for {:?}: {}", full_path, e);
+                        return Err(rusqlite::Error::InvalidPath(full_path.to_path_buf()));
+                    }
+                };
 
-            let id = match existing_id {
-                Ok(id) => id, // Video already exists
-                Err(rusqlite::Error::QueryReturnedNoRows) => {
-                    // Video not found, so get file size and insert it.
-                    let file_size = match fs::metadata(&full_path) {
-                        Ok(meta) => meta.len() as i64,
-                        Err(e) => {
-                            log::error!("Failed to get metadata for {:?}: {}", full_path, e);
-                            return Err(rusqlite::Error::InvalidPath(full_path.to_path_buf()));
-                        }
-                    };
-
-                    tx.execute(
-                        "INSERT INTO videos (path, filename, file_size) VALUES (?1, ?2, ?3)",
-                        (path, filename, &file_size),
-                    )?;
-                    tx.last_insert_rowid()
+                match tx.execute(
+                    "INSERT INTO videos (path, filename, file_size) VALUES (?1, ?2, ?3)",
+                    params![path, filename, &file_size],
+                ) {
+                    Ok(_) => Ok((tx.last_insert_rowid(), VideoFindStatus::Created)),
+                    Err(rusqlite::Error::SqliteFailure(e, _))
+                        if e.code == rusqlite::ErrorCode::ConstraintViolation =>
+                    {
+                        // This is a duplicate. Find the existing video by file_size.
+                        tx.query_row(
+                            "SELECT id FROM videos WHERE file_size = ?1",
+                            params![&file_size],
+                            |row| row.get(0),
+                        )
+                        .map(|id| (id, VideoFindStatus::FoundByContent))
+                    }
+                    Err(e) => Err(e),
                 }
-                Err(e) => return Err(e.into()),
             };
-            tx.commit()?;
-            id
-        };
+
+            match id_and_status_result {
+                Ok(res) => {
+                    tx.commit()?;
+                    Ok(res)
+                }
+                Err(e) => Err(e),
+            }
+        }?;
 
         // Part 2: With the lock released, get the full metadata for the ID.
-        self.get_video_metadata(video_id)
+        let metadata = self.get_video_metadata(video_id)?;
+
+        match status {
+            VideoFindStatus::Created => Ok(GetOrCreateResult::Created(metadata)),
+            VideoFindStatus::FoundByPath => Ok(GetOrCreateResult::FoundByPath(metadata)),
+            VideoFindStatus::FoundByContent => Ok(GetOrCreateResult::FoundByContent(metadata)),
+        }
     }
 
     pub fn get_all_tags(&self) -> Result<Vec<String>> {

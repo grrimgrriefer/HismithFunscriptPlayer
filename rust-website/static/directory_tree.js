@@ -1,8 +1,8 @@
 // static/directory_tree.js
 
-import { playVideo } from './video_player.js?v=112';
-import { createSearchBox } from './search.js?v=112';
-import { createCleanupModal } from './cleanup_modal.js?v=112';
+import { playVideo } from './video_player.js?v=136';
+import { createSearchBox } from './search.js?v=136';
+import { createCleanupModal } from './cleanup_modal.js?v=136';
 
 async function checkForOrphanedVideos() {
     try {

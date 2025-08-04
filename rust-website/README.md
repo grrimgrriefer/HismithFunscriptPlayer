@@ -15,7 +15,11 @@ A web-based video player application built with Rust and JavaScript that synchro
 
 - `src/`
   - `main.rs` - Server entry point and configuration
-  - `handlers.rs` - HTTP request handlers for videos and funscripts
+  - `handlers/` - HTTP request handlers for different routes
+    - `index.rs` - Handler for the main index page
+    - `video.rs` - Handler for video streaming
+    - `funscript.rs` - Handler for funscript files
+    - `metadata.rs` - Handlers for video metadata
   - `directory_browser.rs` - File system navigation
   - `buttplug/`
     - `device_manager.rs` - Device connection and control

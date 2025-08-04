@@ -1,3 +1,5 @@
+// static/metadata_panel.js
+
 let availableTags = [];
 let currentVideoData = null;
 
@@ -167,20 +169,102 @@ function setupMetadataHandlers(panel) {
     });
 }
 
-function formatDuration(seconds) {
-    if (!seconds || isNaN(seconds)) return '-';
-
-    const totalSeconds = Math.round(seconds);
-    const minutes = Math.floor(totalSeconds / 60);
-    const remainingSeconds = totalSeconds % 60;
-
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-}
-
 export function toggleMetadataPanel() {
     const panel = document.getElementById('metadata-panel');
     if (panel) {
         const isHidden = panel.style.display === 'none';
         panel.style.display = isHidden ? 'block' : 'none';
     }
+}
+
+function formatDuration(seconds) {
+    if (seconds === null || seconds === undefined) return 'N/A';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    return [
+        h > 0 ? h : null,
+        m,
+        s
+    ].filter(x => x !== null).map(x => x.toString().padStart(2, '0')).join(':');
+}
+
+export function clearMetadataPanel() {
+    const panel = document.getElementById('metadata-panel');
+    if (!panel) {
+        return;
+    }
+
+    // Reset data model
+    currentVideoData = null;
+
+    // Reset UI elements
+    panel.querySelector('#video-title').textContent = '';
+    panel.querySelector('#video-rating').value = '';
+    panel.querySelector('#tags-list').innerHTML = '';
+    panel.querySelector('#avg-intensity').textContent = '-';
+    panel.querySelector('#max-intensity').textContent = '-';
+    panel.querySelector('#video-duration').textContent = '-';
+}
+
+export function createDuplicateVideoModal(videoData) {
+    const existingModal = document.getElementById('duplicate-modal-overlay');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    const modalOverlay = document.createElement('div');
+    modalOverlay.id = 'duplicate-modal-overlay';
+    modalOverlay.className = 'cleanup-modal-overlay';
+
+    const modal = document.createElement('div');
+    modal.className = 'cleanup-modal';
+
+    const ratingStars = videoData.rating ? '⭐'.repeat(videoData.rating) : 'Not Rated';
+    const tagsHtml = videoData.tags && videoData.tags.length > 0
+        ? videoData.tags.map(tag => `<span class="tag-item">${tag}</span>`).join(' ')
+        : 'No tags';
+
+    modal.innerHTML = `
+        <h2>Duplicate Video Detected</h2>
+        <p>A video with the same file size already exists in the database:</p>
+        <div class="duplicate-metadata-display">
+            <p><strong>Filename:</strong> ${videoData.filename}</p>
+            <div class="path-copy-container">
+                <input type="text" readonly value="${videoData.path}">
+                <button id="copy-path-btn">Copy Path</button>
+            </div>
+            <p><strong>Rating:</strong> ${ratingStars}</p>
+            <p><strong>Tags:</strong> ${tagsHtml}</p>
+            <p><strong>Duration:</strong> ${formatDuration(videoData.duration)}</p>
+            <p><strong>Avg/Max Intensity:</strong> ${videoData.avg_intensity ?? 'N/A'} / ${videoData.max_intensity ?? 'N/A'}</p>
+        </div>
+    `;
+
+    const buttonContainer = document.createElement('div');
+    buttonContainer.className = 'modal-buttons';
+
+    const closeButton = document.createElement('button');
+    closeButton.textContent = 'Close';
+    closeButton.className = 'modal-button-confirm';
+    closeButton.onclick = () => modalOverlay.remove();
+
+    buttonContainer.appendChild(closeButton);
+    modal.appendChild(buttonContainer);
+
+    modalOverlay.appendChild(modal);
+    document.body.appendChild(modalOverlay);
+
+    modal.querySelector('#copy-path-btn').addEventListener('click', (e) => {
+        const pathInput = e.target.parentElement.querySelector('input');
+        navigator.clipboard.writeText(pathInput.value)
+            .then(() => {
+                e.target.textContent = 'Copied!';
+                setTimeout(() => { e.target.textContent = 'Copy Path'; }, 2000);
+            })
+            .catch(err => {
+                alert('Failed to copy path.');
+                console.error('Failed to copy path: ', err);
+            });
+    });
 }

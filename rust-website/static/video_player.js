@@ -1,14 +1,35 @@
 // static/video_player.js
 
-import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentVideoMaxIntensity, setIntensityMultiplier, getCurrentVideoRawMaxIntensity, getCurrentVideoRawAverageIntensity, funscriptActions } from './funscript_handler.js?v=112';
-import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=112';
-import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=112';
-import { initWebSocket, sendOscillateValue } from './socket.js?v=112';
-import { createMetadataPanel, toggleMetadataPanel } from './metadata_panel.js?v=112';
+import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentVideoMaxIntensity, setIntensityMultiplier, getCurrentVideoRawMaxIntensity, getCurrentVideoRawAverageIntensity, funscriptActions } from './funscript_handler.js?v=136';
+import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=136';
+import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=136';
+import { initWebSocket, sendOscillateValue } from './socket.js?v=136';
+import { createMetadataPanel, toggleMetadataPanel, createDuplicateVideoModal, clearMetadataPanel } from './metadata_panel.js?v=136';
 
 let currentAnimationFrame = null;
 let isInitialized = false;
 let cancelAnimationTimeout = null;
+
+function createPlayerButton(id, text, rightPos, onClick) {
+    let button = document.getElementById(id);
+    if (!button) {
+        button = document.createElement('button');
+        button.id = id;
+        button.textContent = text;
+        button.style.position = 'absolute';
+        button.style.top = '10px';
+        button.style.right = rightPos;
+        button.style.backgroundColor = 'rgb(70, 70, 70)';
+        button.style.color = 'white';
+        button.style.border = 'none';
+        button.style.padding = '10px 20px';
+        button.style.cursor = 'pointer';
+        button.style.borderRadius = '5px';
+        button.style.zIndex = '10';
+        document.body.appendChild(button);
+    }
+    button.onclick = onClick;
+}
 
 export async function playVideo(videoUrl, funscriptUrl) {
     if (currentAnimationFrame) {
@@ -72,48 +93,12 @@ export async function playVideo(videoUrl, funscriptUrl) {
     }
 
     // Add a button to toggle the settings menu
-    let settingsButton = document.getElementById('settings-button');
-    if (!settingsButton) {
-        settingsButton = document.createElement('button');
-        settingsButton.id = 'settings-button';
-        settingsButton.textContent = 'Settings';
-        settingsButton.style.position = 'absolute';
-        settingsButton.style.top = '10px';
-        settingsButton.style.right = '10px';
-        settingsButton.style.backgroundColor = 'rgb(70, 70, 70)';
-        settingsButton.style.color = 'white';
-        settingsButton.style.border = 'none';
-        settingsButton.style.padding = '10px 20px';
-        settingsButton.style.cursor = 'pointer';
-        settingsButton.style.borderRadius = '5px';
-        settingsButton.style.zIndex = '10';
-        settingsButton.onclick = toggleSettingsMenu;
-
-        document.body.appendChild(settingsButton);
-    }
+    createPlayerButton('settings-button', 'Settings', '10px', toggleSettingsMenu);
 
     await createMetadataPanel();
 
     // Add the metadata button:
-    let metadataButton = document.getElementById('metadata-button');
-    if (!metadataButton) {
-        metadataButton = document.createElement('button');
-        metadataButton.id = 'metadata-button';
-        metadataButton.textContent = 'Metadata';
-        metadataButton.style.position = 'absolute';
-        metadataButton.style.top = '10px';
-        metadataButton.style.right = '120px'; // Position it next to settings
-        metadataButton.style.backgroundColor = 'rgb(70, 70, 70)';
-        metadataButton.style.color = 'white';
-        metadataButton.style.border = 'none';
-        metadataButton.style.padding = '10px 20px';
-        metadataButton.style.cursor = 'pointer';
-        metadataButton.style.borderRadius = '5px';
-        metadataButton.style.zIndex = '10';
-        metadataButton.onclick = toggleMetadataPanel;
-
-        document.body.appendChild(metadataButton);
-    }
+    createPlayerButton('metadata-button', 'Metadata', '120px', toggleMetadataPanel);
 
     let transitionStartTime = Date.now();
     let transitionTargetValue = 1;
@@ -163,6 +148,8 @@ export async function playVideo(videoUrl, funscriptUrl) {
     createFunscriptDisplayBox();
 
     videoElement.onloadeddata = async () => {
+        clearMetadataPanel();
+
         // Now, wait for the funscript to finish loading.
         await funscriptPromise;
 
@@ -184,13 +171,26 @@ export async function playVideo(videoUrl, funscriptUrl) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ path: videoPath, filename: filename })
             });
+
             if (response.ok) {
                 dbMetadata = await response.json();
+            } else if (response.status === 409) {
+                const conflictData = await response.json();
+                createDuplicateVideoModal(conflictData);
+                spinner.style.display = 'none';
+                return;
             } else {
-                console.error('Failed to ensure video metadata:', await response.text());
+                const errorData = await response.json();
+                console.error('Failed to ensure video metadata:', errorData);
+                alert(`Failed to load video metadata: ${errorData.error}`);
+                spinner.style.display = 'none';
+                return;
             }
         } catch (error) {
             console.error('Failed to fetch video metadata:', error);
+            alert('An error occurred while fetching video metadata.');
+            spinner.style.display = 'none';
+            return;
         }
 
         const metadata = {

@@ -1,6 +1,6 @@
 // static/search.js
 
-import { playVideo } from './video_player.js?v=136';
+import { playVideo } from './video_player.js?v=213';
 
 function debounce(func, wait) {
     let timeout;
@@ -77,15 +77,14 @@ export function createSearchBox(container) {
     resultsContainer.id = 'search-results';
     searchBox.appendChild(resultsContainer);
 
-    const directoryTree = document.getElementById('directory-tree');
-    container.insertBefore(searchBox, directoryTree);
-
+    container.appendChild(searchBox);
     const filterInputs = filterContainer.querySelectorAll('input:not(#show-untracked)');
     const untrackedCheckbox = document.getElementById('show-untracked');
 
     const performSearch = debounce(async () => {
         const showUntracked = untrackedCheckbox.checked;
 
+        const directoryTree = document.getElementById('directory-tree');
         directoryTree.style.display = 'none';
         resultsContainer.innerHTML = '<div class="search-result-item">Loading...</div>';
 

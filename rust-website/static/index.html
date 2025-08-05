@@ -1,0 +1,38 @@
+<!--  static/index.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Video Player</title>
+    <link rel="stylesheet" href="/site/static/styles.css?v=213">
+</head>
+
+<body>
+    <!-- Main application container -->
+    <div id="app">
+        <!-- Directory and search sidebar -->
+        <div id="directory-container">
+            <h1>Video Player</h1>
+            <div id="search-container-placeholder"></div>
+            <div id="directory-tree"></div>
+        </div>
+
+        <!-- Main content area for the video player -->
+        <div id="video-container" class="hidden">
+            <div id="video-wrapper">
+                <div id="video-player"></div>
+            </div>
+        </div>
+
+        <!-- Global UI elements -->
+        <button id="toggle-directory">Toggle Directory</button>
+    </div>
+
+    <!-- Main script entry point -->
+    <script src="/site/static/main.js?v=213" type="module"></script>
+</body>
+
+</html>

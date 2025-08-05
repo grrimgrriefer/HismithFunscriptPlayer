@@ -1,35 +1,12 @@
 // static/video_player.js
 
-import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentVideoMaxIntensity, setIntensityMultiplier, getCurrentVideoRawMaxIntensity, getCurrentVideoRawAverageIntensity, funscriptActions } from './funscript_handler.js?v=136';
-import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=136';
-import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=136';
-import { initWebSocket, sendOscillateValue } from './socket.js?v=136';
-import { createMetadataPanel, toggleMetadataPanel, createDuplicateVideoModal, clearMetadataPanel } from './metadata_panel.js?v=136';
+import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentVideoMaxIntensity, setIntensityMultiplier, getCurrentVideoRawMaxIntensity, getCurrentVideoRawAverageIntensity, funscriptActions } from './funscript_handler.js?v=213';
+import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=213';
+import { sendOscillateValue } from './socket.js?v=213';
+import { createDuplicateVideoModal, clearMetadataPanel } from './metadata_panel.js?v=213';
 
 let currentAnimationFrame = null;
-let isInitialized = false;
 let cancelAnimationTimeout = null;
-
-function createPlayerButton(id, text, rightPos, onClick) {
-    let button = document.getElementById(id);
-    if (!button) {
-        button = document.createElement('button');
-        button.id = id;
-        button.textContent = text;
-        button.style.position = 'absolute';
-        button.style.top = '10px';
-        button.style.right = rightPos;
-        button.style.backgroundColor = 'rgb(70, 70, 70)';
-        button.style.color = 'white';
-        button.style.border = 'none';
-        button.style.padding = '10px 20px';
-        button.style.cursor = 'pointer';
-        button.style.borderRadius = '5px';
-        button.style.zIndex = '10';
-        document.body.appendChild(button);
-    }
-    button.onclick = onClick;
-}
 
 export async function playVideo(videoUrl, funscriptUrl) {
     if (currentAnimationFrame) {
@@ -43,7 +20,6 @@ export async function playVideo(videoUrl, funscriptUrl) {
     videoElement.src = videoUrl;
     videoElement.controls = true;
     videoElement.autoplay = false;
-    videoElement.style.width = '100%';
 
     videoPlayer.innerHTML = ''; // Clear any existing video
     videoPlayer.appendChild(videoElement);
@@ -85,21 +61,8 @@ export async function playVideo(videoUrl, funscriptUrl) {
     }
 
     // Create or update the settings menu
-    createSettingsMenu();
+    // UI components are now created globally by main.js
     const throttledSendOscillateValue = throttle(sendOscillateValue, 150);
-    if (!isInitialized) {
-        initWebSocket();
-        isInitialized = true;
-    }
-
-    // Add a button to toggle the settings menu
-    createPlayerButton('settings-button', 'Settings', '10px', toggleSettingsMenu);
-
-    await createMetadataPanel();
-
-    // Add the metadata button:
-    createPlayerButton('metadata-button', 'Metadata', '120px', toggleMetadataPanel);
-
     let transitionStartTime = Date.now();
     let transitionTargetValue = 1;
     const TRANSITION_DURATION = 1000;
@@ -211,6 +174,10 @@ export async function playVideo(videoUrl, funscriptUrl) {
     // Hide the directory tree and show the video player
     document.getElementById('directory-container').classList.add('hidden');
     document.getElementById('video-container').classList.remove('hidden');
+
+    // Show player-specific buttons
+    document.getElementById('settings-button').style.display = 'block';
+    document.getElementById('metadata-button').style.display = 'block';
 }
 
 function throttle(func, limit) {

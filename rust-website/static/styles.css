@@ -1,57 +1,68 @@
-/** static/styles.css */
+@keyframes spin {
+    0% {
+        transform: rotate(0deg)
+    }
 
-html,
-body {
+    to {
+        transform: rotate(360deg)
+    }
+}
+
+body,
+html {
     font-family: Arial, sans-serif;
-    background-color: rgb(37, 37, 37);
-    color: rgb(220, 220, 220);
+    background-color: #252525;
+    color: #dcdcdc;
     margin: 0;
     padding: 0;
     width: 100%;
     height: 100%;
-    overflow: hidden;
+    overflow: hidden
 }
 
 ul {
     list-style-type: none;
     padding-left: 20px;
-    margin: 0;
+    margin: 0
+}
+
+.folder,
+a {
+    transition: color .2s ease
 }
 
 .folder {
     cursor: pointer;
-    font-weight: bold;
-    color: rgb(173, 216, 230);
-    transition: color 0.2s ease;
+    font-weight: 700;
+    color: #add8e6
 }
 
 .folder:hover {
-    color: rgb(135, 206, 250);
+    color: #87cefa
 }
 
 a {
-    color: rgb(144, 238, 144);
-    text-decoration: none;
-    transition: color 0.2s ease;
+    color: #90ee90;
+    text-decoration: none
 }
 
 a:hover {
-    color: rgb(50, 205, 50);
-    text-decoration: underline;
+    color: #32cd32;
+    text-decoration: underline
 }
 
 .hidden {
-    display: none;
+    display: none
 }
 
 li {
-    margin: 5px 0;
+    margin: 5px 0
 }
 
 h1 {
-    color: rgb(255, 255, 255);
+    color: #fff;
     text-align: center;
-    margin-bottom: 20px;
+    margin-bottom: 20px
 }
 
 #directory-container {
@@ -60,13 +71,14 @@ h1 {
     left: 0;
     width: 30%;
     height: 100%;
-    background-color: rgba(50, 50, 50, 0.9);
+    background-color: rgba(50, 50, 50, .9);
     overflow-y: auto;
-    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.5);
-    z-index: 2;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, .5);
+    z-index: 2
 }
 
 #video-container {
+    position: fixed;
     top: 0;
     left: 0;
     width: 100%;
@@ -75,251 +87,238 @@ h1 {
     display: flex;
     justify-content: center;
     align-items: center;
-    background-color: black;
+    background-color: #000
 }
 
+#video-wrapper {
+    overflow: hidden
+}
+
+#video-player,
 #video-wrapper {
     width: 100%;
     height: 100%;
     display: flex;
     justify-content: center;
-    align-items: center;
-}
-
-#video-player {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    align-items: center
 }
 
 #video-player video {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-}
-
-/* Fullscreen styles */
-#video-player:fullscreen,
-#video-player:-webkit-full-screen {
-    width: 100vw;
-    height: 100vh;
-}
-
-#video-player:fullscreen video,
-#video-player:-webkit-full-screen video {
-    width: 100%;
+    width: auto;
     height: 100%;
-    object-fit: contain;
+    object-fit: cover
+}
+
+#video-player:-webkit-full-screen,
+#video-player:fullscreen {
+    width: 100vw;
+    height: 100vh
+}
+
+#video-player:-webkit-full-screen video,
+#video-player:fullscreen video {
+    width: auto;
+    height: 100vh;
+    object-fit: cover
 }
 
 button {
-    background-color: rgb(70, 70, 70);
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    cursor: pointer;
-    margin-bottom: 20px;
+    color: #fff;
+    margin-bottom: 20px
 }
 
+button#toggle-directory:hover,
 button:hover {
-    background-color: rgb(100, 100, 100);
+    background-color: #646464
+}
+
+#funscript-box,
+button#toggle-directory {
+    position: absolute;
+    color: #fff;
+    border-radius: 5px;
+    z-index: 3
+}
+
+button,
+button#toggle-directory {
+    background-color: #464646;
+    border: 0;
+    padding: 10px 20px;
+    cursor: pointer
 }
 
 button#toggle-directory {
-    position: absolute;
     top: 10px;
-    left: 10px;
-    z-index: 3;
-    background-color: rgb(70, 70, 70);
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    cursor: pointer;
-    border-radius: 5px;
-}
-
-button#toggle-directory:hover {
-    background-color: rgb(100, 100, 100);
+    left: 10px
 }
 
 #funscript-box {
-    position: absolute;
     bottom: 10px;
     right: 10px;
-    background-color: rgba(0, 0, 0, 0.7);
-    color: white;
+    background-color: rgba(0, 0, 0, .7);
     padding: 10px;
-    border-radius: 5px;
-    font-size: 16px;
-    z-index: 3;
+    font-size: 16px
 }
 
 #directory-tree li:nth-child(odd) {
-    background-color: rgba(80, 80, 80, 0.9);
+    background-color: rgba(80, 80, 80, .9)
 }
 
 #directory-tree li:nth-child(even) {
-    background-color: rgba(50, 50, 50, 0.9);
+    background-color: rgba(50, 50, 50, .9)
 }
 
-/* Optional: Add some padding for better readability */
 #directory-tree li {
     padding: 5px;
-    border-radius: 3px;
+    border-radius: 3px
 }
 
-@keyframes spin {
-    0% {
-        transform: rotate(0deg);
-    }
-
-    100% {
-        transform: rotate(360deg);
-    }
-}
-
-
-/* Search styles */
 .search-container {
     padding: 10px;
-    background: rgba(40, 40, 40, 0.95);
-    border-bottom: 1px solid rgb(60, 60, 60);
+    background: rgba(40, 40, 40, .95);
+    border-bottom: 1px solid #3c3c3c
 }
 
 #video-search {
     width: 100%;
     padding: 8px;
-    background: rgb(60, 60, 60);
-    border: 1px solid rgb(100, 100, 100);
-    color: white;
+    background: #3c3c3c;
+    border: 1px solid #646464;
+    color: #fff;
     border-radius: 4px;
-    font-size: 14px;
+    font-size: 14px
 }
 
 .search-results {
-    margin-top: 10px;
+    margin-top: 10px
 }
 
 .search-result-item {
     padding: 8px;
-    border-bottom: 1px solid rgb(60, 60, 60);
-    transition: background-color 0.2s;
+    border-bottom: 1px solid #3c3c3c;
+    transition: background-color .2s
 }
 
 .search-result-item:hover {
-    background-color: rgb(50, 50, 50);
+    background-color: #323232
 }
 
 .video-metadata {
-    font-size: 0.9em;
-    color: rgb(180, 180, 180);
-    margin-top: 4px;
+    font-size: .9em;
+    color: #b4b4b4;
+    margin-top: 4px
 }
 
 .video-metadata span {
-    margin-right: 10px;
+    margin-right: 12px;
+    color: #aaa;
+    font-size: .9em;
+    display: inline-block
 }
 
 .rating {
-    color: rgb(255, 215, 0);
+    color: gold
 }
 
 .intensity {
-    color: rgb(100, 255, 100);
+    color: #64ff64
 }
 
-.tags {
-    color: rgb(135, 206, 235);
+.tags,
+.untracked-item a {
+    color: #87ceeb
 }
 
-/* Settings panel styles */
 .settings-panel {
     position: absolute;
     top: 60px;
     right: 10px;
     width: 300px;
-    background-color: rgba(0, 0, 0, 0.8);
-    color: white;
+    background-color: rgba(0, 0, 0, .8);
+    color: #fff;
     padding: 15px;
     border-radius: 5px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    z-index: 10;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, .2);
+    z-index: 10
 }
 
 .metadata-form .form-group {
-    margin-bottom: 15px;
+    margin-bottom: 15px
 }
 
 .metadata-form label {
     display: block;
-    margin-bottom: 5px;
+    margin-bottom: 5px
 }
 
 .metadata-form input,
 .metadata-form select {
-    width: 100%;
-    padding: 8px;
-    background: rgb(60, 60, 60);
-    border: 1px solid rgb(100, 100, 100);
-    color: white;
+    background: #3c3c3c;
+    border: 1px solid #646464;
+    color: #fff;
     border-radius: 4px;
+    width: 100%;
+    padding: 8px
 }
 
 .tags-container {
-    margin-top: 5px;
+    margin-top: 5px
 }
 
 .metadata-tag {
     display: inline-block;
-    background: rgb(70, 70, 70);
-    color: white;
+    background: #464646;
+    color: #fff;
     padding: 3px 8px;
     border-radius: 12px;
     margin: 2px;
-    font-size: 0.9em;
+    font-size: .9em
 }
 
 .remove-tag {
     margin-left: 5px;
     cursor: pointer;
-    color: rgb(255, 100, 100);
+    color: #ff6464
 }
 
 .metadata-stats {
     margin: 15px 0;
     padding: 10px;
-    background: rgba(60, 60, 60, 0.5);
+    background: rgba(60, 60, 60, .5);
+    border-radius: 4px
+}
+
+.modal-buttons button,
+.primary-button {
+    border: 0;
     border-radius: 4px;
+    cursor: pointer
 }
 
 .primary-button {
     width: 100%;
     padding: 10px;
-    background: rgb(0, 120, 215);
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
+    background: #0078d7;
+    color: #fff
 }
 
 .primary-button:hover {
-    background: rgb(0, 100, 190);
+    background: #0064be
 }
 
 .readonly-text {
     padding: 8px;
-    background: rgb(50, 50, 50);
-    border: 1px solid rgb(80, 80, 80);
+    background: #323232;
+    border: 1px solid #505050;
     border-radius: 4px;
-    color: rgb(200, 200, 200);
+    color: #c8c8c8
 }
 
 .tags-selector {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 8px
 }
 
 .selected-tags {
@@ -328,22 +327,15 @@ button#toggle-directory:hover {
     gap: 4px;
     min-height: 32px;
     padding: 4px;
-    background: rgb(50, 50, 50);
-    border: 1px solid rgb(80, 80, 80);
-    border-radius: 4px;
+    background: #323232;
+    border: 1px solid #505050;
+    border-radius: 4px
 }
 
 .search-result-item .video-metadata {
-    font-size: 0.9em;
+    font-size: .9em;
     color: #aaa;
-    margin-top: 5px;
-}
-
-.video-metadata span {
-    margin-right: 12px;
-    color: #aaa;
-    font-size: 0.9em;
-    display: inline-block;
+    margin-top: 5px
 }
 
 .filter-container {
@@ -352,18 +344,18 @@ button#toggle-directory:hover {
     margin-top: 10px;
     margin-bottom: 10px;
     align-items: center;
-    flex-wrap: wrap;
+    flex-wrap: wrap
 }
 
 .filter-group {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 5px
 }
 
 .filter-group label {
-    font-size: 0.9em;
-    color: #ccc;
+    font-size: .9em;
+    color: #ccc
 }
 
 .filter-group input {
@@ -372,31 +364,20 @@ button#toggle-directory:hover {
     border: 1px solid #555;
     border-radius: 4px;
     padding: 4px 8px;
-    width: 70px;
+    width: 70px
 }
 
-/* ...existing code... */
-.filter-group input {
-    background-color: #2d2d2d;
-    color: #f0f0f0;
-    border: 1px solid #555;
-    border-radius: 4px;
-    padding: 4px 8px;
-    width: 70px;
-}
-
-/* Cleanup Modal Styles */
 .cleanup-modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.7);
+    background-color: rgba(0, 0, 0, .7);
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
+    z-index: 1000
 }
 
 .cleanup-modal {
@@ -406,19 +387,19 @@ button#toggle-directory:hover {
     border: 1px solid #555;
     width: 90%;
     max-width: 500px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
-    color: #f0f0f0;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, .5);
+    color: #f0f0f0
 }
 
 .cleanup-modal h2 {
     margin-top: 0;
     color: #e0e0e0;
     border-bottom: 1px solid #444;
-    padding-bottom: 10px;
+    padding-bottom: 10px
 }
 
 .cleanup-modal p {
-    line-height: 1.6;
+    line-height: 1.6
 }
 
 .cleanup-modal .path-display {
@@ -426,72 +407,50 @@ button#toggle-directory:hover {
     background-color: #1e1e1e;
     padding: 10px;
     border-radius: 4px;
-    font-family: 'Courier New', Courier, monospace;
+    font-family: "Courier New", Courier, monospace;
     word-wrap: break-word;
-    margin: 10px 0;
+    margin: 10px 0
 }
 
 .modal-buttons {
     margin-top: 20px;
     display: flex;
     justify-content: flex-end;
-    gap: 10px;
+    gap: 10px
 }
 
 .modal-buttons button {
     padding: 10px 20px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: bold;
+    font-weight: 700
 }
 
 .modal-button-confirm {
-    background-color: #4CAF50;
-    color: white;
+    background-color: #4caf50;
+    color: #fff
 }
 
 .modal-button-confirm:hover {
-    background-color: #45a049;
+    background-color: #45a049
 }
 
 .modal-button-ignore {
     background-color: #555;
-    color: #f0f0f0;
+    color: #f0f0f0
 }
 
 .modal-button-ignore:hover {
-    background-color: #666;
-}
-
-.filter-group input {
-    background-color: #2d2d2d;
-    color: #f0f0f0;
-    border: 1px solid #555;
-    border-radius: 4px;
-    padding: 4px 8px;
-    width: 70px;
+    background-color: #666
 }
 
 .untracked-label {
     cursor: pointer;
-    user-select: none;
-}
-
-.untracked-item a {
-    color: #87ceeb;
+    user-select: none
 }
 
 .untracked-item a:hover {
-    text-decoration: underline;
+    text-decoration: underline
 }
 
-.metadata-form select {
-    width: 100%;
-    padding: 8px;
-}
-
-/* Modal styles */
 .modal {
     display: block;
     position: fixed;
@@ -501,77 +460,73 @@ button#toggle-directory:hover {
     width: 100%;
     height: 100%;
     overflow: auto;
-    background-color: rgba(0, 0, 0, 0.6);
+    background-color: rgba(0, 0, 0, .6)
 }
 
 .modal-content {
     background-color: #2e2e2e;
     color: #f1f1f1;
-    margin: 15% auto;
+    margin: 15%auto;
     padding: 20px;
     border: 1px solid #888;
     width: 80%;
     max-width: 500px;
     border-radius: 8px;
-    box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+    box-shadow: 0 4px 8px 0 rgba(0, 0, 0, .2), 0 6px 20px 0 rgba(0, 0, 0, .19)
 }
 
 .modal-content h2 {
-    margin-top: 0;
+    margin-top: 0
 }
 
+.duplicate-metadata-display p,
 .modal-content .video-details p {
-    margin: 8px 0;
+    margin: 8px 0
 }
 
 .modal-content .video-details strong {
-    color: #a0a0a0;
+    color: #a0a0a0
 }
 
 .close-button {
     color: #aaa;
     float: right;
     font-size: 28px;
-    font-weight: bold;
+    font-weight: 700
 }
 
-.close-button:hover,
-.close-button:focus {
-    color: white;
+.close-button:focus,
+.close-button:hover {
+    color: #fff;
     text-decoration: none;
-    cursor: pointer;
+    cursor: pointer
 }
 
 .ok-button {
-    background-color: #4CAF50;
-    color: white;
+    background-color: #4caf50;
+    color: #fff;
     padding: 10px 18px;
     margin-top: 10px;
-    border: none;
+    border: 0;
     cursor: pointer;
-    border-radius: 5px;
+    border-radius: 5px
 }
 
 .ok-button:hover {
-    background-color: #45a049;
+    background-color: #45a049
 }
 
 .modal-button-delete {
     background-color: #888;
-    color: white;
+    color: #fff
 }
 
-/* Styles for duplicate video modal */
 .duplicate-metadata-display {
     text-align: left;
     background-color: #3a3a3a;
     padding: 15px;
     border-radius: 5px;
-    margin: 15px 0;
-}
-
-.duplicate-metadata-display p {
-    margin: 8px 0;
+    margin: 15px 0
 }
 
 .duplicate-metadata-display .tag-item {
@@ -580,14 +535,14 @@ button#toggle-directory:hover {
     border-radius: 10px;
     margin-right: 5px;
     display: inline-block;
-    font-size: 0.9em;
+    font-size: .9em
 }
 
 .path-copy-container {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin: 12px 0;
+    margin: 12px 0
 }
 
 .path-copy-container input[readonly] {
@@ -597,19 +552,19 @@ button#toggle-directory:hover {
     color: #eee;
     padding: 8px;
     border-radius: 4px;
-    font-family: monospace;
+    font-family: monospace
 }
 
 .path-copy-container button {
     padding: 8px 12px;
-    border: none;
+    border: 0;
     border-radius: 4px;
     background-color: #007bff;
-    color: white;
+    color: #fff;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: background-color .2s
 }
 
 .path-copy-container button:hover {
-    background-color: #0056b3;
+    background-color: #0056b3
 }

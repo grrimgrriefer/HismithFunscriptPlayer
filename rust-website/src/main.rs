@@ -17,7 +17,6 @@ use rust_website::{
 };
 use env_logger::Env;
 use std::env;
-use dotenv::dotenv;
 use tokio::task;
 
 /// Default server port
@@ -33,8 +32,8 @@ const SERVER_PORT: u16 = 5441;
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // Load environment variables from .env file
-    dotenv().ok();
-    
+    dotenv::from_filename(".env").expect("Failed to load .env");
+
     // Initialize logging with default level of 'info'
     env_logger::init_from_env(Env::default().default_filter_or("info"));
 

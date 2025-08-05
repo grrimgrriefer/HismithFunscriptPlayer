@@ -1,111 +1,83 @@
 // static/directory_tree.js
 
-import { playVideo } from './video_player.js?v=136';
-import { createSearchBox } from './search.js?v=136';
-import { createCleanupModal } from './cleanup_modal.js?v=136';
+import { playVideo } from './video_player.js?v=213';
 
-async function checkForOrphanedVideos() {
-    try {
-        const response = await fetch('/api/videos/cleanup-check');
-        if (!response.ok) {
-            throw new Error('Failed to check for orphaned videos.');
-        }
-        const suggestions = await response.json();
-        if (suggestions && suggestions.length > 0) {
-            suggestions.forEach(suggestion => createCleanupModal(suggestion));
-        }
-    } catch (error) {
-        console.error('Cleanup check failed:', error);
-    }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    const directoryTree = window.directoryTree;
-
-    function toggleFolder(id) {
-        const element = document.getElementById(id);
-
-        if (element.parentElement.parentElement.id === 'directory-tree') {
-            document.querySelectorAll('#directory-tree ul').forEach(ul => {
-                if (ul.id !== id) {
-                    ul.classList.add('hidden');
-                }
-            });
-        }
-
-        if (element.classList.contains('hidden')) {
-            element.classList.remove('hidden');
-        } else {
-            element.classList.add('hidden');
-        }
+function toggleFolder(id) {
+    const element = document.getElementById(id);
+    if (!element) {
+        return;
     }
 
-    function renderTree(node, parent) {
-        const li = document.createElement('li');
-        if (node.is_dir) {
-            const folder = document.createElement('span');
-            folder.textContent = node.name;
-            folder.className = 'folder';
-            folder.setAttribute('data-id', node.path);
-            folder.onclick = () => toggleFolder(node.path);
-            li.appendChild(folder);
+    // Get the parent <ul> of the clicked folder's <li>
+    const parentUl = element.parentElement.parentElement;
 
-            const ul = document.createElement('ul');
-            ul.id = node.path;
-            ul.className = 'hidden';
-            node.children.forEach(child => renderTree(child, ul));
-            li.appendChild(ul);
-        } else if (node.name.endsWith('.mp4') || node.name.endsWith('.avi') || node.name.endsWith('.mkv')) {
-            const file = document.createElement('a');
-            file.textContent = node.name;
-            file.href = '#';
-            file.onclick = (e) => {
-                e.preventDefault();
-                playVideo(`/site/video/${node.path}`, `/site/funscripts/${node.path.replace('.mp4', '.funscript')}`);
-            };
-            li.appendChild(file);
-        } else {
-            return;
-        }
-        parent.appendChild(li);
-    }
-
-    const rootUl = document.createElement('ul');
-    directoryTree.children.forEach(child => {
-        if (child.is_dir) {
-            const li = document.createElement('li');
-            const folder = document.createElement('span');
-            folder.textContent = child.name;
-            folder.className = 'folder';
-            folder.setAttribute('data-id', child.path);
-            folder.onclick = () => toggleFolder(child.path);
-            li.appendChild(folder);
-
-            const ul = document.createElement('ul');
-            ul.id = child.path;
-            ul.className = 'hidden';
-            child.children.forEach(grandchild => renderTree(grandchild, ul));
-            li.appendChild(ul);
-
-            rootUl.appendChild(li);
-        } else {
-            renderTree(child, rootUl);
+    // Find all direct sibling <ul> elements and hide them.
+    // We query from the parent <ul> to get only the siblings at the current level.
+    const siblingUls = parentUl.querySelectorAll(':scope > li > ul');
+    siblingUls.forEach(ul => {
+        if (ul.id !== id) {
+            ul.classList.add('hidden');
         }
     });
 
-    document.getElementById('directory-tree').appendChild(rootUl);
+    // Toggle the visibility of the clicked folder's content
+    element.classList.toggle('hidden');
+}
 
-    document.getElementById('toggle-directory').onclick = () => {
-        const directoryContainer = document.getElementById('directory-container');
-        if (directoryContainer.classList.contains('hidden')) {
-            directoryContainer.classList.remove('hidden');
-        } else {
-            directoryContainer.classList.add('hidden');
-        }
-    };
+function renderTree(node, parent) {
+    const li = document.createElement('li');
+    if (node.is_dir) {
+        const folder = document.createElement('span');
+        folder.textContent = node.name;
+        folder.className = 'folder';
+        folder.setAttribute('data-id', node.path);
+        folder.onclick = () => toggleFolder(node.path);
+        li.appendChild(folder);
 
-    const directoryContainer = document.getElementById('directory-container');
-    createSearchBox(directoryContainer);
+        const ul = document.createElement('ul');
+        ul.id = node.path;
+        ul.className = 'hidden';
+        node.children.sort((a, b) => {
+            if (a.is_dir && !b.is_dir) return -1;
+            if (!a.is_dir && b.is_dir) return 1;
+            return a.name.localeCompare(b.name);
+        }).forEach(child => renderTree(child, ul));
+        li.appendChild(ul);
+    } else if (node.name.endsWith('.mp4') || node.name.endsWith('.avi') || node.name.endsWith('.mkv')) {
+        const file = document.createElement('a');
+        file.textContent = node.name;
+        file.href = '#';
+        file.onclick = (e) => {
+            e.preventDefault();
+            playVideo(`/site/video/${node.path}`, `/site/funscripts/${node.path.replace(/\.[^/.]+$/, ".funscript")}`);
+        };
+        li.appendChild(file);
+    } else {
+        return;
+    }
+    parent.appendChild(li);
+}
 
-    checkForOrphanedVideos();
-});
+
+export function initDirectoryTree(directoryTreeData, containerElement) {
+    if (!directoryTreeData || !containerElement) {
+        console.error("Directory tree data or container element is missing.");
+        return;
+    }
+
+    containerElement.innerHTML = ''; // Clear previous content
+    const rootUl = document.createElement('ul');
+    rootUl.id = 'directory-tree-root';
+
+    // Sort top-level children and render them
+    directoryTreeData.children
+        .sort((a, b) => {
+            if (a.is_dir && !b.is_dir) return -1;
+            if (!a.is_dir && b.is_dir) return 1;
+            return a.name.localeCompare(b.name);
+        })
+        .forEach(child => renderTree(child, rootUl));
+
+    containerElement.appendChild(rootUl);
+}
+

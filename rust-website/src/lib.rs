@@ -27,6 +27,7 @@ pub mod handlers {
     pub mod funscript;
     pub mod types;
     pub mod metadata;
+    pub mod editor;
 }
 
 pub mod intiface_socket;

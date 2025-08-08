@@ -193,5 +193,6 @@ fn generate_intensity_funscript(
 
     Ok(FunscriptData {
         actions: intensity_actions,
+        ..Default::default()
     })
 }

@@ -40,6 +40,34 @@ pub struct Action {
 pub struct FunscriptData {
     /// Vector of actions in chronological order
     pub actions: Vec<Action>,
+
+    #[serde(default = "default_version")]
+    pub version: String,
+
+    #[serde(default)]
+    pub inverted: bool,
+
+    #[serde(default = "default_range")]
+    pub range: u32,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
+}
+
+fn default_version() -> String { "1.0".to_string() }
+fn default_range() -> u32 { 100 }
+
+impl Default for FunscriptData {
+    fn default() -> Self {
+        Self {
+            actions: Vec::new(),
+            version: default_version(),
+            inverted: false,
+            range: default_range(),
+            metadata: None,
+        }
+    }
 }
 
 /// Calculates the interpolated position at a given time between two actions

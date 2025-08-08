@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Funscript Editor</title>
+    <link rel="stylesheet" href="/site/static/styles.css?v=214">
+    <style>
+        #editor-container {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            background-color: #252525;
+        }
+
+        #video-section {
+            flex: 3;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #000;
+            position: relative;
+        }
+
+        #editor-video {
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        #controls-section {
+            flex: 1;
+            padding: 20px;
+            background-color: #323232;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+        }
+
+        #controls-section h1 {
+            text-align: left;
+            margin-bottom: 0;
+        }
+
+        #controls-section button,
+        #controls-section a {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.2em;
+            border-radius: 5px;
+            text-align: center;
+            border: none;
+            cursor: pointer;
+        }
+
+        #tap-button {
+            background-color: #4CAF50;
+            /* Green */
+            color: white;
+        }
+
+        #tap-button:active {
+            background-color: #45a049;
+        }
+
+        #undo-button {
+            background-color: #f44336;
+            /* Red */
+            color: white;
+        }
+
+        #save-button {
+            background-color: #008CBA;
+            /* Blue */
+            color: white;
+        }
+
+        #save-button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+
+        #back-link {
+            background-color: #555;
+            color: white;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        #action-counter {
+            font-size: 1.1em;
+            text-align: center;
+            color: #f0f0f0;
+            margin-top: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="editor-container">
+        <div id="video-section">
+            <video id="editor-video" controls></video>
+        </div>
+        <div id="controls-section">
+            <h1>Funscript Editor</h1>
+            <p>Play the video and tap the button (or press Space) at each thrust peak.</p>
+            <button id="tap-button">Tap Thrust</button>
+            <button id="undo-button">Undo Last Tap</button>
+            <button id="save-button">Save Funscript</button>
+            <a href="/site/" id="back-link">Back to Player</a>
+            <div id="action-counter">Taps: 0</div>
+        </div>
+    </div>
+    <script src="/site/static/editor.js?v=214" type="module"></script>
+</body>
+
+</html>

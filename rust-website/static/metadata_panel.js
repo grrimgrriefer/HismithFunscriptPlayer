@@ -42,6 +42,10 @@ export async function createMetadataPanel() {
                     <p>Duration: <span id="video-duration">-</span></p>
                 </div>
                 <button id="save-metadata" class="primary-button">Save Rating & Tags</button>
+                <div id="funscript-creator-container" style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #555;">
+                    <p>This video has no funscript.</p>
+                    <a id="funscript-creator-link" href="#" target="_blank" class="primary-button" style="text-decoration: none; display: block; text-align: center;">Create Funscript</a>
+                </div>
             </div>
         `;
 
@@ -129,6 +133,16 @@ function setupMetadataHandlers(panel) {
                 addTag(tag);
             }
         });
+
+        // Show/hide funscript creator link
+        const creatorContainer = panel.querySelector('#funscript-creator-container');
+        if (videoData.hasFunscript) {
+            creatorContainer.style.display = 'none';
+        } else {
+            creatorContainer.style.display = 'block';
+            const creatorLink = panel.querySelector('#funscript-creator-link');
+            creatorLink.href = `/site/editor?video=${encodeURIComponent(videoData.path)}`;
+        }
     };
 
     // Handle save button
@@ -212,7 +226,6 @@ export function createDuplicateVideoModal(videoData) {
     if (existingModal) {
         existingModal.remove();
     }
-
     const modalOverlay = document.createElement('div');
     modalOverlay.id = 'duplicate-modal-overlay';
     modalOverlay.className = 'cleanup-modal-overlay';

@@ -136,12 +136,17 @@ function setupMetadataHandlers(panel) {
 
         // Show/hide funscript creator link
         const creatorContainer = panel.querySelector('#funscript-creator-container');
+        const creatorLink = panel.querySelector('#funscript-creator-link');
+
+        creatorContainer.style.display = 'block'; // Always show the container
+        creatorLink.href = `/site/editor?video=${encodeURIComponent(videoData.path)}`;
+
         if (videoData.hasFunscript) {
-            creatorContainer.style.display = 'none';
+            creatorContainer.querySelector('p').textContent = 'This video has a funscript.';
+            creatorLink.textContent = 'Edit Funscript';
         } else {
-            creatorContainer.style.display = 'block';
-            const creatorLink = panel.querySelector('#funscript-creator-link');
-            creatorLink.href = `/site/editor?video=${encodeURIComponent(videoData.path)}`;
+            creatorContainer.querySelector('p').textContent = 'This video has no funscript.';
+            creatorLink.textContent = 'Create Funscript';
         }
     };
 

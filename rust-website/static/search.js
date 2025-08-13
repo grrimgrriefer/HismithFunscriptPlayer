@@ -1,6 +1,6 @@
 // static/search.js
 
-import { playVideo } from './video_player.js?v=215';
+import { playVideo } from './video_player.js?v=218';
 
 function debounce(func, wait) {
     let timeout;

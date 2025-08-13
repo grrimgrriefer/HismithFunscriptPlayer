@@ -1,6 +1,6 @@
 // static/search.js
 
-import { playVideo } from './video_player.js?v=218';
+import { playVideo } from './video_player.js?v=219';
 
 function debounce(func, wait) {
     let timeout;
@@ -18,10 +18,11 @@ async function addUntrackedVideo(path, resultItem) {
     resultItem.style.pointerEvents = 'none';
     resultItem.style.color = '#aaa';
     try {
+        const filename = path.split('/').pop();
         const response = await fetch('/api/video/ensure', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path: path })
+            body: JSON.stringify({ path: path, filename: filename })
         });
         if (response.ok) {
             resultItem.style.transition = 'opacity 0.5s ease-out';

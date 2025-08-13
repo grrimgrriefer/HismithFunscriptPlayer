@@ -139,19 +139,19 @@ pub async fn cleanup_check(db: web::Data<Database>) -> HttpResponse {
         }
     };
 
-    let mut orphans = Vec::new();
-    for video in &db_videos {
-        if !base_path.join(&video.path).exists() {
-            orphans.push(video);
-        }
-    }
-
     let mut files_on_disk_by_size: HashMap<i64, Vec<String>> = HashMap::new();
     for (path, size) in disk_files {
         files_on_disk_by_size
             .entry(size as i64)
             .or_default()
-            .push(path.to_string_lossy().into_owned());
+            .push(path.to_string_lossy().replace('\\', "/"));
+    }
+
+    let mut orphans = Vec::new();
+    for video in &db_videos {
+        if !base_path.join(&video.path).exists() {
+            orphans.push(video);
+        }
     }
 
     let suggestions: Vec<CleanupSuggestion> = orphans
@@ -230,7 +230,7 @@ pub async fn get_untracked_videos(db: web::Data<Database>) -> HttpResponse {
     let mut untracked_files: Vec<String> = disk_files
         .keys()
         .filter_map(|disk_path| {
-            let path_str = disk_path.to_string_lossy().to_string();
+            let path_str = disk_path.to_string_lossy().replace('\\', "/");
             if !db_paths.contains(&path_str) {
                 Some(path_str)
             } else {

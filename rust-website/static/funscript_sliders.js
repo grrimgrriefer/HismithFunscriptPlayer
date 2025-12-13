@@ -1,6 +1,6 @@
 // static/funscript_sliders.js
 
-import { getAbsoluteMaximum, funscriptActions, intensityActions, getCurrentIntensity, getCurrentVideoMaxIntensity, getCurrentIntensityUnclamped, getIntensityMultiplier } from './funscript_handler.js?v=219';
+import { getAbsoluteMaximum, funscriptActions, intensityActions, getCurrentIntensity, getCurrentVideoMaxIntensity, getCurrentIntensityUnclamped, getIntensityMultiplier } from './funscript_handler.js?v=228';
 
 export function createFunscriptDisplayBox() {
     let funscriptBox = document.getElementById('funscript-box');
@@ -22,7 +22,7 @@ export function createFunscriptDisplayBox() {
         const canvas = document.createElement('canvas');
         canvas.id = 'funscript-canvas';
         canvas.width = window.innerWidth / 2; // Match the full width of the page
-        canvas.height = Math.min(window.innerHeight * 0.2, 200); // 20% of screen height, max 200px
+        canvas.height = Math.min(window.innerHeight * 0.1, 150); // 10% of screen height, max 150px
         canvas.style.backgroundColor = 'rgba(0, 0, 0, 0)';
         funscriptBox.appendChild(canvas);
 
@@ -31,7 +31,7 @@ export function createFunscriptDisplayBox() {
         // Update canvas size on window resize
         window.addEventListener('resize', () => {
             canvas.width = window.innerWidth / 2;
-            canvas.height = Math.min(window.innerHeight * 0.2, 200); // Recalculate height
+            canvas.height = Math.min(window.innerHeight * 0.1, 150); // Recalculate height
         });
     }
 }
@@ -64,15 +64,15 @@ export function updateFunscriptDisplayBox(currentTime) {
 
     // Draw the intensity curve as a filled graph
     ctx.beginPath();
-    ctx.strokeStyle = 'rgba(0, 255, 0, 1)'; // Semi-transparent green
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)'; // Semi-transparent green
 
     const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
     let customGradientValue = 1 - getCurrentIntensity(currentTime) / getCurrentVideoMaxIntensity();
     if (isNaN(customGradientValue) || !isFinite(customGradientValue)) {
         customGradientValue = 0;
     }
-    gradient.addColorStop(Math.max(0, Math.min(0.95, customGradientValue)), 'rgba(0, 255, 0, 0.75)'); // Fully visible green at the top
-    gradient.addColorStop(Math.max(0, Math.min(0.95, customGradientValue + 0.2)), 'rgba(0, 255, 0, 0.5)');   // Fully transparent at the bottom
+    gradient.addColorStop(Math.max(0, Math.min(0.95, customGradientValue)), 'rgba(0, 255, 0, 0.25)'); // Fully visible green at the top
+    gradient.addColorStop(Math.max(0, Math.min(0.95, customGradientValue + 0.2)), 'rgba(0, 255, 0, 0.12)');   // Fully transparent at the bottom
     gradient.addColorStop(1, 'rgba(0, 255, 0, 0)');   // Fully transparent at the bottom
 
     ctx.fillStyle = gradient; // Use the gradient as the fill style

@@ -1,6 +1,6 @@
 // static/socket.js
 
-import { getAbsoluteMaximum } from './funscript_handler.js?v=219';
+import { getAbsoluteMaximum, getVibrateMode } from './funscript_handler.js?v=228';
 
 let ws = null;
 
@@ -40,6 +40,15 @@ export function initWebSocket() {
 
 export function sendOscillateValue(value) {
     if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(Math.max(0, Math.min(value, (getAbsoluteMaximum() / 100))).toString());
+        ws.send('o:' + Math.max(0, Math.min(value, (getAbsoluteMaximum() / 100))).toString());
+    }
+}
+
+export function sendVibrateValue(value) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        if (getVibrateMode() === 'Rate') {
+            value = value < 0.03 ? 0.0 : (value - 0.03) * 1.5;
+        }
+        ws.send('v:' + Math.max(0, Math.min(value, 1.0)).toString());
     }
 }

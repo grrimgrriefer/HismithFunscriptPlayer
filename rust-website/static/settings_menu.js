@@ -1,6 +1,6 @@
 // static/settings_menu.js
 
-import { setAbsoluteMaximum, getAbsoluteMaximum, setIntensityMultiplier } from './funscript_handler.js?v=219';
+import { setAbsoluteMaximum, getAbsoluteMaximum, setIntensityMultiplier, setVibrateMode } from './funscript_handler.js?v=228';
 
 export function createSettingsMenu() {
     let settingsMenu = document.getElementById('settings-menu');
@@ -127,6 +127,28 @@ export function createSettingsMenu() {
         hardLimitInputLabel.appendChild(hardLimitLockButton); // Add the lock button next to the label
         hardLimitInputLabel.appendChild(hardLimitInput); // Add the input field
         settingsMenu.appendChild(hardLimitInputLabel);
+
+        const vibrateModeLabel = document.createElement('label');
+        vibrateModeLabel.textContent = 'Vibrate Mode: ';
+        vibrateModeLabel.style.display = 'block';
+        vibrateModeLabel.style.marginBottom = '5px';
+
+        const vibrateModeSelect = document.createElement('select');
+        vibrateModeSelect.id = 'vibrate-mode-select';
+        ['Rate', 'Beat'].forEach(mode => {
+            const option = document.createElement('option');
+            option.value = mode.toLowerCase();
+            option.textContent = mode;
+            vibrateModeSelect.appendChild(option);
+        });
+        vibrateModeSelect.value = 'Rate';
+
+        vibrateModeSelect.onchange = () => {
+            setVibrateMode(vibrateModeSelect.value);
+        };
+
+        settingsMenu.appendChild(vibrateModeLabel);
+        settingsMenu.appendChild(vibrateModeSelect);
 
         document.body.appendChild(settingsMenu);
     }

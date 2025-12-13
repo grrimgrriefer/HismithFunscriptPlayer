@@ -42,7 +42,8 @@ pub struct DeviceManager {
     vibrate_device: Arc<Mutex<Option<Arc<ButtplugClientDevice>>>>,
 
     /// Latest command value to be sent
-    latest_value: Arc<AtomicF64>,
+    latest_oscillate_value: Arc<AtomicF64>,
+    latest_vibrate_value: Arc<AtomicF64>,
 
     /// Whether currently scanning
     scanning: Arc<RwLock<bool>>,
@@ -53,44 +54,50 @@ impl DeviceManager {
     fn new(client: Arc<ButtplugClient>) -> Arc<Self> {
         let oscillate_device = Arc::new(Mutex::new(None));
         let vibrate_device = Arc::new(Mutex::new(None));
-        let latest_value = Arc::new(AtomicF64::new(0.0));
+        let latest_oscillate_value = Arc::new(AtomicF64::new(0.0));
+        let latest_vibrate_value = Arc::new(AtomicF64::new(0.0));
         let scanning = Arc::new(RwLock::new(false));
 
         let manager = Arc::new(Self {
             client: Arc::clone(&client),
             oscillate_device: oscillate_device.clone(),
             vibrate_device: vibrate_device.clone(),
-            latest_value: latest_value.clone(),
+            latest_oscillate_value: latest_oscillate_value.clone(),
+            latest_vibrate_value: latest_vibrate_value.clone(),
             scanning: scanning.clone(),
         });
 
-        // Control loop: send latest_value to both devices
+        // Control loop: send latest_values to both devices
         let manager_clone = Arc::clone(&manager);
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_millis(100));
             loop {
                 interval.tick().await;
-                let value = manager_clone
-                    .latest_value
+                let oscillate_value = manager_clone
+                    .latest_oscillate_value
                     .load(std::sync::atomic::Ordering::Relaxed);
 
                 // Send to oscillate device
                 let oscillate_lock = manager_clone.oscillate_device.lock().await;
                 if let Some(device) = &*oscillate_lock {
                     if let Err(e) = device
-                        .oscillate(&ScalarValueCommand::ScalarValue(value.max(0.0).min(1.0)))
+                        .oscillate(&ScalarValueCommand::ScalarValue(oscillate_value.max(0.0).min(1.0)))
                         .await
                     {
                         eprintln!("Error sending oscillate command: {}", e);
                     }
                 }
 
+                let vibrate_value = manager_clone
+                    .latest_vibrate_value
+                    .load(std::sync::atomic::Ordering::Relaxed);
+
                 // Send to vibrate device
                 let vibrate_lock = manager_clone.vibrate_device.lock().await;
                 if let Some(device) = &*vibrate_lock {
-                    let adjusted = if value < 0.03 { 0.0 } else { (value - 0.03) * 1.5 };
+//                    
                     if let Err(e) = device
-                        .vibrate(&ScalarValueCommand::ScalarValue(adjusted.max(0.0).min(1.0)))
+                        .vibrate(&ScalarValueCommand::ScalarValue(vibrate_value.max(0.0).min(1.0)))
                         .await
                     {
                         eprintln!("Error sending vibrate command: {}", e);
@@ -102,9 +109,15 @@ impl DeviceManager {
         manager
     }
 
-    /// Sets the value to send to devices (0.0 .. 1.0)
-    pub async fn set_value(&self, value: f64) {
-        self.latest_value
+    /// Sets the value to send to oscillate devices (0.0 .. 1.0)
+    pub async fn set_oscillate_value(&self, value: f64) {
+        self.latest_oscillate_value
+            .store(value, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Sets the value to send to vibrate devices (0.0 .. 1.0)
+    pub async fn set_vibrate_value(&self, value: f64) {
+        self.latest_vibrate_value
             .store(value, std::sync::atomic::Ordering::Relaxed);
     }
 }
@@ -240,10 +253,18 @@ pub async fn initialize_intiface() -> Result<(), ButtplugClientError> {
     Ok(())
 }
 
-/// Sets the value to send to connected devices (0.0 .. 1.0)
+/// Sets the value to send to oscillate devices (0.0 .. 1.0)
 pub async fn oscillate(value: f64) -> Result<(), ButtplugClientError> {
     if let Some(manager) = DEVICE_MANAGER.get() {
-        manager.set_value(value).await;
+        manager.set_oscillate_value(value).await;
+    }
+    Ok(())
+}
+
+/// Sets the value to send to vibrate devices (0.0 .. 1.0)
+pub async fn vibrate(value: f64) -> Result<(), ButtplugClientError> {
+    if let Some(manager) = DEVICE_MANAGER.get() {
+        manager.set_vibrate_value(value).await;
     }
     Ok(())
 }

@@ -9,6 +9,9 @@ let currentVideoRawAverageIntensity = 0;
 let intensityMulitplier = 1; // Default multiplier
 let absoluteMax = 60; // Default maximum intensity
 
+let vibrateMode = 'Rate'; // Default vibrate mode
+let lastBeatTime = -1;
+
 export async function loadFunscript(funscriptUrl) {
     funscriptActions = [];
     intensityActions = [];
@@ -79,12 +82,20 @@ export function setIntensityMultiplier(multiplier) {
     intensityMulitplier = multiplier;
 
     // Emit a custom event to notify about the update
-    const event = new CustomEvent('intensityMultiplierUpdated', { detail: { multiplier } });
+    const event = new CustomEvent('intensityMultiplierUpdated', { detail: { intensityMulitplier } });
     window.dispatchEvent(event);
 }
 
 export function getIntensityMultiplier() {
     return intensityMulitplier;
+}
+
+export function setVibrateMode(mode) {
+    vibrateMode = mode;
+}
+
+export function getVibrateMode() {
+    return vibrateMode;
 }
 
 export function setAbsoluteMaximum(max) {
@@ -102,6 +113,32 @@ export function getCurrentVideoRawMaxIntensity() {
 export function getCurrentVideoRawAverageIntensity() {
     return currentVideoRawAverageIntensity;
 }
+
+export function getCurrentBeatValue(currentTime) {
+    let lastBeat = null, nextBeat = null, vibrateValue = 0;
+    for (let i = 0; i < funscriptActions.length; i++) {
+        if (funscriptActions[i].at <= currentTime && funscriptActions[i].pos === 100) {
+            lastBeat = funscriptActions[i];
+        } else if (funscriptActions[i].at > currentTime && funscriptActions[i].pos === 100) {
+            nextBeat = funscriptActions[i];
+            break;
+        }
+    }
+    if (lastBeat) {
+        if (lastBeatTime !== lastBeat.at) {
+            vibrateValue = 1.0; // Pulse on beat
+            lastBeatTime = lastBeat.at;
+        } else {
+            // Lerp down until next beat or to zero
+            let nextAt = nextBeat ? nextBeat.at : currentTime + 500;
+            let t = Math.max(0, Math.min(1, (currentTime - lastBeat.at) / (nextAt - lastBeat.at)));
+            vibrateValue = 1.0 - t;
+        }
+    } else {
+        vibrateValue = 0;
+    }
+    return vibrateValue;
+};
 
 const getTimeWeightedAverage = (actions) => {
     if (actions.length < 2) return 0;

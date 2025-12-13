@@ -40,6 +40,10 @@ A web-based video player application built with Rust and JavaScript that synchro
 VIDEO_SHARE_PATH="\\\\your-network-drive\\your-folder"
 HOST_IP=192.168.???.???
 ```  
+note: when running inside docker, use 
+```txt
+HOST_IP=0.0.0.0
+```  
 3. (Optional) Create a `predefined_tags.txt` file in the project root to customize the default list of tags. Each tag should be on a new line.
 
 ## Device Integration
@@ -59,6 +63,34 @@ cargo run
 
 This will start the web server, and you can access the application in your web browser.
 `http://HOST_IP:5441/site`
+
+## Running with docker
+
+If making code changes:
+
+```bash
+docker rm -f my-rust-app
+docker build -t rust-website:v1 .
+```
+
+First run:
+
+```bash
+docker run --network=host -d -p 5441:5441 \
+  -v [YOUR_VIDEO_SHARE_PATH]:YOUR_VIDEO_SHARE_PATH:ro \
+  --name my-rust-app rust-website:v1
+```
+
+Stopping/starting sequential runs:
+
+```bash
+docker stop my-rust-app
+docker start my-rust-app
+```
+
+This will start the web server, and you can access the application in your web browser.
+`http://HOST_IP:5441/site`
+
 
 ## License
 

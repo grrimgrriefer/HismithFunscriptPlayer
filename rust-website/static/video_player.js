@@ -1,9 +1,9 @@
 // static/video_player.js
 
-import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentVideoMaxIntensity, setIntensityMultiplier, getCurrentVideoRawMaxIntensity, getCurrentVideoRawAverageIntensity, funscriptActions } from './funscript_handler.js?v=219';
-import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=219';
-import { sendOscillateValue } from './socket.js?v=219';
-import { createDuplicateVideoModal, clearMetadataPanel } from './metadata_panel.js?v=219';
+import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentVideoMaxIntensity, setIntensityMultiplier, getCurrentVideoRawMaxIntensity, getCurrentVideoRawAverageIntensity, getVibrateMode, getCurrentBeatValue, funscriptActions } from './funscript_handler.js?v=228';
+import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=228';
+import { sendOscillateValue, sendVibrateValue } from './socket.js?v=228';
+import { createDuplicateVideoModal, clearMetadataPanel } from './metadata_panel.js?v=228';
 
 let currentAnimationFrame = null;
 let cancelAnimationTimeout = null;
@@ -14,6 +14,7 @@ export async function playVideo(videoUrl, funscriptUrl) {
         currentAnimationFrame = null;
     }
     sendOscillateValue(0);
+    sendVibrateValue(0);
 
     const videoPlayer = document.getElementById('video-player');
     const videoElement = document.createElement('video');
@@ -58,12 +59,25 @@ export async function playVideo(videoUrl, funscriptUrl) {
             throttledSendOscillateValue(lerpIntensity(0, intensity, progress) / 100);
         }
 
+        if (getVibrateMode() === 'Rate') {
+            // Default: rate-based            
+            if (intensity !== undefined) {
+                throttledSendVibrateValue(lerpIntensity(0, intensity, progress) / 100);
+            }
+        } else {
+            const beatValue = getCurrentBeatValue(currentTime);
+            if (beatValue !== undefined) {
+                throttledSendVibrateValue(lerpIntensity(0, beatValue, progress));
+            }
+        }
+
         currentAnimationFrame = requestAnimationFrame(updateProgressBars);
     }
 
     // Create or update the settings menu
     // UI components are now created globally by main.js
     const throttledSendOscillateValue = throttle(sendOscillateValue, 150);
+    const throttledSendVibrateValue = throttle(sendVibrateValue, 150);
     let transitionStartTime = Date.now();
     let transitionTargetValue = 1;
     const TRANSITION_DURATION = 1000;

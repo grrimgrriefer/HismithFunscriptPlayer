@@ -1,11 +1,11 @@
 // static/main.js
 
-import { initDirectoryTree } from './directory_tree.js?v=219';
-import { createSearchBox } from './search.js?v=219';
-import { initWebSocket } from './socket.js?v=219';
-import { createCleanupModal } from './cleanup_modal.js?v=219';
-import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=219';
-import { createMetadataPanel, toggleMetadataPanel } from './metadata_panel.js?v=219';
+import { initDirectoryTree } from './directory_tree.js?v=228';
+import { createSearchBox } from './search.js?v=228';
+import { initWebSocket } from './socket.js?v=228';
+import { createCleanupModal } from './cleanup_modal.js?v=228';
+import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=228';
+import { createMetadataPanel, toggleMetadataPanel } from './metadata_panel.js?v=228';
 
 async function checkForOrphanedVideos() {
     try {

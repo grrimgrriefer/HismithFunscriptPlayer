@@ -19,6 +19,7 @@ export async function playVideo(videoUrl, funscriptUrl) {
     const videoElement = document.createElement('video');
     videoElement.src = videoUrl;
     videoElement.controls = true;
+    videoElement.playsInline = true;
     videoElement.autoplay = false;
 
     videoPlayer.innerHTML = ''; // Clear any existing video

@@ -115,27 +115,40 @@ export function getCurrentVideoRawAverageIntensity() {
 }
 
 export function getCurrentBeatValue(currentTime) {
-    let lastBeat = null, nextBeat = null, vibrateValue = 0;
-    for (let i = 0; i < funscriptActions.length; i++) {
-        if (funscriptActions[i].at <= currentTime && funscriptActions[i].pos === 100) {
-            lastBeat = funscriptActions[i];
-        } else if (funscriptActions[i].at > currentTime && funscriptActions[i].pos === 100) {
-            nextBeat = funscriptActions[i];
+    // Find the most recent falling edge (100 -> 0)
+    let lastBeatTime = null;
+    let nextBeatTime = null;
+
+    for (let i = 1; i < funscriptActions.length; i++) {
+        const prev = funscriptActions[i - 1];
+        const curr = funscriptActions[i];
+        if (
+            prev.pos === 100 &&
+            curr.pos === 0 &&
+            curr.at <= currentTime
+        ) {
+            lastBeatTime = curr.at;
+        } else if (
+            prev.pos === 100 &&
+            curr.pos === 0 &&
+            curr.at > currentTime
+        ) {
+            nextBeatTime = curr.at;
             break;
         }
     }
-    if (lastBeat) {
-        if (lastBeatTime !== lastBeat.at) {
+
+    let vibrateValue = 0;
+    if (lastBeatTime !== null) {
+        if (window._lastBeatTime !== lastBeatTime) {
             vibrateValue = 1.0; // Pulse on beat
-            lastBeatTime = lastBeat.at;
+            window._lastBeatTime = lastBeatTime;
         } else {
-            // Lerp down until next beat or to zero
-            let nextAt = nextBeat ? nextBeat.at : currentTime + 500;
-            let t = Math.max(0, Math.min(1, (currentTime - lastBeat.at) / (nextAt - lastBeat.at)));
-            vibrateValue = 1.0 - t;
+            // Lerp down until next beat or to zero, with a ramp-like falloff (fast drop, slow tail)
+            let nextAt = nextBeatTime ? nextBeatTime : currentTime + 500;
+            let t = Math.max(0, Math.min(1, (currentTime - lastBeatTime) / (nextAt - lastBeatTime)));
+            vibrateValue = 1.0 - Math.sqrt(t); // Ramp-like falloff
         }
-    } else {
-        vibrateValue = 0;
     }
     return vibrateValue;
 };

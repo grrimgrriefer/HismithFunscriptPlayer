@@ -1,9 +1,9 @@
 // static/video_player.js
 
-import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentVideoMaxIntensity, setIntensityMultiplier, getCurrentVideoRawMaxIntensity, getCurrentVideoRawAverageIntensity, getVibrateMode, getCurrentBeatValue, funscriptActions } from './funscript_handler.js?v=228';
-import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=228';
-import { sendOscillateValue, sendVibrateValue } from './socket.js?v=228';
-import { createDuplicateVideoModal, clearMetadataPanel } from './metadata_panel.js?v=228';
+import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentVideoMaxIntensity, setIntensityMultiplier, getCurrentVideoRawMaxIntensity, getCurrentVideoRawAverageIntensity, getVibrateMode, getCurrentBeatValue, funscriptActions } from './funscript_handler.js?v=230';
+import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=230';
+import { sendOscillateValue, sendVibrateValue } from './socket.js?v=230';
+import { createDuplicateVideoModal, clearMetadataPanel } from './metadata_panel.js?v=230';
 
 let currentAnimationFrame = null;
 let cancelAnimationTimeout = null;

@@ -6,7 +6,6 @@ use serde::Deserialize;
 use std::{env, path::{PathBuf}};
 use tokio::fs;
 use crate::buttplug::funscript_utils::{Action, FunscriptData};
-use crate::db::database::{Database, VideoMetadataUpdatePayload};
 
 pub async fn handle_editor_page() -> Result<NamedFile, Error> {
     Ok(NamedFile::open("./static/editor.html")?)
@@ -19,8 +18,7 @@ pub struct SaveFunscriptPayload {
 }
 
 pub async fn save_funscript(
-    payload: web::Json<SaveFunscriptPayload>,
-    db: web::Data<Database>,
+    payload: web::Json<SaveFunscriptPayload>
 ) -> impl Responder {
     let video_share_path = match env::var("VIDEO_SHARE_PATH") {
         Ok(p) => p,
@@ -64,28 +62,6 @@ pub async fn save_funscript(
     if let Err(e) = fs::write(&funscript_path, funscript_json).await {
         log::error!("Failed to write funscript file to {:?}: {}", funscript_path, e);
         return HttpResponse::InternalServerError().json("Failed to save funscript file");
-    }
-
-    // Update has_funscript in DB
-    match db.video_exists_by_path(&payload.video_path) {
-        Ok(Some(video_id)) => {
-            let update_payload = VideoMetadataUpdatePayload {
-                id: video_id,
-                rating: None,
-                tags: None,
-                avg_intensity: None,
-                max_intensity: None,
-                duration: None,
-                has_funscript: Some(true),
-            };
-            if let Err(e) = db.update_video_metadata(&update_payload) {
-                log::error!("Failed to update has_funscript for {}: {}", payload.video_path, e);
-                // Don't fail the whole request, saving the file is more important.
-            }
-        },
-        _ => {
-            log::warn!("Could not find video with path {} to update has_funscript flag.", payload.video_path);
-        }
     }
 
     log::info!("Successfully saved funscript to {:?}", funscript_path);

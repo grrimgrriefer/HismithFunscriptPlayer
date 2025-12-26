@@ -23,8 +23,6 @@ use std::{
     env, 
     path::PathBuf
 };
-use crate::db::database::{Database};
-use serde::Deserialize;
 
 /// Handles video file streaming requests
 ///
@@ -138,32 +136,4 @@ fn create_video_response(file: NamedFile, req: HttpRequest) -> HttpResponse {
     );
 
     response
-}
-
-#[derive(Debug, Deserialize)]
-pub struct SearchQuery {
-    q: String,
-    min_duration: Option<i64>,
-    max_duration: Option<i64>,
-    min_avg_intensity: Option<f64>,
-    max_avg_intensity: Option<f64>,
-}
-
-pub async fn search_videos(
-    params: web::Query<SearchQuery>,
-    db: web::Data<Database>,
-) -> HttpResponse {
-    match db.search_videos(
-        &params.q,
-        params.min_duration,
-        params.max_duration,
-        params.min_avg_intensity,
-        params.max_avg_intensity,
-    ) {
-        Ok(videos) => HttpResponse::Ok().json(videos),
-        Err(e) => {
-            error!("Failed to search videos: {}", e);
-            HttpResponse::InternalServerError().json("Failed to search videos")
-        }
-    }
 }

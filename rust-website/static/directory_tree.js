@@ -1,6 +1,6 @@
 // static/directory_tree.js
 
-import { playVideo } from './video_player.js?v=230';
+import { playVideo } from './video_player.js?v=242';
 
 function toggleFolder(id) {
     const element = document.getElementById(id);
@@ -43,7 +43,12 @@ function renderTree(node, parent) {
             return a.name.localeCompare(b.name);
         }).forEach(child => renderTree(child, ul));
         li.appendChild(ul);
-    } else if (node.name.endsWith('.mp4') || node.name.endsWith('.avi') || node.name.endsWith('.mkv')) {
+    } else if (
+        node.name.endsWith('.mp4') ||
+        node.name.endsWith('.avi') ||
+        node.name.endsWith('.mkv') ||
+        node.name.endsWith('.mov')
+    ) {
         const file = document.createElement('a');
         file.textContent = node.name;
         file.href = '#';

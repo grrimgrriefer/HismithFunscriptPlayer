@@ -1,6 +1,6 @@
 // static/settings_menu.js
 
-import { setAbsoluteMaximum, getAbsoluteMaximum, setIntensityMultiplier, setVibrateMode } from './funscript_handler.js?v=230';
+import { setAbsoluteMaximum, getAbsoluteMaximum, setIntensityMultiplier, setVibrateMode } from './funscript_handler.js?v=242';
 
 export function createSettingsMenu() {
     let settingsMenu = document.getElementById('settings-menu');
@@ -65,9 +65,11 @@ export function createSettingsMenu() {
 
         // Listen for the custom event and update the slider value
         window.addEventListener('intensityMultiplierUpdated', (event) => {
-            const newMultiplier = event.detail.multiplier;
-            intensitySlider.value = newMultiplier.toString();
-            intensityValueDisplay.textContent = intensitySlider.value;
+            const newMultiplier = event.detail.intensityMulitplier;
+            if (typeof newMultiplier !== 'undefined') {
+                intensitySlider.value = newMultiplier.toString();
+                intensityValueDisplay.textContent = intensitySlider.value;
+            }
         });
 
         intensitySliderLabel.appendChild(intensityValueDisplay); // Add the value display next to the label

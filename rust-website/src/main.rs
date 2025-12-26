@@ -7,13 +7,11 @@ use log::{info, error};
 use actix_web::{
     App, 
     HttpServer,
-    middleware::{DefaultHeaders, Logger},
-    web::Data
+    middleware::{DefaultHeaders, Logger}
 };
 use rust_website::{
     routes, 
     buttplug::device_manager,
-    db::database::Database
 };
 use env_logger::Env;
 use std::env;
@@ -37,15 +35,6 @@ async fn main() -> std::io::Result<()> {
     // Initialize logging with default level of 'info'
     env_logger::init_from_env(Env::default().default_filter_or("info"));
 
-    // Initialize database
-    let db = match Database::new("videos.db") {
-        Ok(db) => Data::new(db),
-        Err(e) => {
-            eprintln!("Failed to initialize database: {}", e);
-            return Ok(());
-        }
-    };
-
     // Initialize intiface management in background task
     info!("Starting intiface initialization...");
     task::spawn(async {
@@ -65,7 +54,6 @@ async fn main() -> std::io::Result<()> {
     // Configure and start the HTTP server
     HttpServer::new(move || {
         App::new()
-            .app_data(db.clone())
             .wrap(Logger::default())
             .wrap(
                 DefaultHeaders::new()

@@ -46,45 +46,28 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for OscillateSocket {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
             Ok(ws::Message::Text(text)) => {
-                debug!("Received text message: {}", text);
-                if let Some(stripped) = text.strip_prefix("v:") {
-                    // Vibrate command
-                    match stripped.parse::<f64>() {
-                        Ok(value) => {
-                            let clamped = value.max(0.0).min(1.0);
-                            let command = device_manager::vibrate(clamped);
-                            actix::spawn(async move {
-                                if let Err(e) = command.await {
-                                    error!("Error sending vibrate command: {}", e);
-                                }
-                            });
-                        }
-                        Err(e) => {
-                            error!("Failed to parse vibrate value '{}': {}", text, e);
-                            ctx.text(format!("Invalid vibrate value: {}", e));
-                        }
+                if let Ok(cmd) = serde_json::from_str::<serde_json::Value>(&text) {
+                    let o = cmd.get("o").and_then(|v| v.as_f64());
+                    let v = cmd.get("v").and_then(|v| v.as_f64());
+                    if let Some(osc) = o {
+                        let clamped = osc.max(0.0).min(1.0);
+                        let command = device_manager::oscillate(clamped);
+                        actix::spawn(async move {
+                            if let Err(e) = command.await {
+                                error!("Error sending oscillate command: {}", e);
+                            }
+                        });
                     }
-                } else if let Some(stripped) = text.strip_prefix("o:") {
-                    // Oscillate command
-                    match stripped.parse::<f64>() {
-                        Ok(value) => {
-                            // Clamp value between 0.0 and 1.0
-                            let clamped = value.max(0.0).min(1.0);
-                            
-                            // Spawn oscillate command in background
-                            let command = device_manager::oscillate(clamped);
-                            actix::spawn(async move {
-                                if let Err(e) = command.await {
-                                    error!("Error sending oscillate command: {}", e);
-                                }
-                            });
-                        }
-                        Err(e) => {
-                            error!("Failed to parse oscillate intensity value '{}': {}", text, e);
-                            // Optionally send error back to client
-                            ctx.text(format!("Invalid oscillate intensity value: {}", e));
-                        }
+                    if let Some(vib) = v {
+                        let clamped = vib.max(0.0).min(1.0);
+                        let command = device_manager::vibrate(clamped);
+                        actix::spawn(async move {
+                            if let Err(e) = command.await {
+                                error!("Error sending vibrate command: {}", e);
+                            }
+                        });
                     }
+                    return;
                 } else {
                     error!("Unknown command received: {}", text);
                     ctx.text("Unknown command. Use 'v:<value>' for vibrate or 'o:<value>' for oscillate.");

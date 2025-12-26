@@ -95,7 +95,6 @@ impl DeviceManager {
                 // Send to vibrate device
                 let vibrate_lock = manager_clone.vibrate_device.lock().await;
                 if let Some(device) = &*vibrate_lock {
-//                    
                     if let Err(e) = device
                         .vibrate(&ScalarValueCommand::ScalarValue(vibrate_value.max(0.0).min(1.0)))
                         .await

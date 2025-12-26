@@ -26,7 +26,6 @@ pub mod handlers {
     pub mod video;
     pub mod funscript;
     pub mod types;
-    pub mod metadata;
     pub mod editor;
 }
 
@@ -37,8 +36,4 @@ pub mod directory_browser;
 pub mod buttplug {
     pub mod device_manager;
     pub mod funscript_utils;
-}
-
-pub mod db {
-    pub mod database;
 }

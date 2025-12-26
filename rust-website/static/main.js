@@ -1,26 +1,8 @@
 // static/main.js
 
-import { initDirectoryTree } from './directory_tree.js?v=230';
-import { createSearchBox } from './search.js?v=230';
-import { initWebSocket } from './socket.js?v=230';
-import { createCleanupModal } from './cleanup_modal.js?v=230';
-import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=230';
-import { createMetadataPanel, toggleMetadataPanel } from './metadata_panel.js?v=230';
-
-async function checkForOrphanedVideos() {
-    try {
-        const response = await fetch('/api/videos/cleanup-check');
-        if (!response.ok) {
-            throw new Error('Failed to check for orphaned videos.');
-        }
-        const suggestions = await response.json();
-        if (suggestions && suggestions.length > 0) {
-            suggestions.forEach(suggestion => createCleanupModal(suggestion));
-        }
-    } catch (error) {
-        console.error('Cleanup check failed:', error);
-    }
-}
+import { initDirectoryTree } from './directory_tree.js?v=242';
+import { initWebSocket } from './socket.js?v=242';
+import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js?v=242';
 
 function createPlayerButton(id, text, rightPos, onClick) {
     let button = document.createElement('button');
@@ -44,9 +26,7 @@ function createPlayerButton(id, text, rightPos, onClick) {
 function initializeUI() {
     // Create UI components that are globally available but may be hidden initially
     createSettingsMenu();
-    createMetadataPanel();
     createPlayerButton('settings-button', 'Settings', '10px', toggleSettingsMenu);
-    createPlayerButton('metadata-button', 'Metadata', '120px', toggleMetadataPanel);
 
     // Event listener for the sidebar toggle
     document.getElementById('toggle-directory').onclick = () => {
@@ -58,11 +38,6 @@ async function main() {
     // Initialize core components
     initializeUI();
     initWebSocket();
-    checkForOrphanedVideos();
-
-    // Setup search box
-    const searchContainer = document.getElementById('search-container-placeholder');
-    createSearchBox(searchContainer);
 
     // Fetch directory tree and render it
     try {

@@ -10,7 +10,6 @@ use crate::{
         index, 
         video,
         funscript,
-        metadata,
         editor
     },
     intiface_socket
@@ -38,15 +37,7 @@ pub fn setup_routes(cfg: &mut web::ServiceConfig) {
         // search route
         .service(
             web::scope("/api")
-                .route("/search", web::get().to(video::search_videos))
-                .route("/metadata/{id}", web::get().to(metadata::get_metadata))
-                .route("/metadata", web::post().to(metadata::update_metadata))
-                .route("/tags", web::get().to(metadata::get_all_tags))
                 .route("/directory-tree", web::get().to(index::get_directory_tree))
-                .route("/videos/cleanup-check", web::get().to(metadata::cleanup_check))
-                .route("/videos/remap", web::post().to(metadata::remap_video))
-                .route("/videos/untracked", web::get().to(metadata::get_untracked_videos))
-                .route("/video/ensure", web::post().to(metadata::ensure_video))
                 .route("/funscripts", web::post().to(editor::save_funscript))
         )
         // Main site routes

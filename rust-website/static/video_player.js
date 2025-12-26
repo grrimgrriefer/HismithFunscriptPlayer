@@ -1,9 +1,8 @@
 // static/video_player.js
 
-import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentVideoMaxIntensity, setIntensityMultiplier, getCurrentVideoRawMaxIntensity, getCurrentVideoRawAverageIntensity, getVibrateMode, getCurrentBeatValue, funscriptActions } from './funscript_handler.js?v=230';
-import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=230';
-import { sendOscillateValue, sendVibrateValue } from './socket.js?v=230';
-import { createDuplicateVideoModal, clearMetadataPanel } from './metadata_panel.js?v=230';
+import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentVideoMaxIntensity, setIntensityMultiplier, getCurrentVideoRawMaxIntensity, getCurrentVideoRawAverageIntensity, getVibrateMode, getCurrentBeatValue, funscriptActions } from './funscript_handler.js?v=242';
+import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=242';
+import { sendDeviceCommand } from './socket.js?v=242';
 
 let currentAnimationFrame = null;
 let cancelAnimationTimeout = null;
@@ -13,8 +12,7 @@ export async function playVideo(videoUrl, funscriptUrl) {
         cancelAnimationFrame(currentAnimationFrame);
         currentAnimationFrame = null;
     }
-    sendOscillateValue(0);
-    sendVibrateValue(0);
+    sendDeviceCommand(0, 0);
 
     const videoPlayer = document.getElementById('video-player');
     const videoElement = document.createElement('video');
@@ -55,29 +53,31 @@ export async function playVideo(videoUrl, funscriptUrl) {
         const elapsed = Date.now() - transitionStartTime;
         const progress = Math.abs(transitionTargetValue - Math.min(elapsed / TRANSITION_DURATION, 1));
 
+        let oscillateValue = 0;
         if (intensity !== undefined) {
-            throttledSendOscillateValue(lerpIntensity(0, intensity, progress) / 100);
+            oscillateValue = lerpIntensity(0, intensity, progress) / 100, 150;
         }
 
+        let vibrateValue = 0;
         if (getVibrateMode() === 'Rate') {
             // Default: rate-based            
             if (intensity !== undefined) {
-                throttledSendVibrateValue(lerpIntensity(0, intensity, progress) / 100);
+                vibrateValue = lerpIntensity(0, intensity, progress) / 100;
             }
         } else {
             const beatValue = getCurrentBeatValue(currentTime);
             if (beatValue !== undefined) {
-                throttledSendVibrateValue(lerpIntensity(0, beatValue, progress));
+                vibrateValue = lerpIntensity(0, beatValue, progress), 150;
             }
         }
+
+        sendDeviceCommand(oscillateValue, vibrateValue);
 
         currentAnimationFrame = requestAnimationFrame(updateProgressBars);
     }
 
     // Create or update the settings menu
     // UI components are now created globally by main.js
-    const throttledSendOscillateValue = throttle(sendOscillateValue, 150);
-    const throttledSendVibrateValue = throttle(sendVibrateValue, 150);
     let transitionStartTime = Date.now();
     let transitionTargetValue = 1;
     const TRANSITION_DURATION = 1000;
@@ -126,8 +126,6 @@ export async function playVideo(videoUrl, funscriptUrl) {
     createFunscriptDisplayBox();
 
     videoElement.onloadeddata = async () => {
-        clearMetadataPanel();
-
         // Now, wait for the funscript to finish loading.
         await funscriptPromise;
 
@@ -139,48 +137,6 @@ export async function playVideo(videoUrl, funscriptUrl) {
 
         updateFunscriptDisplayBox(0);
         updateProgressBars();
-        const videoPath = videoUrl.substring('/site/video/'.length);
-        const filename = videoPath.split('/').pop();
-        let dbMetadata = {};
-
-        try {
-            const response = await fetch('/api/video/ensure', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ path: videoPath, filename: filename })
-            });
-
-            if (response.ok) {
-                dbMetadata = await response.json();
-            } else if (response.status === 409) {
-                const conflictData = await response.json();
-                createDuplicateVideoModal(conflictData);
-                spinner.style.display = 'none';
-                return;
-            } else {
-                const errorData = await response.json();
-                console.error('Failed to ensure video metadata:', errorData);
-                alert(`Failed to load video metadata: ${errorData.error}`);
-                spinner.style.display = 'none';
-                return;
-            }
-        } catch (error) {
-            console.error('Failed to fetch video metadata:', error);
-            alert('An error occurred while fetching video metadata.');
-            spinner.style.display = 'none';
-            return;
-        }
-
-        const metadata = {
-            ...dbMetadata,
-            filename: filename,
-            avgIntensity: getCurrentVideoRawAverageIntensity(),
-            maxIntensity: getCurrentVideoRawMaxIntensity(),
-            duration: videoElement.duration,
-            hasFunscript: funscriptActions.length > 0,
-        };
-
-        window.updateMetadataPanel(metadata);
 
         // Hide the spinner only when all data is loaded and UI is ready.
         spinner.style.display = 'none';
@@ -192,18 +148,6 @@ export async function playVideo(videoUrl, funscriptUrl) {
 
     // Show player-specific buttons
     document.getElementById('settings-button').style.display = 'block';
-    document.getElementById('metadata-button').style.display = 'block';
-}
-
-function throttle(func, limit) {
-    let inThrottle;
-    return function (...args) {
-        if (!inThrottle) {
-            func.apply(this, args);
-            inThrottle = true;
-            setTimeout(() => inThrottle = false, limit);
-        }
-    };
 }
 
 function lerpIntensity(start, end, progress) {

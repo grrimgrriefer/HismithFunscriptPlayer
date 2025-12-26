@@ -10,7 +10,6 @@ let intensityMulitplier = 1; // Default multiplier
 let absoluteMax = 60; // Default maximum intensity
 
 let vibrateMode = 'Rate'; // Default vibrate mode
-let lastBeatTime = -1;
 
 export async function loadFunscript(funscriptUrl) {
     funscriptActions = [];
@@ -18,14 +17,25 @@ export async function loadFunscript(funscriptUrl) {
     currentVideoRawMaxIntensity = 0;
     currentVideoRawAverageIntensity = 0;
     await fetch(funscriptUrl)
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return response.json();
+        })
         .then(data => {
-            funscriptActions = data.original.actions || [];
-            intensityActions = data.intensity.actions || [];
-            const positions = intensityActions.map(action => action.pos);
-            if (positions.length > 0) {
-                currentVideoRawMaxIntensity = Math.max(...positions);
-                currentVideoRawAverageIntensity = getTimeWeightedAverage(intensityActions);
+            if (data && data.original && Array.isArray(data.original.actions)) {
+                funscriptActions = data.original.actions;
+            } else {
+                funscriptActions = [];
+            }
+            if (data && data.intensity && Array.isArray(data.intensity.actions)) {
+                intensityActions = data.intensity.actions;
+                const positions = intensityActions.map(action => action.pos);
+                if (positions.length > 0) {
+                    currentVideoRawMaxIntensity = Math.max(...positions);
+                    currentVideoRawAverageIntensity = getTimeWeightedAverage(intensityActions);
+                }
+            } else {
+                intensityActions = [];
             }
         })
         .catch(error => {

@@ -8,12 +8,18 @@ RUN apt-get update && \
     apt-get install -y pkg-config libssl-dev libdbus-1-dev libudev-dev && \
     rm -rf /var/lib/apt/lists/*
 
+# Install cargo-audit for security scanning
+RUN cargo install --locked cargo-audit
+
 # Copy manifests first for caching
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 
 # Build dependencies first for better caching
 RUN cargo fetch
+
+# Run cargo-audit and fail the build if vulnerabilities are found
+RUN cargo audit
 
 # Build the application in release mode
 RUN cargo build --release

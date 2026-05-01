@@ -1,8 +1,11 @@
 // static/video_player.js
 
-import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentVideoMaxIntensity, setIntensityMultiplier, getCurrentVideoRawMaxIntensity, getCurrentVideoRawAverageIntensity, getVibrateMode, getCurrentBeatValue, funscriptActions } from './funscript_handler.js?v=242';
-import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=242';
-import { sendDeviceCommand } from './socket.js?v=242';
+import { loadFunscript, getCurrentIntensity, getAbsoluteMaximum, getCurrentVideoMaxIntensity, setIntensityMultiplier, getCurrentVideoRawMaxIntensity, getCurrentVideoRawAverageIntensity, getVibrateMode, getCurrentBeatValue, funscriptActions } from './funscript_handler.js?v=243';
+import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_sliders.js?v=243';
+import { sendDeviceCommand } from './socket.js?v=243';
+
+const urlParams = new URLSearchParams(window.location.search);
+const DISABLE_FULLSCREEN = ['1', 'true', 'yes'].includes((urlParams.get('no_fullscreen') || '').toLowerCase());
 
 let currentAnimationFrame = null;
 let cancelAnimationTimeout = null;
@@ -94,11 +97,12 @@ export async function playVideo(videoUrl, funscriptUrl) {
         transitionTargetValue = 0;
         currentAnimationFrame = requestAnimationFrame(updateProgressBars);
 
-        try {
-            document.documentElement.requestFullscreen();
-        }
-        catch (e) {
-            console.error('Error requesting fullscreen:', e);
+        if (!DISABLE_FULLSCREEN) {
+            try {
+                document.documentElement.requestFullscreen();
+            } catch (e) {
+                console.error('Error requesting fullscreen:', e);
+            }
         }
     };
 
@@ -111,11 +115,15 @@ export async function playVideo(videoUrl, funscriptUrl) {
         }, 1100);
         transitionStartTime = Date.now();
         transitionTargetValue = 1;
-        try {
-            document.exitFullscreen();
-        }
-        catch (e) {
-            console.error('Error exiting fullscreen:', e);
+
+        if (!DISABLE_FULLSCREEN) {
+            try {
+                if (document.fullscreenElement) {
+                    document.exitFullscreen();
+                }
+            } catch (e) {
+                console.error('Error exiting fullscreen:', e);
+            }
         }
     };
 

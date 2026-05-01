@@ -123,17 +123,27 @@ impl DeviceManager {
 
 /// Initializes device connection and event loop
 pub async fn initialize_intiface() -> Result<(), ButtplugClientError> {
-    let connector = new_json_ws_client_connector("ws://127.0.0.1:12345/buttplug");
-    let client = ButtplugClient::new("Video player Client");
-
-    if let Err(err) = client.connect(connector).await {
-        eprintln!("Failed to connect to Buttplug server: {}", err);
-        return Err(err);
-    }
-
-    let client = Arc::new(client);
+    let client = Arc::new(ButtplugClient::new("Video player Client"));
     let manager = DeviceManager::new(client.clone());
     DEVICE_MANAGER.set(manager.clone()).ok();
+
+    let client_for_connect = client.clone();
+    let url = "ws://127.0.0.1:12345/buttplug".to_string();
+    tokio::spawn(async move {
+        loop {
+            let connector = new_json_ws_client_connector(&url);
+            match client_for_connect.connect(connector).await {
+                Ok(_) => {
+                    println!("Connected to Buttplug server at {}", url);
+                    break;
+                }
+                Err(err) => {
+                    println!("Failed to connect to Buttplug server: {}. Retrying in 5s...", err);
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                }
+            }
+        }
+    });
 
     let oscillate_ref = manager.oscillate_device.clone();
     let vibrate_ref = manager.vibrate_device.clone();

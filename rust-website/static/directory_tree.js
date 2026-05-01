@@ -1,6 +1,6 @@
 // static/directory_tree.js
 
-import { playVideo } from './video_player.js?v=242';
+import { playVideo } from './video_player.js?v=243';
 
 function toggleFolder(id) {
     const element = document.getElementById(id);

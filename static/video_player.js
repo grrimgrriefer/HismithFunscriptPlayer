@@ -1,9 +1,10 @@
 // static/video_player.js
 
-import { loadFunscript, getCurrentIntensity, getCurrentVideoMaxIntensity, getVibrateMode, getCurrentBeatValue } from './funscript_handler.js?v=255';
-import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_display_graphs.js?v=255';
-import { sendDeviceCommand } from './socket.js?v=255';
-import { getCalibrationMultiplier } from './calibration.js?v=255';
+import { loadFunscript, getCurrentIntensity, getCurrentVideoMaxIntensity, getVibrateMode, getCurrentBeatValue, setSelectedFunscriptVariant } from './funscript_handler.js?v=258';
+import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_display_graphs.js?v=258';
+import { sendDeviceCommand } from './socket.js?v=258';
+import { getCalibrationMultiplier } from './calibration.js?v=258';
+import { refreshVariantsForCurrentVideo } from './settings_menu.js?v=258';
 
 const urlParams = new URLSearchParams(window.location.search);
 const DISABLE_FULLSCREEN = ['1', 'true', 'yes'].includes((urlParams.get('no_fullscreen') || '').toLowerCase());
@@ -128,6 +129,11 @@ export async function playVideo(videoUrl, funscriptUrl) {
         }
     };
 
+    // Force default variant to 'original' for each new video and sync the dropdown UI
+    setSelectedFunscriptVariant('original');
+    const sel = document.getElementById('funscript-variant-select');
+    if (sel) sel.value = 'original';
+
     // Start loading funscript, but don't await it here.
     const funscriptPromise = loadFunscript(funscriptUrl);
 
@@ -140,6 +146,7 @@ export async function playVideo(videoUrl, funscriptUrl) {
 
         updateFunscriptDisplayBox(0);
         updateProgressBars();
+        refreshVariantsForCurrentVideo();
 
         // Hide the spinner only when all data is loaded and UI is ready.
         spinner.style.display = 'none';

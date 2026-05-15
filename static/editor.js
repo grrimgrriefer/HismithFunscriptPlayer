@@ -9,9 +9,12 @@ const deleteButton = document.getElementById('delete-button');
 const saveButton = document.getElementById('save-button');
 const actionCounter = document.getElementById('action-counter');
 const ctx = canvas.getContext('2d');
+const variantInput = document.getElementById('variant-input');
 
 // State
-let tapTimestamps = [];
+let baseTimestamps = [];
+let variantTimestamps = [];
+let currentVariant = '';
 let selectedTimestamps = new Set();
 let videoPath = '';
 let editorAnimationFrame = null;
@@ -32,6 +35,9 @@ async function init() {
     const urlParams = new URLSearchParams(window.location.search);
     videoPath = urlParams.get('video');
 
+    const qvariant = urlParams.get('variant');
+    if (qvariant && variantInput) variantInput.value = qvariant;
+
     if (!videoPath) {
         document.body.innerHTML = '<h1>Error: No video specified.</h1>';
         return;
@@ -46,9 +52,104 @@ async function init() {
     drawVisualizer();
 }
 
-function resizeCanvas() {
-    canvas.width = canvas.offsetWidth;
-    canvas.height = canvas.offsetHeight;
+function isEditingVariant() {
+    return currentVariant && currentVariant !== '' && currentVariant !== 'original';
+}
+
+function getEditingArray() {
+    return isEditingVariant() ? variantTimestamps : baseTimestamps;
+}
+
+function setEditingArray(arr) {
+    if (isEditingVariant()) {
+        variantTimestamps = arr;
+    } else {
+        baseTimestamps = arr;
+    }
+}
+
+function dedupeAndSort(arr) {
+    const s = Array.from(new Set(arr));
+    s.sort((a, b) => a - b);
+    return s;
+}
+
+function extractActionsFromResponse(data, variantName) {
+    if (!data) return [];
+    if (variantName && data[variantName] && Array.isArray(data[variantName].actions)) return data[variantName].actions;
+    if (data.original && Array.isArray(data.original.actions)) return data.original.actions;
+    if (Array.isArray(data.actions)) return data.actions;
+    return [];
+}
+
+async function loadExistingFunscript() {
+    currentVariant = variantInput ? variantInput.value.trim() : '';
+    const baseFunscriptUrl = `/site/funscripts/${videoPath.replace(/\.[^/.]+$/, ".funscript")}`;
+
+    // Populate variant datalist for easy selection
+    try {
+        const listResp = await fetch(baseFunscriptUrl + '?list=1');
+        if (listResp.ok) {
+            const listData = await listResp.json();
+            const variants = Array.isArray(listData.variants) ? listData.variants : [];
+            const datalist = document.getElementById('variant-list');
+            if (datalist) {
+                datalist.innerHTML = '';
+                variants.forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v;
+                    datalist.appendChild(opt);
+                });
+            }
+        }
+    } catch (err) {
+        console.error('Error loading variant list:', err);
+    }
+
+    // Load base (original) taps
+    try {
+        const response = await fetch(baseFunscriptUrl);
+        if (response.ok) {
+            const data = await response.json();
+            const actions = extractActionsFromResponse(data, 'original');
+            baseTimestamps = (actions || [])
+                .filter(a => a.pos === 100)
+                .map(a => a.at)
+                .sort((a, b) => a - b);
+            console.log(`Loaded ${baseTimestamps.length} base points.`);
+        } else {
+            baseTimestamps = [];
+        }
+    } catch (error) {
+        console.error('Error loading base funscript:', error);
+        baseTimestamps = [];
+    }
+
+    // Load variant taps (if editing a non-original variant)
+    variantTimestamps = [];
+    if (isEditingVariant()) {
+        try {
+            const vurl = `${baseFunscriptUrl}?variant=${encodeURIComponent(currentVariant)}`;
+            const vresp = await fetch(vurl);
+            if (vresp.ok) {
+                const vdata = await vresp.json();
+                let vactions = extractActionsFromResponse(vdata, currentVariant);
+                variantTimestamps = (vactions || [])
+                    .filter(a => a.pos === 100)
+                    .map(a => a.at)
+                    .sort((a, b) => a - b);
+                console.log(`Loaded ${variantTimestamps.length} variant points (${currentVariant}).`);
+            } else {
+                variantTimestamps = [];
+            }
+        } catch (error) {
+            console.error('Error loading variant funscript:', error);
+            variantTimestamps = [];
+        }
+    }
+
+    selectedTimestamps.clear();
+    updateCounter();
     drawVisualizer();
 }
 
@@ -59,11 +160,14 @@ function setupEventListeners() {
     saveButton.addEventListener('click', handleSave);
 
     document.addEventListener('keydown', (e) => {
-        if (e.code === 'Space' && e.target === document.body) {
+        const target = e.target;
+        const tag = target && target.tagName ? target.tagName.toUpperCase() : '';
+        const isTextEntry = tag === 'INPUT' || tag === 'TEXTAREA' || (target && target.isContentEditable);
+        if (e.code === 'Space' && !isTextEntry) {
             e.preventDefault();
             handleTap();
         }
-        if (e.code === 'Delete' || e.code === 'Backspace') {
+        if ((e.code === 'Delete' || e.code === 'Backspace') && !isTextEntry) {
             e.preventDefault();
             handleDeleteSelected();
         }
@@ -73,18 +177,33 @@ function setupEventListeners() {
     videoElement.addEventListener('pause', stopEditorRaf);
     videoElement.addEventListener('seeked', drawVisualizer);
     window.addEventListener('resize', resizeCanvas);
+
+    if (variantInput) {
+        variantInput.addEventListener('change', async () => {
+            await loadExistingFunscript();
+        });
+        variantInput.addEventListener('keyup', async (e) => {
+            if (e.key === 'Enter') await loadExistingFunscript();
+        });
+    }
+
     setupCanvasEventListeners();
 }
 
 // Funscript Logic
 function updateCounter() {
-    actionCounter.textContent = `Taps: ${tapTimestamps.length}`;
+    const editing = getEditingArray();
+    if (isEditingVariant()) {
+        actionCounter.textContent = `Taps: ${editing.length} (variant: ${currentVariant}) — Original: ${baseTimestamps.length}`;
+    } else {
+        actionCounter.textContent = `Taps: ${editing.length}`;
+    }
 }
 
-function generateFunscriptActions() {
-    if (tapTimestamps.length === 0) return [{ at: 0, pos: 0 }];
+function generateFunscriptActionsFromTimestamps(timestamps) {
+    if (!timestamps || timestamps.length === 0) return [{ at: 0, pos: 0 }];
 
-    const sortedTaps = [...tapTimestamps].sort((a, b) => a - b);
+    const sortedTaps = [...timestamps].sort((a, b) => a - b);
     let actions = [];
     let lastTime = 0;
 
@@ -98,38 +217,18 @@ function generateFunscriptActions() {
     actions.push({ at: lastTime + 500, pos: 0 });
     if (actions.length > 0 && actions[0].at > 0) actions.unshift({ at: 0, pos: 0 });
 
-    const uniqueActions = [];
     const seen = new Map();
     for (const action of actions) {
-        if (!seen.has(action.at) || seen.get(action.at).pos !== action.pos) {
-            seen.set(action.at, action);
-        }
+        // keep last action for a timestamp (preserves pos changes)
+        seen.set(action.at, action);
     }
 
     return Array.from(seen.values()).sort((a, b) => a.at - b.at);
 }
 
-async function loadExistingFunscript() {
-    try {
-        const funscriptUrl = `/site/funscripts/${videoPath.replace(/\.[^/.]+$/, ".funscript")}`;
-        const response = await fetch(funscriptUrl);
-        if (response.ok) {
-            const data = await response.json();
-            if (data.original && data.original.actions) {
-                tapTimestamps = data.original.actions
-                    .filter(action => action.pos === 100)
-                    .map(action => action.at)
-                    .sort((a, b) => a - b);
-                console.log(`Loaded ${tapTimestamps.length} existing points.`);
-            }
-        }
-    } catch (error) {
-        console.error('Error loading existing funscript:', error);
-    }
-}
-
 async function handleSave() {
-    const actions = generateFunscriptActions();
+    const editing = getEditingArray();
+    const actions = generateFunscriptActionsFromTimestamps(editing);
     if (actions.length < 2) {
         alert("Not enough actions to create a funscript.");
         return;
@@ -138,10 +237,11 @@ async function handleSave() {
     saveButton.disabled = true;
     saveButton.textContent = 'Saving...';
     try {
+        const variantVal = variantInput ? variantInput.value.trim() : "";
         const response = await fetch('/api/funscripts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ video_path: videoPath, actions })
+            body: JSON.stringify({ video_path: videoPath, actions, variant: variantVal || null })
         });
         if (response.ok) {
             alert('Funscript saved successfully!');
@@ -162,15 +262,18 @@ async function handleSave() {
 // User Actions
 function handleTap() {
     const currentTime = Math.round(videoElement.currentTime * 1000);
-    tapTimestamps.push(currentTime);
-    tapTimestamps.sort((a, b) => a - b);
+    const editing = getEditingArray();
+    editing.push(currentTime);
+    setEditingArray(dedupeAndSort(editing));
     updateCounter();
     drawVisualizer();
 }
 
 function handleUndo() {
-    if (tapTimestamps.length > 0) {
-        tapTimestamps.pop();
+    const editing = getEditingArray();
+    if (editing.length > 0) {
+        editing.pop();
+        setEditingArray(dedupeAndSort(editing));
         updateCounter();
         drawVisualizer();
     }
@@ -178,7 +281,9 @@ function handleUndo() {
 
 function handleDeleteSelected() {
     if (selectedTimestamps.size === 0) return;
-    tapTimestamps = tapTimestamps.filter(t => !selectedTimestamps.has(t));
+    const editing = getEditingArray();
+    const newEditing = editing.filter(t => !selectedTimestamps.has(t));
+    setEditingArray(dedupeAndSort(newEditing));
     selectedTimestamps.clear();
     updateCounter();
     drawVisualizer();
@@ -209,29 +314,66 @@ function drawVisualizer() {
     const viewStartMs = Math.max(0, currentTime - (VIEW_WINDOW_MS / 2));
 
     const msToPx = (ms) => ((ms - viewStartMs) / VIEW_WINDOW_MS) * canvas.width;
-    const pxToMs = (px) => Math.round((px / canvas.width) * VIEW_WINDOW_MS + viewStartMs);
 
-    // Draw waveform
-    const actions = generateFunscriptActions();
-    ctx.beginPath();
-    ctx.strokeStyle = '#4CAF50';
-    ctx.lineWidth = 1;
-    actions.forEach((action, i) => {
-        const x = msToPx(action.at);
-        const y = canvas.height - (action.pos / 100) * (canvas.height * 0.8) - (canvas.height * 0.1);
-        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-    });
-    ctx.stroke();
+    // Draw base and editing waveforms
+    const baseActions = generateFunscriptActionsFromTimestamps(baseTimestamps);
+    const editingActions = generateFunscriptActionsFromTimestamps(getEditingArray());
+
+    if (isEditingVariant() && baseActions.length > 0) {
+        ctx.beginPath();
+        ctx.strokeStyle = '#777';
+        ctx.lineWidth = 1;
+        baseActions.forEach((action, i) => {
+            const x = msToPx(action.at);
+            const y = canvas.height - (action.pos / 100) * (canvas.height * 0.8) - (canvas.height * 0.1);
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+    }
+
+    if (editingActions.length > 0) {
+        ctx.beginPath();
+        ctx.strokeStyle = '#4CAF50';
+        ctx.lineWidth = 1;
+        editingActions.forEach((action, i) => {
+            const x = msToPx(action.at);
+            const y = canvas.height - (action.pos / 100) * (canvas.height * 0.8) - (canvas.height * 0.1);
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+    }
 
     // Draw tap points
-    tapTimestamps.forEach(at => {
-        const x = msToPx(at);
-        const y = canvas.height * 0.1; // Top of the wave
-        ctx.beginPath();
-        ctx.arc(x, y, 5, 0, Math.PI * 2);
-        ctx.fillStyle = selectedTimestamps.has(at) ? 'yellow' : '#f44336';
-        ctx.fill();
-    });
+    if (isEditingVariant()) {
+        // base taps - grey, not interactive
+        baseTimestamps.forEach(at => {
+            const x = msToPx(at);
+            const y = canvas.height * 0.1;
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, Math.PI * 2);
+            ctx.fillStyle = '#999';
+            ctx.fill();
+        });
+        // variant taps - interactive
+        variantTimestamps.forEach(at => {
+            const x = msToPx(at);
+            const y = canvas.height * 0.1;
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, Math.PI * 2);
+            ctx.fillStyle = selectedTimestamps.has(at) ? 'yellow' : '#f44336';
+            ctx.fill();
+        });
+    } else {
+        // editing original - taps are interactive
+        baseTimestamps.forEach(at => {
+            const x = msToPx(at);
+            const y = canvas.height * 0.1;
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, Math.PI * 2);
+            ctx.fillStyle = selectedTimestamps.has(at) ? 'yellow' : '#f44336';
+            ctx.fill();
+        });
+    }
 
     // Draw playhead
     const playheadX = msToPx(currentTime);
@@ -264,7 +406,8 @@ function setupCanvasEventListeners() {
 
     const findPointAt = (px) => {
         const clickMs = pxToMs(px);
-        for (const timestamp of tapTimestamps) {
+        const items = getEditingArray();
+        for (const timestamp of items) {
             if (Math.abs(timestamp - clickMs) < CLICK_RADIUS_MS) {
                 return timestamp;
             }
@@ -297,11 +440,17 @@ function setupCanvasEventListeners() {
             const newTapTime = currentMouseMs - dragOffsetMs;
 
             const selectedArray = Array.from(selectedTimestamps);
-            const firstSelected = Math.min(...selectedArray);
-            const delta = newTapTime - firstSelected;
-
-            tapTimestamps = tapTimestamps.map(t => selectedTimestamps.has(t) ? Math.max(0, t + delta) : t);
-            selectedTimestamps = new Set(Array.from(selectedTimestamps).map(t => Math.max(0, t + delta)));
+            if (selectedArray.length === 0) {
+                // nothing selected, ignore
+            } else {
+                const firstSelected = Math.min(...selectedArray);
+                const delta = newTapTime - firstSelected;
+                const editing = getEditingArray();
+                const newEditing = editing.map(t => selectedTimestamps.has(t) ? Math.max(0, Math.round(t + delta)) : t);
+                setEditingArray(dedupeAndSort(newEditing));
+                // update selected timestamps to moved positions
+                selectedTimestamps = new Set(Array.from(selectedArray).map(t => Math.max(0, Math.round(t + delta))));
+            }
 
         } else if (isSelecting) {
             selectionEndPos.x = e.offsetX;
@@ -313,7 +462,8 @@ function setupCanvasEventListeners() {
         if (isSelecting) {
             const startMs = pxToMs(Math.min(selectionStartPos.x, selectionEndPos.x));
             const endMs = pxToMs(Math.max(selectionStartPos.x, selectionEndPos.x));
-            tapTimestamps.forEach(t => {
+            const editing = getEditingArray();
+            editing.forEach(t => {
                 if (t >= startMs && t <= endMs) selectedTimestamps.add(t);
             });
         }
@@ -321,6 +471,12 @@ function setupCanvasEventListeners() {
         isSelecting = false;
         drawVisualizer();
     });
+}
+
+function resizeCanvas() {
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+    drawVisualizer();
 }
 
 document.addEventListener('DOMContentLoaded', init);

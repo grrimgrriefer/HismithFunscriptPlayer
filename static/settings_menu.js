@@ -1,6 +1,6 @@
 // static/settings_menu.js
 
-import { setAbsoluteMaximum, getAbsoluteMaximum, setVibrateMode } from './funscript_handler.js?v=255';
+import { setAbsoluteMaximum, getAbsoluteMaximum, setVibrateMode, loadFunscript, setSelectedFunscriptVariant, getSelectedFunscriptVariant } from './funscript_handler.js?v=258';
 
 export function createSettingsMenu() {
     let settingsMenu = document.getElementById('settings-menu');
@@ -37,6 +37,58 @@ export function createSettingsMenu() {
         };
         settingsMenu.appendChild(loopToggle);
 
+        const variantLabel = document.createElement('label');
+        variantLabel.textContent = 'Funscript Variant: ';
+        variantLabel.style.display = 'block';
+        variantLabel.style.marginTop = '10px';
+        variantLabel.style.marginBottom = '5px';
+
+        const variantSelect = document.createElement('select');
+        variantSelect.id = 'funscript-variant-select';
+        const optDefault = document.createElement('option');
+        optDefault.value = 'original';
+        optDefault.text = 'original';
+        variantSelect.appendChild(optDefault);
+        variantSelect.value = getSelectedFunscriptVariant();
+        variantSelect.onchange = () => {
+            const sel = variantSelect.value;
+            setSelectedFunscriptVariant(sel);
+            // Reload funscript for current video (if any)
+            const videoEl = document.querySelector('#video-player video');
+            if (videoEl && videoEl.src) {
+                try {
+                    const url = new URL(videoEl.src, window.location.origin);
+                    const m = url.pathname.match(/\/site\/video\/(.+)/);
+                    const videoPath = m ? m[1] : url.pathname;
+                    const baseFunscript = `/site/funscripts/${videoPath.replace(/\.[^/.]+$/, ".funscript")}`;
+                    loadFunscript(baseFunscript);
+                } catch (e) {
+                    // ignore
+                }
+            }
+        };
+
+        const refreshBtn = document.createElement('button');
+        refreshBtn.id = 'refresh-variants-button';
+        refreshBtn.textContent = 'Refresh';
+        refreshBtn.style.backgroundColor = 'rgb(70, 70, 70)';
+        refreshBtn.style.color = 'white';
+        refreshBtn.style.border = 'none';
+        refreshBtn.style.padding = '5px 10px';
+        refreshBtn.style.cursor = 'pointer';
+        refreshBtn.style.borderRadius = '3px';
+        refreshBtn.style.marginLeft = '6px';
+        refreshBtn.onclick = () => refreshVariantsForCurrentVideo();
+
+        const variantRow = document.createElement('div');
+        variantRow.style.display = 'flex';
+        variantRow.style.gap = '6px';
+        variantRow.appendChild(variantSelect);
+        variantRow.appendChild(refreshBtn);
+
+        settingsMenu.appendChild(variantLabel);
+        settingsMenu.appendChild(variantRow);
+
         // Add a Calibration button (opens an overlay instead of navigating away)
         const calibrationButton = document.createElement('button');
         calibrationButton.id = 'calibration-button';
@@ -55,7 +107,7 @@ export function createSettingsMenu() {
 
             let resp;
             try {
-                resp = await fetch('/site/static/calibration.html?v=255');
+                resp = await fetch('/site/static/calibration.html?v=258');
             } catch (err) {
                 console.error('Failed to fetch calibration UI', err);
                 alert('Failed to load calibration UI');
@@ -126,7 +178,7 @@ export function createSettingsMenu() {
 
             // dynamic import and initialize the calibration module
             try {
-                const mod = await import('/site/static/calibration.js?v=255');
+                const mod = await import('/site/static/calibration.js?v=258');
                 if (mod && typeof mod.setup === 'function') {
                     mod.setup();
                 }
@@ -287,9 +339,66 @@ export function createSettingsMenu() {
     return settingsMenu;
 }
 
+function currentVideoPathFromPlayer() {
+    const videoEl = document.querySelector('#video-player video');
+    if (!videoEl || !videoEl.src) return null;
+    try {
+        const url = new URL(videoEl.src, window.location.origin);
+        const m = url.pathname.match(/\/site\/video\/(.+)/);
+        return m ? m[1] : url.pathname;
+    } catch (e) {
+        return null;
+    }
+}
+
+export async function refreshVariantsForCurrentVideo() {
+    const videoPath = currentVideoPathFromPlayer();
+    if (!videoPath) return;
+    const listUrl = `/site/funscripts/${videoPath.replace(/\.[^/.]+$/, ".funscript")}?list=1`;
+    try {
+        const resp = await fetch(listUrl);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const select = document.getElementById('funscript-variant-select');
+        if (!select) return;
+
+        const serverVariants = Array.isArray(data.variants) ? data.variants : [];
+        const variants = serverVariants.length ? serverVariants : ['original'];
+
+        // rebuild options
+        select.innerHTML = '';
+        variants.forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v;
+            opt.text = v;
+            select.appendChild(opt);
+        });
+
+        // prefer the handler's selected variant, fall back to 'original' or first available
+        const preferred = getSelectedFunscriptVariant() || 'original';
+        if (variants.includes(preferred)) {
+            select.value = preferred;
+        } else if (variants.includes('original')) {
+            select.value = 'original';
+        } else if (select.options.length > 0) {
+            select.selectedIndex = 0;
+        }
+
+        // ensure handler and UI stay in sync
+        setSelectedFunscriptVariant(select.value);
+
+    } catch (err) {
+        console.error('Failed to refresh funscript variants', err);
+    }
+}
+
 export function toggleSettingsMenu() {
     const settingsMenu = document.getElementById('settings-menu');
     if (settingsMenu) {
-        settingsMenu.style.display = settingsMenu.style.display === 'none' ? 'block' : 'none';
+        const willShow = settingsMenu.style.display === 'none';
+        settingsMenu.style.display = willShow ? 'block' : 'none';
+        if (willShow) {
+            setTimeout(() => refreshVariantsForCurrentVideo(), 80);
+        }
     }
 }

@@ -1,21 +1,26 @@
 // static/funscript_handler.js
 
-import { getCalibrationMultiplier } from './calibration.js?v=255';
+import { getCalibrationMultiplier } from './calibration.js?v=258';
 
 export let funscriptActions = [];
 export let intensityActions = [];
 
 let currentVideoRawMaxIntensity = 0;
-
-let absoluteMax = 60; // Default maximum intensity
-
-let vibrateMode = 'Rate'; // Default vibrate mode
+let absoluteMax = 60;
+let vibrateMode = 'Rate';
+let selectedVariant = 'original';
 
 export async function loadFunscript(funscriptUrl) {
     funscriptActions = [];
     intensityActions = [];
     currentVideoRawMaxIntensity = 0;
-    await fetch(funscriptUrl)
+    let fetchUrl = funscriptUrl;
+
+    if (!fetchUrl.includes('variant=')) {
+        fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + `variant=${encodeURIComponent(selectedVariant)}`;
+    }
+
+    await fetch(fetchUrl)
         .then(response => {
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             return response.json();
@@ -148,3 +153,11 @@ export function getCurrentBeatValue(currentTime) {
     }
     return vibrateValue;
 };
+
+export function setSelectedFunscriptVariant(v) {
+    selectedVariant = v && v.length ? v : 'original';
+}
+
+export function getSelectedFunscriptVariant() {
+    return selectedVariant;
+}

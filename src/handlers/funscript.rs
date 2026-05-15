@@ -24,6 +24,8 @@ use crate::buttplug::funscript_utils::{
     self, 
     FunscriptData
 };
+use std::collections::HashMap;
+use std::fs as stdfs;
 
 /// Response structure for funscript requests containing both original and 
 /// generated intensity data
@@ -49,7 +51,10 @@ pub struct FunscriptResponse {
 /// * `HttpResponse` - JSON response containing original and intensity data
 /// * Returns 404 if funscript not found
 /// * Returns 500 for server configuration errors
-pub async fn handle_funscript(path: web::Path<String>) -> HttpResponse {
+pub async fn handle_funscript(
+    path: web::Path<String>,
+    query: web::Query<HashMap<String, String>>,
+) -> HttpResponse {
     let requested_video_path = path.into_inner();
     info!("Handling funscript request for video: {}", &requested_video_path);
 
@@ -65,8 +70,36 @@ pub async fn handle_funscript(path: web::Path<String>) -> HttpResponse {
         }
     };
 
-    // Construct full path to funscript file
-    let funscript_filepath = match get_funscript_path_for_video(&requested_video_path, &funscript_base_path) {
+    // list of available variants
+    if query.get("list").is_some() {
+        let fun_path = PathBuf::from(&funscript_base_path).join(&requested_video_path);
+        let dir = fun_path.parent().unwrap_or(Path::new(&funscript_base_path));
+        let base_stem = fun_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+
+        let mut variants: Vec<String> = Vec::new();
+        if let Ok(entries) = stdfs::read_dir(dir) {
+            for entry in entries.filter_map(Result::ok) {
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) == Some("funscript") {
+                    if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                        if stem == base_stem {
+                            variants.push("original".to_string());
+                        } else if stem.starts_with(&format!("{}.", base_stem)) {
+                            let var = &stem[base_stem.len()+1..];
+                            variants.push(var.to_string());
+                        }
+                    }
+                }
+            }
+        }
+        variants.sort();
+        variants.dedup();
+        return HttpResponse::Ok().json(serde_json::json!({ "variants": variants }));
+    }
+
+    let requested_variant = query.get("variant").cloned().unwrap_or_else(|| "original".to_string());
+
+    let funscript_filepath = match get_funscript_path_for_video(&requested_video_path, &funscript_base_path, &requested_variant) {
         Ok(p) => p,
         Err(e) => {
             error!("Path determination error: {}", e);
@@ -149,9 +182,15 @@ pub async fn handle_funscript(path: web::Path<String>) -> HttpResponse {
 fn get_funscript_path_for_video(
     requested_video_path: &str,
     funscript_base_path: &str,
+    variant: &str,
 ) -> Result<PathBuf, String> {
     let fun_path = PathBuf::from(funscript_base_path).join(requested_video_path);
-    let funscript_path = fun_path.with_extension("funscript");
+    let ext = if variant.is_empty() || variant == "original" {
+        "funscript".to_string()
+    } else {
+        format!("{}.funscript", variant)
+    };
+    let funscript_path = fun_path.with_extension(ext);
     Ok(funscript_path)
 }
 

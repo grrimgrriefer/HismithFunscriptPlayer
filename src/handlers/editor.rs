@@ -15,6 +15,7 @@ pub async fn handle_editor_page() -> Result<NamedFile, Error> {
 pub struct SaveFunscriptPayload {
     video_path: String,
     actions: Vec<Action>,
+    variant: Option<String>,
 }
 
 pub async fn save_funscript(
@@ -28,7 +29,7 @@ pub async fn save_funscript(
         }
     };
 
-    // Security: ensure the path from the client is relative and doesn't escape.
+    // ensure the path from the client is relative and doesn't escape.
     let video_path = PathBuf::from(&payload.video_path);
     if video_path.has_root() || video_path.components().any(|c| c == std::path::Component::ParentDir) {
         log::error!("Potential path traversal attempt: {}", payload.video_path);
@@ -37,7 +38,11 @@ pub async fn save_funscript(
     
     let full_funscript_path = PathBuf::from(&funscript_share_path).join(&video_path);
 
-    let funscript_path = full_funscript_path.with_extension("funscript");
+    let ext = match payload.variant.as_deref() {
+        Some(v) if !v.is_empty() && v != "original" => format!("{}.funscript", v),
+        _ => "funscript".to_string(),
+    };
+    let funscript_path = full_funscript_path.with_extension(ext);
 
     let funscript_data = FunscriptData {
         actions: payload.actions.clone(),

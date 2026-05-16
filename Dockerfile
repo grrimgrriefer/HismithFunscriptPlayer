@@ -32,12 +32,17 @@ WORKDIR /app
 # Install runtime dependencies (for rusqlite and others)
 RUN apt-get update && apt-get install -y libsqlite3-0 ca-certificates && rm -rf /var/lib/apt/lists/*
 
-# Copy the compiled binary from builder
-COPY --from=builder /app/target/release/hismith-player-site /app/hismith-player-site
+# Create a non-privileged user and group
+RUN groupadd -g 10001 appuser && \
+    useradd -u 10001 -g appuser -s /bin/sh appuser
 
-# Copy static files and .env
-COPY static ./static
-COPY .env .env
+# Copy the compiled binary and change ownership to the new user
+COPY --from=builder --chown=appuser:appuser /app/target/release/hismith-player-site /app/hismith-player-site
+COPY --chown=appuser:appuser static ./static
+COPY --chown=appuser:appuser .env .env
+
+# Tell Docker to run as this user by default
+USER appuser
 
 # Expose the port your app listens on (default: 5441)
 EXPOSE 5441

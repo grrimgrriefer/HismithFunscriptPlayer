@@ -41,6 +41,7 @@ docker stop hismith-player || true && \
 docker rm -f hismith-player || true && \
 docker build -t hismith-player-site:v1 . && \
 docker run -d -p 5441:5441 \
+ --user "$(id -u):$(id -g)" \
  --mount type=bind,source=/absolute/path/to/videos,target=/absolute/path/to/videos,readonly \
  --mount type=bind,source=/absolute/path/to/funscripts,target=/absolute/path/to/funscripts \
  --name hismith-player hismith-player-site:v1

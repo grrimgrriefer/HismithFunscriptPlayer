@@ -6,8 +6,9 @@ use serde::Deserialize;
 use std::{env, path::{PathBuf}};
 use tokio::fs;
 use crate::buttplug::funscript_utils::{Action, FunscriptData};
+use crate::funscript_cache;
 
-pub async fn handle_editor_page() -> Result<NamedFile, Error> {
+pub async fn handle_editor_page() -> Result<impl Responder, Error> {
     Ok(NamedFile::open("./static/editor.html")?
         .customize()
         .insert_header(("Cache-Control", "no-cache")))
@@ -70,6 +71,11 @@ pub async fn save_funscript(
         log::error!("Failed to write funscript file to {:?}: {}", funscript_path, e);
         return HttpResponse::InternalServerError().json("Failed to save funscript file");
     }
+
+    let _share = funscript_share_path.clone();
+    tokio::spawn(async move {
+        let _ = funscript_cache::get_cache_for_base(&std::path::PathBuf::from(_share)).await;
+    });
 
     log::info!("Successfully saved funscript to {:?}", funscript_path);
     HttpResponse::Ok().json("Funscript saved successfully.")

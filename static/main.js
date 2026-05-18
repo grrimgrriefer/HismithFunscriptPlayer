@@ -37,7 +37,8 @@ async function main() {
         if (!response.ok) {
             throw new Error(`Failed to fetch directory tree: ${response.statusText}`);
         }
-        const directoryTreeData = await response.json();
+        const payload = await response.json();
+        const directoryTreeData = payload.tree || payload;
         const directoryTreeContainer = document.getElementById("directory-tree");
         initDirectoryTree(directoryTreeData, directoryTreeContainer);
     } catch (error) {

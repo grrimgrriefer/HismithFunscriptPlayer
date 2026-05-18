@@ -35,6 +35,15 @@ async fn main() -> std::io::Result<()> {
     // Initialize logging with default level of 'info'
     env_logger::init_from_env(Env::default().default_filter_or("info"));
 
+    // spawn a background cache build (best-effort)
+    info!("Starting background cache");
+    if let Ok(f) = std::env::var("FUNSCRIPT_SHARE_PATH") {
+        let base = std::path::PathBuf::from(f);
+        tokio::spawn(async move {
+            let _ = hismith_player_site::funscript_cache::get_cache_for_base(&base).await;
+        });
+    }
+
     // Initialize intiface management in background task
     info!("Starting intiface initialization...");
     task::spawn(async {

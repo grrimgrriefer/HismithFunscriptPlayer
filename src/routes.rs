@@ -3,7 +3,10 @@
 //! Route configuration for the Video Player web server.
 //! Defines all HTTP endpoints and WebSocket connections.
 
-use actix_web::web;
+use actix_web::{
+    web, 
+    middleware::DefaultHeaders
+};
 use actix_files::Files;
 use crate::{
     handlers::{

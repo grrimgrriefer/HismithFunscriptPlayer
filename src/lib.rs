@@ -31,6 +31,7 @@ pub mod handlers {
 
 pub mod directory_browser;
 pub mod intiface_socket;
+pub mod funscript_cache;
 
 /// Buttplug-related functionality for device control and funscript processing
 pub mod buttplug {

@@ -1,6 +1,13 @@
 // static/settings_menu.js
 
-import { setAbsoluteMaximum, getAbsoluteMaximum, setVibrateMode, loadFunscript, setSelectedFunscriptVariant, getSelectedFunscriptVariant } from './funscript_handler.js';
+import {
+    setAbsoluteMaximum,
+    getAbsoluteMaximum,
+    setVibrateMode,
+    loadFunscript,
+    setSelectedFunscriptVariant,
+    getSelectedFunscriptVariant
+} from './funscript_handler.js';
 
 export function createSettingsMenu() {
     let settingsMenu = document.getElementById('settings-menu');
@@ -43,7 +50,7 @@ export function createSettingsMenu() {
                 const url = new URL(videoEl.src, window.location.origin);
                 const m = url.pathname.match(/\/site\/video\/(.+)/);
                 const videoPath = m ? m[1] : url.pathname;
-                const baseFunscript = `/site/funscripts/${videoPath.replace(/\.[^/.]+$/, ".funscript")}`;
+                const baseFunscript = `/site/funscripts/${videoPath.replace(/\.[^/.]+$/, '.funscript')}`;
                 loadFunscript(baseFunscript);
             }
         };
@@ -90,7 +97,10 @@ export function createSettingsMenu() {
 
             // inject style from fetched page once
             const remoteStyle = doc.querySelector('head > style');
-            if (remoteStyle && !document.getElementById('calibration-style-injected')) {
+            if (
+                remoteStyle &&
+                !document.getElementById('calibration-style-injected')
+            ) {
                 const styleEl = document.createElement('style');
                 styleEl.id = 'calibration-style-injected';
                 styleEl.textContent = remoteStyle.textContent;
@@ -98,7 +108,9 @@ export function createSettingsMenu() {
             }
 
             // extract the card (main content)
-            const card = doc.querySelector('.card') ? doc.querySelector('.card').outerHTML : doc.body.innerHTML;
+            const card = doc.querySelector('.card')
+                ? doc.querySelector('.card').outerHTML
+                : doc.body.innerHTML;
 
             // create overlay
             const overlay = document.createElement('div');
@@ -124,7 +136,7 @@ export function createSettingsMenu() {
                 background: 'rgb(70,70,70)',
                 color: 'white',
                 cursor: 'pointer',
-                fontSize: '16px',
+                fontSize: '16px'
             });
             inner.appendChild(closeBtn);
 
@@ -233,14 +245,19 @@ export function createSettingsMenu() {
         const vibrateModeSelect = document.createElement('select');
         vibrateModeSelect.id = 'vibrate-mode-select';
         vibrateModeSelect.className = 'settings-select';
-        ['Rate', 'Beat'].forEach(mode => {
+        ['Rate', 'Beat'].forEach((mode) => {
             const option = document.createElement('option');
             option.value = mode; // keep the same capitalization used across the app
             option.textContent = mode;
             vibrateModeSelect.appendChild(option);
         });
-        vibrateModeSelect.value = getSelectedFunscriptVariant() ? getSelectedFunscriptVariant() : 'Rate';
-        vibrateModeSelect.value = (typeof window !== 'undefined' && window.getVibrateMode) ? window.getVibrateMode() : 'Rate';
+        vibrateModeSelect.value = getSelectedFunscriptVariant()
+            ? getSelectedFunscriptVariant()
+            : 'Rate';
+        vibrateModeSelect.value =
+            typeof window !== 'undefined' && window.getVibrateMode
+                ? window.getVibrateMode()
+                : 'Rate';
         vibrateModeSelect.onchange = () => {
             setVibrateMode(vibrateModeSelect.value);
         };
@@ -264,11 +281,14 @@ export function createSettingsMenu() {
                     if (m) videoPath = m[1];
                     else videoPath = url.pathname;
                 } catch (e) {
-                    videoPath = videoEl.getAttribute('src') || videoEl.src || '';
+                    videoPath =
+                        videoEl.getAttribute('src') || videoEl.src || '';
                 }
             }
             if (!videoPath) {
-                alert('No video loaded. Open a video from the directory first.');
+                alert(
+                    'No video loaded. Open a video from the directory first.'
+                );
                 return;
             }
             const editorUrl = `/site/editor?video=${encodeURIComponent(videoPath)}`;
@@ -294,7 +314,7 @@ function currentVideoPathFromPlayer() {
 export async function refreshVariantsForCurrentVideo() {
     const videoPath = currentVideoPathFromPlayer();
     if (!videoPath) return;
-    const listUrl = `/site/funscripts/${videoPath.replace(/\.[^/.]+$/, ".funscript")}?list=1`;
+    const listUrl = `/site/funscripts/${videoPath.replace(/\.[^/.]+$/, '.funscript')}?list=1`;
     try {
         const resp = await fetch(listUrl);
         if (!resp.ok) return;
@@ -302,12 +322,14 @@ export async function refreshVariantsForCurrentVideo() {
         const select = document.getElementById('funscript-variant-select');
         if (!select) return;
 
-        const serverVariants = Array.isArray(data.variants) ? data.variants : [];
+        const serverVariants = Array.isArray(data.variants)
+            ? data.variants
+            : [];
         const variants = serverVariants.length ? serverVariants : ['original'];
 
         // rebuild options
         select.innerHTML = '';
-        variants.forEach(v => {
+        variants.forEach((v) => {
             const opt = document.createElement('option');
             opt.value = v;
             opt.text = v;
@@ -326,7 +348,6 @@ export async function refreshVariantsForCurrentVideo() {
 
         // ensure handler and UI stay in sync
         setSelectedFunscriptVariant(select.value);
-
     } catch (err) {
         console.error('Failed to refresh funscript variants', err);
     }

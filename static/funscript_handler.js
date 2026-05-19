@@ -17,23 +17,29 @@ export async function loadFunscript(funscriptUrl) {
     let fetchUrl = funscriptUrl;
 
     if (!fetchUrl.includes('variant=')) {
-        fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + `variant=${encodeURIComponent(selectedVariant)}`;
+        fetchUrl +=
+            (fetchUrl.includes('?') ? '&' : '?') +
+            `variant=${encodeURIComponent(selectedVariant)}`;
     }
 
     await fetch(fetchUrl)
-        .then(response => {
+        .then((response) => {
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             return response.json();
         })
-        .then(data => {
+        .then((data) => {
             if (data && data.original && Array.isArray(data.original.actions)) {
                 funscriptActions = data.original.actions;
             } else {
                 funscriptActions = [];
             }
-            if (data && data.intensity && Array.isArray(data.intensity.actions)) {
+            if (
+                data &&
+                data.intensity &&
+                Array.isArray(data.intensity.actions)
+            ) {
                 intensityActions = data.intensity.actions;
-                const positions = intensityActions.map(action => action.pos);
+                const positions = intensityActions.map((action) => action.pos);
                 if (positions.length > 0) {
                     currentVideoRawMaxIntensity = Math.max(...positions);
                 }
@@ -41,7 +47,7 @@ export async function loadFunscript(funscriptUrl) {
                 intensityActions = [];
             }
         })
-        .catch(error => {
+        .catch((error) => {
             console.error('Failed to load funscript:', error);
             funscriptActions = [];
             intensityActions = [];
@@ -81,8 +87,10 @@ export function getCurrentIntensityUnclamped(currentTime) {
     }
 
     // Perform linear interpolation between the two intensity actions
-    const t = (currentTime - previousAction.at) / (nextAction.at - previousAction.at);
-    const interpolatedIntensity = previousAction.pos + t * (nextAction.pos - previousAction.pos);
+    const t =
+        (currentTime - previousAction.at) / (nextAction.at - previousAction.at);
+    const interpolatedIntensity =
+        previousAction.pos + t * (nextAction.pos - previousAction.pos);
 
     return interpolatedIntensity;
 }
@@ -123,11 +131,7 @@ export function getCurrentBeatValue(currentTime) {
     for (let i = 1; i < funscriptActions.length; i++) {
         const prev = funscriptActions[i - 1];
         const curr = funscriptActions[i];
-        if (
-            prev.pos === 100 &&
-            curr.pos === 0 &&
-            curr.at <= currentTime
-        ) {
+        if (prev.pos === 100 && curr.pos === 0 && curr.at <= currentTime) {
             lastBeatTime = curr.at;
         } else if (
             prev.pos === 100 &&
@@ -147,12 +151,18 @@ export function getCurrentBeatValue(currentTime) {
         } else {
             // Lerp down until next beat or to zero, with a ramp-like falloff (fast drop, slow tail)
             let nextAt = nextBeatTime ? nextBeatTime : currentTime + 500;
-            let t = Math.max(0, Math.min(1, (currentTime - lastBeatTime) / (nextAt - lastBeatTime)));
+            let t = Math.max(
+                0,
+                Math.min(
+                    1,
+                    (currentTime - lastBeatTime) / (nextAt - lastBeatTime)
+                )
+            );
             vibrateValue = 1.0 - Math.sqrt(t); // Ramp-like falloff
         }
     }
     return vibrateValue;
-};
+}
 
 export function setSelectedFunscriptVariant(v) {
     selectedVariant = v && v.length ? v : 'original';

@@ -6,7 +6,11 @@ let ws = null;
 
 export function initWebSocket() {
     // Check if websocket already exists and is connected/connecting
-    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+    if (
+        ws &&
+        (ws.readyState === WebSocket.OPEN ||
+            ws.readyState === WebSocket.CONNECTING)
+    ) {
         console.error('WebSocket connection already exists');
         return Promise.reject(new Error('WebSocket connection already exists'));
     }

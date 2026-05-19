@@ -1,13 +1,25 @@
 // static/video_player.js
 
-import { loadFunscript, getCurrentIntensity, getCurrentVideoMaxIntensity, getVibrateMode, getCurrentBeatValue, setSelectedFunscriptVariant } from './funscript_handler.js';
-import { createFunscriptDisplayBox, updateFunscriptDisplayBox } from './funscript_display_graphs.js';
+import {
+    loadFunscript,
+    getCurrentIntensity,
+    getCurrentVideoMaxIntensity,
+    getVibrateMode,
+    getCurrentBeatValue,
+    setSelectedFunscriptVariant
+} from './funscript_handler.js';
+import {
+    createFunscriptDisplayBox,
+    updateFunscriptDisplayBox
+} from './funscript_display_graphs.js';
 import { sendDeviceCommand } from './socket.js';
 import { getCalibrationMultiplier } from './calibration.js';
 import { refreshVariantsForCurrentVideo } from './settings_menu.js';
 
 const urlParams = new URLSearchParams(window.location.search);
-const DISABLE_FULLSCREEN = ['1', 'true', 'yes'].includes((urlParams.get('no_fullscreen') || '').toLowerCase());
+const DISABLE_FULLSCREEN = ['1', 'true', 'yes'].includes(
+    (urlParams.get('no_fullscreen') || '').toLowerCase()
+);
 
 let currentAnimationFrame = null;
 let cancelAnimationTimeout = null;
@@ -46,22 +58,35 @@ export async function playVideo(videoUrl, funscriptUrl) {
         updateFunscriptDisplayBox(currentTime);
 
         const elapsed = Date.now() - transitionStartTime;
-        const progress = Math.abs(transitionTargetValue - Math.min(elapsed / TRANSITION_DURATION, 1));
+        const progress = Math.abs(
+            transitionTargetValue - Math.min(elapsed / TRANSITION_DURATION, 1)
+        );
 
         let oscillateValue = 0;
         if (intensity !== undefined) {
-            oscillateValue = lerpIntensity(0, intensity * getCalibrationMultiplier(intensity), progress) / 100, 150;
+            ((oscillateValue =
+                lerpIntensity(
+                    0,
+                    intensity * getCalibrationMultiplier(intensity),
+                    progress
+                ) / 100),
+                150);
         }
 
         let vibrateValue = 0;
         if (getVibrateMode() === 'Rate') {
             if (intensity !== undefined) {
-                vibrateValue = lerpIntensity(0, (intensity / 100) * getCurrentVideoMaxIntensity(), progress) / 100;
+                vibrateValue =
+                    lerpIntensity(
+                        0,
+                        (intensity / 100) * getCurrentVideoMaxIntensity(),
+                        progress
+                    ) / 100;
             }
         } else {
             const beatValue = getCurrentBeatValue(currentTime);
             if (beatValue !== undefined) {
-                vibrateValue = lerpIntensity(0, beatValue, progress), 150;
+                ((vibrateValue = lerpIntensity(0, beatValue, progress)), 150);
             }
         }
 

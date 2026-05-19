@@ -1,29 +1,21 @@
 // src/buttplug/device_manager.js
 
 //! Device connection and control module
-//! 
+//!
 //! This module manages communication with hardware devices through the Buttplug protocol.
 //! It supports both an oscillating device and a vibrating device simultaneously.
 
-use std::{
-    sync::Arc,
-    time::Duration,
-};
 use atomic_float::AtomicF64;
 use buttplug::{
     client::{
         device::{ButtplugClientDevice, ScalarValueCommand},
-        ButtplugClient,
-        ButtplugClientError,
-        ButtplugClientEvent,
+        ButtplugClient, ButtplugClientError, ButtplugClientEvent,
     },
-    core::{
-        connector::new_json_ws_client_connector,
-        message::ActuatorType,
-    },
+    core::{connector::new_json_ws_client_connector, message::ActuatorType},
 };
 use futures::StreamExt;
 use once_cell::sync::OnceCell;
+use std::{sync::Arc, time::Duration};
 use tokio::sync::{Mutex, RwLock};
 
 /// Global singleton instance of the device manager
@@ -81,7 +73,9 @@ impl DeviceManager {
                 let oscillate_lock = manager_clone.oscillate_device.lock().await;
                 if let Some(device) = &*oscillate_lock {
                     if let Err(e) = device
-                        .oscillate(&ScalarValueCommand::ScalarValue(oscillate_value.max(0.0).min(1.0)))
+                        .oscillate(&ScalarValueCommand::ScalarValue(
+                            oscillate_value.max(0.0).min(1.0),
+                        ))
                         .await
                     {
                         eprintln!("Error sending oscillate command: {}", e);
@@ -96,7 +90,9 @@ impl DeviceManager {
                 let vibrate_lock = manager_clone.vibrate_device.lock().await;
                 if let Some(device) = &*vibrate_lock {
                     if let Err(e) = device
-                        .vibrate(&ScalarValueCommand::ScalarValue(vibrate_value.max(0.0).min(1.0)))
+                        .vibrate(&ScalarValueCommand::ScalarValue(
+                            vibrate_value.max(0.0).min(1.0),
+                        ))
                         .await
                     {
                         eprintln!("Error sending vibrate command: {}", e);
@@ -138,7 +134,10 @@ pub async fn initialize_intiface() -> Result<(), ButtplugClientError> {
                     break;
                 }
                 Err(err) => {
-                    println!("Failed to connect to Buttplug server: {}. Retrying in 5s...", err);
+                    println!(
+                        "Failed to connect to Buttplug server: {}. Retrying in 5s...",
+                        err
+                    );
                     tokio::time::sleep(Duration::from_secs(5)).await;
                 }
             }

@@ -1,33 +1,24 @@
 // src/handlers/funscript.rs
 
 //! Funscript request handler module
-//! 
+//!
 //! This module handles requests for funscript files, which contain synchronized motion
 //! data for videos. It loads the original funscript and generates real-time intensity
 //! data used for device control.
 
-use log::{info, warn, error};
-use actix_web::{
-    web, 
-    HttpResponse
-};
-use std::{
-    env, 
-    path::{
-        PathBuf, 
-        Path
-    }
-};
-use tokio::fs;
+use crate::buttplug::funscript_utils::{self, FunscriptData};
+use actix_web::{web, HttpResponse};
+use log::{error, info, warn};
 use serde::Serialize;
-use crate::buttplug::funscript_utils::{
-    self, 
-    FunscriptData
-};
 use std::collections::HashMap;
 use std::fs as stdfs;
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
+use tokio::fs;
 
-/// Response structure for funscript requests containing both original and 
+/// Response structure for funscript requests containing both original and
 /// generated intensity data
 #[derive(Serialize, Debug)]
 pub struct FunscriptResponse {
@@ -56,7 +47,10 @@ pub async fn handle_funscript(
     query: web::Query<HashMap<String, String>>,
 ) -> HttpResponse {
     let requested_video_path = path.into_inner();
-    info!("Handling funscript request for video: {}", &requested_video_path);
+    info!(
+        "Handling funscript request for video: {}",
+        &requested_video_path
+    );
 
     // Get base path from environment
     let funscript_base_path = match env::var("FUNSCRIPT_SHARE_PATH") {
@@ -85,7 +79,7 @@ pub async fn handle_funscript(
                         if stem == base_stem {
                             variants.push("original".to_string());
                         } else if stem.starts_with(&format!("{}.", base_stem)) {
-                            let var = &stem[base_stem.len()+1..];
+                            let var = &stem[base_stem.len() + 1..];
                             variants.push(var.to_string());
                         }
                     }
@@ -97,9 +91,16 @@ pub async fn handle_funscript(
         return HttpResponse::Ok().json(serde_json::json!({ "variants": variants }));
     }
 
-    let requested_variant = query.get("variant").cloned().unwrap_or_else(|| "original".to_string());
+    let requested_variant = query
+        .get("variant")
+        .cloned()
+        .unwrap_or_else(|| "original".to_string());
 
-    let funscript_filepath = match get_funscript_path_for_video(&requested_video_path, &funscript_base_path, &requested_variant) {
+    let funscript_filepath = match get_funscript_path_for_video(
+        &requested_video_path,
+        &funscript_base_path,
+        &requested_variant,
+    ) {
         Ok(p) => p,
         Err(e) => {
             error!("Path determination error: {}", e);
@@ -110,7 +111,8 @@ pub async fn handle_funscript(
         }
     };
 
-    let filename_only = funscript_filepath.file_name()
+    let filename_only = funscript_filepath
+        .file_name()
         .map(|f| f.to_string_lossy().to_string())
         .unwrap_or_else(|| requested_video_path.clone());
 
@@ -120,14 +122,21 @@ pub async fn handle_funscript(
 
     let intensity_result = match &original_result {
         Ok(orig_data) => {
-            info!("Original loaded, generating intensity for: {}", &filename_only);
+            info!(
+                "Original loaded, generating intensity for: {}",
+                &filename_only
+            );
             match generate_intensity_funscript(orig_data) {
                 Ok(generated_data) => {
                     info!("Successfully generated intensity for: {}", &filename_only);
                     Ok(generated_data)
-                },
+                }
                 Err(e) => {
-                    error!("Failed to generate intensity for {}: {}", &filename_only, e.clone());
+                    error!(
+                        "Failed to generate intensity for {}: {}",
+                        &filename_only,
+                        e.clone()
+                    );
                     intensity_error_message = Some(e);
                     Err("Intensity generation failed.".to_string())
                 }
@@ -135,7 +144,10 @@ pub async fn handle_funscript(
         }
         Err(e) => {
             let err_msg = format!("Original funscript failed to load: {}", e);
-            info!("Original script {} failed to load, cannot generate intensity: {}", &filename_only, e);
+            info!(
+                "Original script {} failed to load, cannot generate intensity: {}",
+                &filename_only, e
+            );
             intensity_error_message = Some(err_msg.clone());
             Err(err_msg)
         }
@@ -155,7 +167,10 @@ pub async fn handle_funscript(
 
     // Log response status
     if status_code == actix_web::http::StatusCode::NOT_FOUND {
-        info!("Responding with 404 Not Found for: {}", requested_video_path);
+        info!(
+            "Responding with 404 Not Found for: {}",
+            requested_video_path
+        );
     } else {
         info!("Responding with 200 OK for: {}", requested_video_path);
         if response_payload.intensity.is_none() {
@@ -222,22 +237,20 @@ async fn read_and_deserialize_funscript(filepath: &Path) -> Result<FunscriptData
 /// # Returns
 /// * `Ok(FunscriptData)` - Generated intensity data
 /// * `Err(String)` - Error message if generation fails
-fn generate_intensity_funscript(
-    original_data: &FunscriptData,
-) -> Result<FunscriptData, String> {
+fn generate_intensity_funscript(original_data: &FunscriptData) -> Result<FunscriptData, String> {
     let mut actions_to_process = original_data.actions.clone();
 
     if actions_to_process.len() < 2 {
         return Err("Cannot generate intensity: requires at least 2 actions.".to_string());
     }
 
-    let sample_rate_ms = 50;    // Sample every 50ms
-    let window_radius_ms = 500;  // Look at ±500ms around each point
+    let sample_rate_ms = 50; // Sample every 50ms
+    let window_radius_ms = 500; // Look at ±500ms around each point
 
     let intensity_actions = funscript_utils::calculate_thrust_intensity_by_scaled_speed(
         &mut actions_to_process,
         sample_rate_ms,
-        window_radius_ms
+        window_radius_ms,
     );
 
     Ok(FunscriptData {

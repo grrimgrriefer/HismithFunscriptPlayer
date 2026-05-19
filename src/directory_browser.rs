@@ -1,17 +1,17 @@
 // src/directory_browser.rs
 
 //! File system directory browser module
-//! 
+//!
 //! This module provides functionality to recursively scan directories and build
 //! a tree structure representing the file system hierarchy. It's primarily used
 //! to display video files in the web interface.
 
-use std::{
-    path::{Path, PathBuf},
-    fs
-};
 use serde::Serialize;
 use std::collections::HashMap;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use walkdir::WalkDir;
 
 /// Represents a node in the file system tree structure
@@ -46,7 +46,10 @@ pub struct FileNode {
 /// let path = PathBuf::from("/path/to/videos");
 /// let tree = build_directory_tree(&path, "")?;
 /// ```
-pub fn build_directory_tree(path: &PathBuf, relative_path: &str) -> Result<FileNode, std::io::Error> {
+pub fn build_directory_tree(
+    path: &PathBuf,
+    relative_path: &str,
+) -> Result<FileNode, std::io::Error> {
     // Vector to store child nodes
     let mut children = Vec::new();
 
@@ -56,7 +59,7 @@ pub fn build_directory_tree(path: &PathBuf, relative_path: &str) -> Result<FileN
         let file_type = entry.file_type()?;
         let file_name = entry.file_name();
         let file_name_str = file_name.to_string_lossy().to_string();
-        
+
         // Skip directory named "funscripts"
         if file_type.is_dir() && file_name_str.eq_ignore_ascii_case("funscripts") {
             continue;
@@ -92,7 +95,7 @@ pub fn build_directory_tree(path: &PathBuf, relative_path: &str) -> Result<FileN
     // Sort nodes: directories first, then alphabetically
     children.sort_by(|a, b| {
         match (a.is_dir, b.is_dir) {
-            (true, false) => std::cmp::Ordering::Less,    // Directories before files
+            (true, false) => std::cmp::Ordering::Less, // Directories before files
             (false, true) => std::cmp::Ordering::Greater, // Files after directories
             _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()), // Alphabetical within each group
         }
@@ -100,7 +103,8 @@ pub fn build_directory_tree(path: &PathBuf, relative_path: &str) -> Result<FileN
 
     // Create and return root node
     Ok(FileNode {
-        name: path.file_name()
+        name: path
+            .file_name()
             .unwrap_or_default()
             .to_string_lossy()
             .to_string(),

@@ -1,7 +1,7 @@
 // src/handlers/index.rs
 
 //! Index page handler module
-//! 
+//!
 //! This module handles requests for the main index page of the application
 //! and provides API endpoints for site-wide data like the directory structure.
 use crate::directory_browser;
@@ -9,8 +9,8 @@ use crate::funscript_cache;
 use actix_files::NamedFile;
 use actix_web::{HttpResponse, Responder, Result};
 use log::{error, info};
-use std::{env, path::PathBuf};
 use serde_json::json;
+use std::{env, path::PathBuf};
 
 /// Handles the main index page request by serving the static `index.html` file.
 ///

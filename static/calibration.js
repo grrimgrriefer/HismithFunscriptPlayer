@@ -56,7 +56,7 @@ function initElements() {
 
 function buildPresetButtons() {
     elements.presetsContainer.innerHTML = '';
-    PRESETS.forEach(p => {
+    PRESETS.forEach((p) => {
         const btn = document.createElement('button');
         btn.className = 'preset-btn';
         btn.textContent = p.toString();
@@ -74,20 +74,32 @@ function buildPresetButtons() {
 }
 
 function setMultiplierControlsEnabled(enabled) {
-    const list = [elements.multDecLarge, elements.multDecSmall, elements.multIncSmall, elements.multIncLarge, elements.multiplierInput];
-    list.forEach(el => { if (el) el.disabled = !enabled; });
+    const list = [
+        elements.multDecLarge,
+        elements.multDecSmall,
+        elements.multIncSmall,
+        elements.multIncLarge,
+        elements.multiplierInput
+    ];
+    list.forEach((el) => {
+        if (el) el.disabled = !enabled;
+    });
 }
 
 function selectPreset(preset, btn) {
     selectedPreset = preset;
     // highlight active
-    Array.from(elements.presetsContainer.children).forEach(b => b.classList.remove('active'));
+    Array.from(elements.presetsContainer.children).forEach((b) =>
+        b.classList.remove('active')
+    );
     btn.classList.add('active');
     btn.classList.remove('inactive');
     // update UI
     elements.selectedPreset.textContent = `${preset}`;
     elements.multiplierInput.value = (multipliers[preset] ?? 1.0).toFixed(2);
-    elements.multiplierValue.textContent = (multipliers[preset] ?? 1.0).toFixed(2);
+    elements.multiplierValue.textContent = (multipliers[preset] ?? 1.0).toFixed(
+        2
+    );
     updateTargetSpinDisplay();
     updateSentIntensityDisplay();
     setMultiplierControlsEnabled(true);
@@ -112,12 +124,19 @@ function updateSentIntensityDisplay() {
         elements.sentIntensity.textContent = '—';
         return;
     }
-    const val = computeIntensityNormalized(selectedPreset, multipliers[selectedPreset]);
+    const val = computeIntensityNormalized(
+        selectedPreset,
+        multipliers[selectedPreset]
+    );
     elements.sentIntensity.textContent = val.toFixed(3);
 }
 
-function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
-function round2(v) { return Math.round(v * 100) / 100; }
+function clamp(v, lo, hi) {
+    return Math.min(hi, Math.max(lo, v));
+}
+function round2(v) {
+    return Math.round(v * 100) / 100;
+}
 
 function setMultiplier(value, doSendImmediately = true) {
     if (!selectedPreset) return;
@@ -130,8 +149,14 @@ function setMultiplier(value, doSendImmediately = true) {
     renderMappingList();
 
     if (running && doSendImmediately) {
-        const intensity = computeIntensityNormalized(selectedPreset, multipliers[selectedPreset]);
-        if (lastSentIntensity === null || Math.abs(intensity - lastSentIntensity) > 1e-6) {
+        const intensity = computeIntensityNormalized(
+            selectedPreset,
+            multipliers[selectedPreset]
+        );
+        if (
+            lastSentIntensity === null ||
+            Math.abs(intensity - lastSentIntensity) > 1e-6
+        ) {
             sendDeviceCommand(intensity, 0);
             lastSentIntensity = intensity;
             lastSendTime = Date.now();
@@ -153,7 +178,10 @@ function startCalibration() {
     lastSendTime = 0;
 
     // initial immediate send
-    const initial = computeIntensityNormalized(selectedPreset, multipliers[selectedPreset]);
+    const initial = computeIntensityNormalized(
+        selectedPreset,
+        multipliers[selectedPreset]
+    );
     sendDeviceCommand(initial, 0);
     lastSentIntensity = initial;
     lastSendTime = Date.now();
@@ -161,8 +189,14 @@ function startCalibration() {
 
     sendInterval = setInterval(() => {
         if (!running) return;
-        const intensity = computeIntensityNormalized(selectedPreset, multipliers[selectedPreset]);
-        if (lastSentIntensity === null || Math.abs(intensity - lastSentIntensity) > 1e-6) {
+        const intensity = computeIntensityNormalized(
+            selectedPreset,
+            multipliers[selectedPreset]
+        );
+        if (
+            lastSentIntensity === null ||
+            Math.abs(intensity - lastSentIntensity) > 1e-6
+        ) {
             sendDeviceCommand(intensity, 0);
             lastSentIntensity = intensity;
             lastSendTime = Date.now();
@@ -181,7 +215,10 @@ function startCalibration() {
 function stopCalibration() {
     if (!running) return;
     running = false;
-    if (sendInterval) { clearInterval(sendInterval); sendInterval = null; }
+    if (sendInterval) {
+        clearInterval(sendInterval);
+        sendInterval = null;
+    }
     if (spinnerAnimId) cancelAnimationFrame(spinnerAnimId);
     spinnerAnimId = null;
     lastTs = null;
@@ -200,7 +237,8 @@ function confirmMultiplier() {
 
 function resetMultipliers() {
     PRESETS.forEach((p, i) => {
-        if (i === 0) multipliers[p] = 1.0; // keep first preset active
+        if (i === 0)
+            multipliers[p] = 1.0; // keep first preset active
         else delete multipliers[p];
     });
     selectedPreset = null;
@@ -215,7 +253,7 @@ function resetMultipliers() {
 }
 
 function renderMappingList() {
-    elements.mappingList.innerHTML = PRESETS.map(p => {
+    elements.mappingList.innerHTML = PRESETS.map((p) => {
         const v = multipliers[p];
         return v === undefined ? `${p}: (inactive)` : `${p}: ${v.toFixed(3)}x`;
     }).join(' | ');
@@ -247,14 +285,25 @@ export function setup() {
     renderMappingList();
 
     // multiplier controls
-    elements.multDecLarge.addEventListener('click', () => adjustMultiplier(-0.10));
-    elements.multDecSmall.addEventListener('click', () => adjustMultiplier(-0.01));
-    elements.multIncSmall.addEventListener('click', () => adjustMultiplier(+0.01));
-    elements.multIncLarge.addEventListener('click', () => adjustMultiplier(+0.10));
+    elements.multDecLarge.addEventListener('click', () =>
+        adjustMultiplier(-0.1)
+    );
+    elements.multDecSmall.addEventListener('click', () =>
+        adjustMultiplier(-0.01)
+    );
+    elements.multIncSmall.addEventListener('click', () =>
+        adjustMultiplier(+0.01)
+    );
+    elements.multIncLarge.addEventListener('click', () =>
+        adjustMultiplier(+0.1)
+    );
     elements.multiplierInput.addEventListener('change', (e) => {
         const val = parseFloat(e.target.value);
         if (!isNaN(val)) setMultiplier(val);
-        else elements.multiplierInput.value = (multipliers[selectedPreset] || 1.0).toFixed(2);
+        else
+            elements.multiplierInput.value = (
+                multipliers[selectedPreset] || 1.0
+            ).toFixed(2);
     });
 
     elements.startBtn.addEventListener('click', startCalibration);
@@ -274,13 +323,15 @@ export function setup() {
 
 export function getCalibrationMultiplier(rawIntensity) {
     const v = clamp(rawIntensity, 0, 100);
-    const active = PRESETS.filter(p => multipliers[p] !== undefined);
+    const active = PRESETS.filter((p) => multipliers[p] !== undefined);
     if (active.length === 0) return 1.0;
     if (active.length === 1) return multipliers[active[0]] ?? 1.0;
     if (v <= active[0]) return multipliers[active[0]];
-    if (v >= active[active.length - 1]) return multipliers[active[active.length - 1]];
+    if (v >= active[active.length - 1])
+        return multipliers[active[active.length - 1]];
     for (let i = 0; i < active.length - 1; i++) {
-        const a = active[i], b = active[i + 1];
+        const a = active[i],
+            b = active[i + 1];
         if (v >= a && v <= b) {
             const t = (v - a) / (b - a);
             const s = t * t * (3 - 2 * t); // smoothstep (cubic) easing

@@ -1,28 +1,19 @@
 // src/intiface_socket.rs
 
 //! WebSocket handler for device control via the Buttplug protocol.
-//! 
+//!
 //! This module implements a WebSocket connection that receives intensity values
 //! from the web client and forwards them to the connected device through the
 //! Buttplug protocol.
 
-use log::{info, error, debug};
-use actix::{
-    Actor, 
-    StreamHandler,
-    ActorContext
-};
-use actix_web::{
-    web, 
-    HttpRequest, 
-    HttpResponse, 
-    Error
-};
-use actix_web_actors::ws;
 use crate::buttplug::device_manager;
+use actix::{Actor, ActorContext, StreamHandler};
+use actix_web::{web, Error, HttpRequest, HttpResponse};
+use actix_web_actors::ws;
+use log::{debug, error, info};
 
 /// WebSocket actor that handles device control messages.
-/// 
+///
 /// Receives floating point values between 0.0 and 1.0 representing
 /// device intensity and forwards them to the device manager.
 #[derive(Default)]
@@ -72,7 +63,6 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for OscillateSocket {
                     error!("Unknown command received: {}", text);
                     ctx.text("Unknown command. Use 'v:<value>' for vibrate or 'o:<value>' for oscillate.");
                 }
-
             }
             Ok(ws::Message::Ping(msg)) => {
                 debug!("Received ping");
@@ -98,20 +88,24 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for OscillateSocket {
 }
 
 /// Initializes a new WebSocket connection for device control.
-/// 
+///
 /// # Arguments
 /// * `req` - The HTTP request initiating the WebSocket connection
 /// * `stream` - The WebSocket payload stream
-/// 
+///
 /// # Returns
 /// * `Ok(HttpResponse)` - WebSocket connection established successfully
 /// * `Err(Error)` - Failed to establish WebSocket connection
-pub async fn handle_ws_start(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
-    let addr = req.peer_addr()
+pub async fn handle_ws_start(
+    req: HttpRequest,
+    stream: web::Payload,
+) -> Result<HttpResponse, Error> {
+    let addr = req
+        .peer_addr()
         .map(|addr| addr.to_string())
-        .unwrap_or_else(|| String::from("unknown"));    
+        .unwrap_or_else(|| String::from("unknown"));
     info!("WebSocket connection attempt from {}", addr);
-        
+
     match ws::start(OscillateSocket::default(), &req, stream) {
         Ok(response) => {
             info!("WebSocket handshake successful");

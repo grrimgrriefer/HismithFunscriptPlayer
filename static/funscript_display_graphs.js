@@ -1,7 +1,14 @@
 // static/funscript_display_graphs.js
 
-import { getAbsoluteMaximum, getAbsoluteMaximumInverseCalibrated, funscriptActions, intensityActions, 
-    getCurrentIntensity, getCurrentVideoMaxIntensity, getCurrentIntensityUnclamped } from './funscript_handler.js';
+import {
+    getAbsoluteMaximum,
+    getAbsoluteMaximumInverseCalibrated,
+    funscriptActions,
+    intensityActions,
+    getCurrentIntensity,
+    getCurrentVideoMaxIntensity,
+    getCurrentIntensityUnclamped
+} from './funscript_handler.js';
 
 export function createFunscriptDisplayBox() {
     let funscriptBox = document.getElementById('funscript-box');
@@ -45,7 +52,8 @@ export function updateFunscriptDisplayBox(currentTime) {
 
     const rawMaxIntensity = getCurrentVideoMaxIntensity();
     const absoluteMax = getAbsoluteMaximum();
-    const absoluteMaximumInverseCalibrated = getAbsoluteMaximumInverseCalibrated();
+    const absoluteMaximumInverseCalibrated =
+        getAbsoluteMaximumInverseCalibrated();
     const currentIntensity = getCurrentIntensity(currentTime);
     const currentIntensityUnclamped = getCurrentIntensityUnclamped(currentTime);
 
@@ -54,7 +62,7 @@ export function updateFunscriptDisplayBox(currentTime) {
 
     const blackBase = ctx.createLinearGradient(0, 0, 0, canvas.height);
     blackBase.addColorStop(0, 'rgba(0, 0, 0, 0.4)'); // Fully visible green at the top
-    blackBase.addColorStop(1, 'rgba(0, 0, 0, 0)');   // Fully transparent at the bottom
+    blackBase.addColorStop(1, 'rgba(0, 0, 0, 0)'); // Fully transparent at the bottom
     ctx.fillStyle = blackBase; // Use the gradient as the fill style
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -78,9 +86,15 @@ export function updateFunscriptDisplayBox(currentTime) {
     if (isNaN(customGradientValue) || !isFinite(customGradientValue)) {
         customGradientValue = 0;
     }
-    gradient.addColorStop(Math.max(0, Math.min(0.95, customGradientValue)), 'rgba(0, 255, 0, 0.25)'); // Fully visible green at the top
-    gradient.addColorStop(Math.max(0, Math.min(0.95, customGradientValue + 0.2)), 'rgba(0, 255, 0, 0.12)');   // Fully transparent at the bottom
-    gradient.addColorStop(1, 'rgba(0, 255, 0, 0)');   // Fully transparent at the bottom
+    gradient.addColorStop(
+        Math.max(0, Math.min(0.95, customGradientValue)),
+        'rgba(0, 255, 0, 0.25)'
+    ); // Fully visible green at the top
+    gradient.addColorStop(
+        Math.max(0, Math.min(0.95, customGradientValue + 0.2)),
+        'rgba(0, 255, 0, 0.12)'
+    ); // Fully transparent at the bottom
+    gradient.addColorStop(1, 'rgba(0, 255, 0, 0)'); // Fully transparent at the bottom
 
     ctx.fillStyle = gradient; // Use the gradient as the fill style
 
@@ -90,9 +104,14 @@ export function updateFunscriptDisplayBox(currentTime) {
 
         if (current.at >= startTime && next.at <= endTime) {
             const currentX = (current.at - startTime) * scaleX;
-            const currentY = canvas.height - Math.min(current.pos, absoluteMaximumInverseCalibrated) * scaleY;
+            const currentY =
+                canvas.height -
+                Math.min(current.pos, absoluteMaximumInverseCalibrated) *
+                    scaleY;
             const nextX = (next.at - startTime) * scaleX;
-            const nextY = canvas.height - Math.min(next.pos, absoluteMaximumInverseCalibrated) * scaleY;
+            const nextY =
+                canvas.height -
+                Math.min(next.pos, absoluteMaximumInverseCalibrated) * scaleY;
 
             if (i === 0) ctx.moveTo(currentX, canvas.height); // Start from the bottom
             ctx.lineTo(currentX, currentY);
@@ -100,7 +119,7 @@ export function updateFunscriptDisplayBox(currentTime) {
         }
     }
     ctx.lineTo(canvas.width, canvas.height); // Close the graph at the bottom
-    ctx.lineTo(0, canvas.height)
+    ctx.lineTo(0, canvas.height);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
@@ -126,9 +145,10 @@ export function updateFunscriptDisplayBox(currentTime) {
 
         if (
             current.pos === 100 &&
-            prev && prev.pos === 0 &&
+            prev &&
+            prev.pos === 0 &&
             current.at >= startTime &&
-            current.at <= (currentTime + range)
+            current.at <= currentTime + range
         ) {
             const currentX = (current.at - startTime) * scaleX;
             const currentY = canvas.height - 30;
@@ -139,7 +159,8 @@ export function updateFunscriptDisplayBox(currentTime) {
                 ctx.ellipse(currentX, currentY, size, size, 0, 0, 360);
 
                 const progressX = (currentTime - startTime) * scaleX;
-                if (Math.abs(currentX - progressX) < 5) { // Allow a small margin of error
+                if (Math.abs(currentX - progressX) < 5) {
+                    // Allow a small margin of error
                     hit = true; // Trigger the surge effect
                 }
             }
@@ -173,31 +194,41 @@ export function updateFunscriptDisplayBox(currentTime) {
         displayText += ` (Clamped: ${absoluteMax.toFixed(2)})`;
     }
 
-    const fontSize = Math.min(16, canvas.height * 0.10);
+    const fontSize = Math.min(16, canvas.height * 0.1);
     ctx.font = `${fontSize}px Arial`;
-    ctx.textAlign = "center";
-    ctx.fillText(displayText, canvas.width / 2, canvas.height + (fontSize / 4) - absoluteMaximumInverseCalibrated * scaleY);
+    ctx.textAlign = 'center';
+    ctx.fillText(
+        displayText,
+        canvas.width / 2,
+        canvas.height + fontSize / 4 - absoluteMaximumInverseCalibrated * scaleY
+    );
 
     // Calculate text dimensions
     const textMetrics = ctx.measureText(displayText);
     const textWidth = textMetrics.width;
 
-
     ctx.beginPath();
     if (currentIntensityUnclamped > absoluteMax) {
         ctx.strokeStyle = 'rgb(255, 0, 0)';
         ctx.lineWidth = 8;
-    }
-    else {
+    } else {
         ctx.strokeStyle = 'rgb(255, 255, 255)';
         ctx.lineWidth = 2;
     }
     ctx.moveTo(0, canvas.height - absoluteMaximumInverseCalibrated * scaleY);
-    ctx.lineTo((canvas.width - textWidth - 10) / 2, canvas.height - absoluteMaximumInverseCalibrated * scaleY);
-    ctx.moveTo((canvas.width + textWidth + 10) / 2, canvas.height - absoluteMaximumInverseCalibrated * scaleY);
-    ctx.lineTo(canvas.width, canvas.height - absoluteMaximumInverseCalibrated * scaleY);
+    ctx.lineTo(
+        (canvas.width - textWidth - 10) / 2,
+        canvas.height - absoluteMaximumInverseCalibrated * scaleY
+    );
+    ctx.moveTo(
+        (canvas.width + textWidth + 10) / 2,
+        canvas.height - absoluteMaximumInverseCalibrated * scaleY
+    );
+    ctx.lineTo(
+        canvas.width,
+        canvas.height - absoluteMaximumInverseCalibrated * scaleY
+    );
     ctx.stroke();
-
 
     // Create a gradient mask
     const mask = ctx.createLinearGradient(0, 0, canvas.width, 0);

@@ -14,7 +14,7 @@ function toggleFolder(id) {
     // Find all direct sibling <ul> elements and hide them.
     // We query from the parent <ul> to get only the siblings at the current level.
     const siblingUls = parentUl.querySelectorAll(':scope > li > ul');
-    siblingUls.forEach(ul => {
+    siblingUls.forEach((ul) => {
         if (ul.id !== id) {
             ul.classList.add('hidden');
         }
@@ -37,11 +37,13 @@ function renderTree(node, parent) {
         const ul = document.createElement('ul');
         ul.id = node.path;
         ul.className = 'hidden';
-        node.children.sort((a, b) => {
-            if (a.is_dir && !b.is_dir) return -1;
-            if (!a.is_dir && b.is_dir) return 1;
-            return a.name.localeCompare(b.name);
-        }).forEach(child => renderTree(child, ul));
+        node.children
+            .sort((a, b) => {
+                if (a.is_dir && !b.is_dir) return -1;
+                if (!a.is_dir && b.is_dir) return 1;
+                return a.name.localeCompare(b.name);
+            })
+            .forEach((child) => renderTree(child, ul));
         li.appendChild(ul);
     } else if (
         node.name.endsWith('.mp4') ||
@@ -54,7 +56,10 @@ function renderTree(node, parent) {
         file.href = '#';
         file.onclick = (e) => {
             e.preventDefault();
-            playVideo(`/site/video/${node.path}`, `/site/funscripts/${node.path.replace(/\.[^/.]+$/, ".funscript")}`);
+            playVideo(
+                `/site/video/${node.path}`,
+                `/site/funscripts/${node.path.replace(/\.[^/.]+$/, '.funscript')}`
+            );
         };
         li.appendChild(file);
     } else {
@@ -63,10 +68,9 @@ function renderTree(node, parent) {
     parent.appendChild(li);
 }
 
-
 export function initDirectoryTree(directoryTreeData, containerElement) {
     if (!directoryTreeData || !containerElement) {
-        console.error("Directory tree data or container element is missing.");
+        console.error('Directory tree data or container element is missing.');
         return;
     }
 
@@ -81,8 +85,7 @@ export function initDirectoryTree(directoryTreeData, containerElement) {
             if (!a.is_dir && b.is_dir) return 1;
             return a.name.localeCompare(b.name);
         })
-        .forEach(child => renderTree(child, rootUl));
+        .forEach((child) => renderTree(child, rootUl));
 
     containerElement.appendChild(rootUl);
 }
-

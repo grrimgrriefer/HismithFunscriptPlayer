@@ -1,7 +1,7 @@
 // src/handlers/funscript_cache.rs
 
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
@@ -10,9 +10,7 @@ use tokio::fs;
 use walkdir::WalkDir;
 
 use crate::buttplug::funscript_utils::{
-    calculate_thrust_intensity_by_scaled_speed,
-    Action,
-    FunscriptData,
+    calculate_thrust_intensity_by_scaled_speed, Action, FunscriptData,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -27,7 +25,10 @@ pub struct FunscriptCacheEntry {
 pub type FunscriptCache = HashMap<String, FunscriptCacheEntry>;
 
 fn now_unix_secs() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
 }
 
 async fn load_cache_file(path: &Path) -> Result<FunscriptCache, String> {
@@ -43,7 +44,9 @@ async fn save_cache_file(path: &Path, cache: &FunscriptCache) -> Result<(), Stri
         let _ = fs::create_dir_all(parent).await;
     }
     let s = serde_json::to_string_pretty(cache).map_err(|e| format!("Ser failed: {}", e))?;
-    fs::write(path, s).await.map_err(|e| format!("Failed write cache {:?}: {}", path, e))
+    fs::write(path, s)
+        .await
+        .map_err(|e| format!("Failed write cache {:?}: {}", path, e))
 }
 
 fn compute_stats_from_intensity(intensity: &[Action]) -> (f64, f64) {
@@ -60,7 +63,9 @@ fn compute_stats_from_intensity(intensity: &[Action]) -> (f64, f64) {
     let mut den = 0.0;
     for w in intensity.windows(2) {
         let dt = (w[1].at as f64 - w[0].at as f64).max(0.0);
-        if dt <= 0.0 { continue; }
+        if dt <= 0.0 {
+            continue;
+        }
         let avg_pos = (w[0].pos + w[1].pos) / 2.0;
         num += avg_pos * dt;
         den += dt;
@@ -111,15 +116,28 @@ fn compute_entry_from_content(content: &str) -> Result<FunscriptCacheEntry, Stri
 }
 
 /// Scan the funscript directory and update the cache file (creates/overwrites cache_path)
-pub async fn scan_and_update_cache(funscript_base: &Path, cache_path: &Path) -> Result<FunscriptCache, String> {
+pub async fn scan_and_update_cache(
+    funscript_base: &Path,
+    cache_path: &Path,
+) -> Result<FunscriptCache, String> {
     let mut cache = load_cache_file(cache_path).await.unwrap_or_default();
     let mut seen: HashSet<String> = HashSet::new();
 
-    for entry in WalkDir::new(funscript_base).into_iter().filter_map(Result::ok) {
+    for entry in WalkDir::new(funscript_base)
+        .into_iter()
+        .filter_map(Result::ok)
+    {
         let p = entry.path();
-        if !p.is_file() { continue; }
-        if p.extension().and_then(|e| e.to_str()).map(|s| s.eq_ignore_ascii_case("funscript")).unwrap_or(false) {
-            let rel = p.strip_prefix(funscript_base)
+        if !p.is_file() {
+            continue;
+        }
+        if p.extension()
+            .and_then(|e| e.to_str())
+            .map(|s| s.eq_ignore_ascii_case("funscript"))
+            .unwrap_or(false)
+        {
+            let rel = p
+                .strip_prefix(funscript_base)
                 .map(|p| p.to_string_lossy().to_string())
                 .unwrap_or_else(|_| p.to_string_lossy().to_string());
             seen.insert(rel.clone());
@@ -133,7 +151,9 @@ pub async fn scan_and_update_cache(funscript_base: &Path, cache_path: &Path) -> 
                     };
                     if needs {
                         match compute_entry_from_content(&content) {
-                            Ok(entry) => { cache.insert(rel, entry); }
+                            Ok(entry) => {
+                                cache.insert(rel, entry);
+                            }
                             Err(e) => log::error!("Failed compute stats for {:?}: {}", p, e),
                         }
                     }
@@ -144,11 +164,14 @@ pub async fn scan_and_update_cache(funscript_base: &Path, cache_path: &Path) -> 
     }
 
     // remove stale entries
-    let stale: Vec<String> = cache.keys()
+    let stale: Vec<String> = cache
+        .keys()
         .filter(|k| !seen.contains(*k))
         .cloned()
         .collect();
-    for k in stale { cache.remove(&k); }
+    for k in stale {
+        cache.remove(&k);
+    }
 
     save_cache_file(cache_path, &cache).await?;
     Ok(cache)

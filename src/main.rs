@@ -3,17 +3,13 @@
 //! Main entry point for the Video Player web server.
 //! This server provides a REST API for video playback control and device management.
 
-use log::{info, error};
 use actix_web::{
-    App, 
-    HttpServer,
-    middleware::{DefaultHeaders, Logger}
-};
-use hismith_player_site::{
-    routes, 
-    buttplug::device_manager,
+    middleware::{DefaultHeaders, Logger},
+    App, HttpServer,
 };
 use env_logger::Env;
+use hismith_player_site::{buttplug::device_manager, routes};
+use log::{error, info};
 use std::env;
 use tokio::task;
 
@@ -21,7 +17,7 @@ use tokio::task;
 const SERVER_PORT: u16 = 5441;
 
 /// Starts the web server and initializes Intiface management.
-/// 
+///
 /// # Error
 /// Returns an error if:
 /// - The server fails to bind to the specified address
@@ -55,8 +51,7 @@ async fn main() -> std::io::Result<()> {
     });
 
     // Get server configuration from environment
-    let host_ip = env::var("HOST_IP")
-        .expect("HOST_IP must be set in .env file");
+    let host_ip = env::var("HOST_IP").expect("HOST_IP must be set in .env file");
 
     info!("Starting HTTP server on {}:{}...", host_ip, SERVER_PORT);
 
@@ -68,7 +63,7 @@ async fn main() -> std::io::Result<()> {
                 DefaultHeaders::new()
                     .add(("Access-Control-Allow-Origin", "*"))
                     .add(("Access-Control-Allow-Methods", "GET, POST"))
-                    .add(("Access-Control-Allow-Headers", "content-type"))
+                    .add(("Access-Control-Allow-Headers", "content-type")),
             )
             .configure(routes::setup_routes)
     })

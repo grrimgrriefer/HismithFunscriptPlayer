@@ -1,28 +1,18 @@
 // src/handlers/video.rs
 
 //! Video streaming handler module
-//! 
+//!
 //! This module handles HTTP requests for video file streaming. It provides
 //! functionality to serve video files from a configured directory with proper
 //! HTTP headers for streaming and caching.
 
-use log::{info, error};
-use actix_web::{
-    web, 
-    HttpRequest, 
-    HttpResponse, 
-    Error,
-    http::header::{
-        self, 
-        ContentDisposition, 
-        DispositionType
-    }
-};
 use actix_files::NamedFile;
-use std::{
-    env, 
-    path::PathBuf
+use actix_web::{
+    http::header::{self, ContentDisposition, DispositionType},
+    web, Error, HttpRequest, HttpResponse,
 };
+use log::{error, info};
+use std::{env, path::PathBuf};
 
 /// Handles video file streaming requests
 ///
@@ -39,13 +29,16 @@ use std::{
 ///   - Content-Disposition: inline
 ///   - Cache-Control: public, max-age=31536000
 /// * `Err(Error)` - If file cannot be accessed or environment is not configured
-pub async fn handle_video(req: HttpRequest, path: web::Path<String>) -> Result<HttpResponse, Error> {
+pub async fn handle_video(
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, Error> {
     let filename = normalize_path(path.into_inner());
     info!("Serving video: {}", &filename);
 
     let full_path = get_full_video_path(&filename)?;
     let named_file = open_video_file(&full_path).await?;
-    
+
     Ok(create_video_response(named_file, req))
 }
 
@@ -79,12 +72,11 @@ fn normalize_path(path: String) -> String {
 /// * `Ok(PathBuf)` - Full filesystem path to the video file
 /// * `Err(Error)` - If VIDEO_SHARE_PATH environment variable is not set
 fn get_full_video_path(filename: &str) -> Result<PathBuf, Error> {
-    let base_path = env::var("VIDEO_SHARE_PATH")
-        .map_err(|e| {
-            error!("VIDEO_SHARE_PATH not set: {}", e);
-            actix_web::error::ErrorInternalServerError("Server configuration error")
-        })?;
-    
+    let base_path = env::var("VIDEO_SHARE_PATH").map_err(|e| {
+        error!("VIDEO_SHARE_PATH not set: {}", e);
+        actix_web::error::ErrorInternalServerError("Server configuration error")
+    })?;
+
     Ok(PathBuf::from(base_path).join(filename))
 }
 
@@ -100,12 +92,10 @@ fn get_full_video_path(filename: &str) -> Result<PathBuf, Error> {
 /// * `Ok(NamedFile)` - File handle ready for streaming
 /// * `Err(Error)` - If file cannot be opened or accessed
 async fn open_video_file(path: &PathBuf) -> Result<NamedFile, Error> {
-    NamedFile::open_async(path)
-        .await
-        .map_err(|e| {
-            error!("Failed to open file: {}", e);
-            actix_web::error::ErrorNotFound("Video file not found or inaccessible")
-        })
+    NamedFile::open_async(path).await.map_err(|e| {
+        error!("Failed to open file: {}", e);
+        actix_web::error::ErrorNotFound("Video file not found or inaccessible")
+    })
 }
 
 /// Creates an HTTP response for video streaming

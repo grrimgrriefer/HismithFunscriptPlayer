@@ -132,7 +132,7 @@ _The host device_manager will repeatedly try to connect to Intiface and to start
 
 ## API overview
 
-- GET /site/
+- GET /site/  
   UI index
 - GET /site/static/*  
   Static assets (JS, CSS, HTML)
@@ -149,10 +149,11 @@ _The host device_manager will repeatedly try to connect to Intiface and to start
 
 ## Funscript format
 
-A funscript is JSON with:
+A funscript is JSON with:  
 - version, range, metadata
-- actions: [{ at: \<ms\>, pos: <0..100> }, ...]
-Conventions in this project:
+- actions: [{ at: \<ms\>, pos: <0..100> }, ...]  
+
+Conventions in this project:  
 - Editor and intensity generator expect discrete pos values of 0 (retracted) or 100 (thrust).
 - Intensity generator computes a continuous 0..100 intensity value sampled periodically.
 

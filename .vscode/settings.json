@@ -13,5 +13,9 @@
         "editor.defaultFormatter": "rust-lang.rust-analyzer",
         "editor.formatOnSave": true
     },
+    "[markdown]": {
+        "editor.defaultFormatter": null,
+        "editor.formatOnSave": false
+    },
     "rust-analyzer.initializeStopped": true
 }

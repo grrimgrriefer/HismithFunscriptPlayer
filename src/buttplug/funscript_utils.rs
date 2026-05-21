@@ -191,7 +191,6 @@ pub fn calculate_thrust_intensity_by_scaled_speed(
     let max_time = actions_vec.last().unwrap().at;
 
     // Configuration constants
-    const SCALING_FACTOR: f64 = 125.0; // Speed(%/ms) * 125
     const MAX_INCREASE_PER_SEC: f64 = 40.0; // Maximum intensity increase per second
     const SLOW_ALPHA: f64 = 0.6; // Smoothing factor
     let max_increase_per_ms = MAX_INCREASE_PER_SEC / 1000.0;
@@ -219,7 +218,6 @@ pub fn calculate_thrust_intensity_by_scaled_speed(
                 window_start,
                 window_end,
                 window_duration_ms,
-                SCALING_FACTOR,
             )
         } else {
             0.0
@@ -255,13 +253,50 @@ pub fn calculate_thrust_intensity_by_scaled_speed(
     output_actions
 }
 
+/// Maps measured BPM to calibrated intensity (0..100) using piecewise linear interpolation.
+/// NO ATTACHMENTS, just simple hismith machine
+fn map_bpm_to_intensity(bpm: f64) -> f64 {
+    // Calibration pairs (bpm, intensity)
+    const MAPPING: [(f64, f64); 11] = [
+        (0.0, 0.0),
+        (42.0, 10.0),
+        (66.0, 20.0),
+        (90.0, 30.0),
+        (116.0, 40.0),
+        (140.0, 50.0),
+        (160.0, 60.0),
+        (182.0, 70.0),
+        (218.0, 80.0),
+        (245.0, 90.0),
+        (270.0, 100.0),
+    ];
+
+    if !bpm.is_finite() {
+        return 0.0;
+    }
+    if bpm <= MAPPING[0].0 {
+        return MAPPING[0].1;
+    }
+    if bpm >= MAPPING[MAPPING.len() - 1].0 {
+        return MAPPING[MAPPING.len() - 1].1;
+    }
+    for i in 0..(MAPPING.len() - 1) {
+        let (b0, i0) = MAPPING[i];
+        let (b1, i1) = MAPPING[i + 1];
+        if bpm >= b0 && bpm <= b1 {
+            let t = (bpm - b0) / (b1 - b0);
+            return i0 + (i1 - i0) * t;
+        }
+    }
+    0.0
+}
+
 /// Helper function to calculate intensity within a time window
 fn calculate_window_intensity(
     actions: &[Action],
     window_start: u64,
     window_end: u64,
-    window_duration_ms: u64,
-    scaling_factor: f64,
+    window_duration_ms: u64
 ) -> f64 {
     // Find boundary actions
     let start_idx = actions
@@ -301,14 +336,20 @@ fn calculate_window_intensity(
         pos: interpolate_position(prev_for_end, Some(end_action), window_end),
     });
 
-    // Calculate intensity
-    let raw_intensity = pts
+    // Calculate summed absolute percent change within the window
+    let raw_sum_percent = pts
         .windows(2)
         .filter(|w| w[1].at > w[0].at)
         .map(|w| (w[1].pos - w[0].pos).abs())
         .sum::<f64>();
 
-    let intensity = (raw_intensity / window_duration_ms as f64) * scaling_factor;
+    // Convert percent/ms -> BPM:
+    // raw_percent_per_ms = raw_sum_percent / window_duration_ms
+    // BPM = raw_percent_per_ms * 300.0  (derivation: 200% per full thrust, 60s/min => factor 1000*60/200 = 300)
+    let raw_percent_per_ms = raw_sum_percent / window_duration_ms as f64;
+    let bpm = raw_percent_per_ms * 300.0;
+
+    let intensity = map_bpm_to_intensity(bpm);
     if intensity.is_finite() {
         intensity
     } else {

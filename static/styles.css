@@ -48,11 +48,18 @@ ul {
     opacity: 0.95;
     background-color: rgba(0, 0, 0, 0.7);
     border-radius: 6px;
-    gap: 2px;
+    gap: 4px;
 }
 
-.file-intensity span {
-    display: block;
+.file-intensity > span {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    white-space: nowrap;
+}
+
+.file-intensity > span > span {
+    display: inline-block;
     width: auto;
     line-height: 1;
     text-align: center;

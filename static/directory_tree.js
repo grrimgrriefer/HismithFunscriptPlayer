@@ -27,16 +27,28 @@ function intensityToColor(v) {
     const S = 100; // fixed saturation
     const baseL = 50; // base lightness
 
-    // brighten hues near red/orange (they look darker to the eye)
+    // hue distance helper
     function hueDistance(a, b) {
         let d = Math.abs(a - b) % 360;
         if (d > 180) d = 360 - d;
         return d;
     }
+
+    // brighten hues near red/orange (they look darker to the eye)
     const distToRed = hueDistance(hue, 0);
-    const BOOST_MAX = 12; // max lightness boost (percentage points)
-    const boost = distToRed <= 60 ? (1 - distToRed / 60) * BOOST_MAX : 0;
-    const L = Math.min(90, baseL + boost);
+    const RED_BOOST_MAX = 12; // max lightness boost (percentage points)
+    const redBoost = distToRed <= 60 ? (1 - distToRed / 60) * RED_BOOST_MAX : 0;
+
+    // additional brighten for blue/purple hues (so ~70 becomes lighter)
+    const distToBlue = hueDistance(hue, 240); // 240° = pure blue
+    const BLUE_BOOST_MAX = 18;
+    const BLUE_RANGE = 40; // degrees around blue to apply boost
+    const blueBoost =
+        distToBlue <= BLUE_RANGE
+            ? (1 - distToBlue / BLUE_RANGE) * BLUE_BOOST_MAX
+            : 0;
+
+    const L = Math.min(90, baseL + redBoost + blueBoost);
 
     return `hsl(${hue.toFixed(1)}, ${S}%, ${L.toFixed(1)}%)`;
 }
@@ -55,11 +67,38 @@ export function initDirectoryTree(
     const rootUl = document.createElement('ul');
     rootUl.id = 'directory-tree-root';
 
-    // helper: collect average_intensity values for all variants of a given video base path
-    function collectVariantAverages(filePath) {
+    // helper: collect peak and average intensity values for all variants of a given video base path
+    function getNumberFromEntry(entry, keys) {
+        if (!entry) return NaN;
+        for (const k of keys) {
+            if (Object.prototype.hasOwnProperty.call(entry, k)) {
+                const n = Number(entry[k]);
+                if (isFinite(n)) return n;
+            }
+        }
+        return NaN;
+    }
+
+    function collectVariantStats(filePath) {
         const base = filePath.replace(/\.[^/.]+$/, ''); // remove extension
         const baseNorm = base.replace(/^\/+/, '');
-        const avgs = [];
+        const stats = [];
+        const avgKeys = [
+            'average_intensity',
+            'avg',
+            'average',
+            'averageIntensity'
+        ];
+        const peakKeys = [
+            'peak_intensity',
+            'max_intensity',
+            'maximum_intensity',
+            'peak',
+            'max',
+            'maximum',
+            'peakIntensity'
+        ];
+
         for (const key in funscriptMap) {
             if (!Object.prototype.hasOwnProperty.call(funscriptMap, key))
                 continue;
@@ -72,33 +111,39 @@ export function initDirectoryTree(
                 keyNorm.startsWith(`${baseNorm}.`)
             ) {
                 const entry = funscriptMap[key];
-                // Parenthesize to avoid mixing && and ?? which is a syntax error in JS
-                const v = Number(
-                    (entry &&
-                        (entry['average_intensity'] ??
-                            entry.average_intensity)) ??
-                        NaN
-                );
-                if (isFinite(v)) avgs.push(v);
+                const avg = getNumberFromEntry(entry, avgKeys);
+                const peak = getNumberFromEntry(entry, peakKeys);
+                if (isFinite(avg) || isFinite(peak)) {
+                    stats.push({
+                        avg: isFinite(avg) ? avg : NaN,
+                        peak: isFinite(peak) ? peak : NaN
+                    });
+                }
             }
         }
-        return avgs;
+        return stats;
     }
 
-    // comparator: directories first, then files with funscripts (sorted by lowest avg intensity low->high), then others
+    // comparator: directories first, then files with funscript peak info (sorted low->high by peak), then others
     function compareNodes(a, b) {
         if (a.is_dir && !b.is_dir) return -1;
         if (!a.is_dir && b.is_dir) return 1;
 
         if (!a.is_dir && !b.is_dir) {
-            const aAvgs = collectVariantAverages(a.path);
-            const bAvgs = collectVariantAverages(b.path);
-            const aHas = aAvgs.length > 0;
-            const bHas = bAvgs.length > 0;
+            const aStats = collectVariantStats(a.path);
+            const bStats = collectVariantStats(b.path);
+            const aHas =
+                aStats.length > 0 && aStats.some((s) => isFinite(s.peak));
+            const bHas =
+                bStats.length > 0 && bStats.some((s) => isFinite(s.peak));
             if (aHas !== bHas) return aHas ? -1 : 1;
             if (aHas && bHas) {
-                const ai = Math.min(...aAvgs);
-                const bi = Math.min(...bAvgs);
+                const ai = Math.min(
+                    ...aStats.filter((s) => isFinite(s.peak)).map((s) => s.peak)
+                );
+                const bi = Math.min(
+                    ...bStats.filter((s) => isFinite(s.peak)).map((s) => s.peak)
+                );
                 if (isFinite(ai) && isFinite(bi) && ai !== bi) return ai - bi;
             }
             return a.name.localeCompare(b.name);
@@ -148,31 +193,62 @@ export function initDirectoryTree(
                 .forEach((child) => renderTree(child, ul));
             li.appendChild(ul);
         } else {
-            // gather variant stats
-            const avgs = collectVariantAverages(node.path);
+            // gather variant stats (peak & avg)
+            const stats = collectVariantStats(node.path);
 
             const row = document.createElement('div');
             row.className = 'file-row';
 
-            // only render a badge when there are funscsript averages
-            if (avgs.length > 0) {
+            // only render a badge when there are stats
+            if (stats.length > 0) {
                 const badge = document.createElement('span');
                 badge.className = 'file-intensity';
 
-                const unique = Array.from(new Set(avgs.map((v) => Number(v))))
-                    .filter((v) => isFinite(v))
-                    .sort((a, b) => a - b);
+                // round to whole numbers, filter duplicates, sort by peak asc
+                const entries = stats
+                    .map((s) => ({
+                        peak: isFinite(s.peak) ? Math.round(s.peak) : NaN,
+                        avg: isFinite(s.avg) ? Math.round(s.avg) : NaN
+                    }))
+                    .filter((e) => isFinite(e.peak) || isFinite(e.avg))
+                    .sort((a, b) => {
+                        const ap = isFinite(a.peak)
+                            ? a.peak
+                            : Number.POSITIVE_INFINITY;
+                        const bp = isFinite(b.peak)
+                            ? b.peak
+                            : Number.POSITIVE_INFINITY;
+                        if (ap !== bp) return ap - bp;
+                        const aa = isFinite(a.avg) ? a.avg : 0;
+                        const ba = isFinite(b.avg) ? b.avg : 0;
+                        return aa - ba;
+                    });
 
-                if (unique.length > 0) {
-                    // create stacked spans (no <br>) so CSS can handle layout
-                    badge.innerHTML = unique
-                        .map(
-                            (v) =>
-                                `<span style="color:${intensityToColor(
-                                    v
-                                )}">${v.toFixed(1)}</span>`
-                        )
-                        .join('');
+                const seen = new Set();
+                const parts = [];
+                for (const e of entries) {
+                    const key = `${isFinite(e.peak) ? e.peak : '_'}|${isFinite(e.avg) ? e.avg : '_'}`;
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+
+                    const peakText = isFinite(e.peak) ? String(e.peak) : '—';
+                    const avgText = isFinite(e.avg) ? String(e.avg) : '—';
+
+                    const peakColor = isFinite(e.peak)
+                        ? intensityToColor(e.peak)
+                        : 'rgba(255,255,255,0.75)';
+                    const avgColor = isFinite(e.avg)
+                        ? intensityToColor(e.avg)
+                        : 'rgba(255,255,255,0.5)';
+
+                    // show "PEAK (AVG)" with distinct colors
+                    parts.push(
+                        `<span><span style="color:${peakColor}">${peakText}</span><span style="color:${avgColor}"> (${avgText})</span></span>`
+                    );
+                }
+
+                if (parts.length > 0) {
+                    badge.innerHTML = parts.join('');
                     row.appendChild(badge);
                 }
             }

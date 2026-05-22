@@ -23,6 +23,41 @@
             </div>
         </div>
         <button id="toggle-directory">Toggle Directory</button>
+        <button id="settings-button" class="player-button btn" style="right:10px; display:block;">Settings</button>
+
+        <div id="settings-menu" class="settings-menu" aria-hidden="true">
+            <div class="form-group">
+                <button id="loop-toggle" class="btn">Loop: Off</button>
+            </div>
+
+            <label class="settings-label">Funscript Variant:</label>
+            <div class="variant-row">
+                <select id="funscript-variant-select" class="settings-select">
+                    <option value="original">original</option>
+                </select>
+                <button id="refresh-variants-button" class="btn btn-sm">Refresh</button>
+            </div>
+
+            <div class="form-group" style="margin-top:8px;">
+                <button id="calibration-button" class="btn btn-sm">Calibration</button>
+            </div>
+
+            <label class="settings-label" style="margin-top:8px;">Max Intensity Limit:</label>
+            <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+                <button id="hard-limit-lock-button" class="btn btn-sm">Unlock</button>
+                <input id="hard-limit-input" class="settings-input" type="number" min="0" max="100" value="60" disabled />
+            </div>
+
+            <label class="settings-label">Vibrate Mode:</label>
+            <select id="vibrate-mode-select" class="settings-select">
+                <option value="Rate">Rate</option>
+                <option value="Beat">Beat</option>
+            </select>
+
+            <div style="margin-top:10px;">
+                <button id="open-editor-button" class="btn">Open Editor</button>
+            </div>
+        </div>
     </div>
     <script src="/site/static/main.js" type="module"></script>
 </body>

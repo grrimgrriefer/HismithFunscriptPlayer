@@ -4,26 +4,15 @@ import { initDirectoryTree } from './directory_tree.js';
 import { initWebSocket } from './socket.js';
 import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js';
 
-function createPlayerButton(id, text, rightPos, onClick) {
-    let button = document.createElement('button');
-    button.id = id;
-    button.textContent = text;
-    button.className = 'player-button btn';
-    button.style.right = rightPos;
-    button.style.display = 'none'; // Buttons are hidden until a video plays
-    button.onclick = onClick;
-    document.body.appendChild(button);
-}
-
 function initializeUI() {
     // Create UI components that are globally available but may be hidden initially
     createSettingsMenu();
-    createPlayerButton(
-        'settings-button',
-        'Settings',
-        '10px',
-        toggleSettingsMenu
-    );
+
+    const settingsBtn = document.getElementById('settings-button');
+    settingsBtn.onclick = toggleSettingsMenu;
+    settingsBtn.style.right = '10px';
+    settingsBtn.style.display = 'block';
+    settingsBtn.classList.add('player-button', 'btn');
 
     // Event listener for the sidebar toggle
     document.getElementById('toggle-directory').onclick = () => {

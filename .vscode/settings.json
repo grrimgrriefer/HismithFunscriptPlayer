@@ -17,5 +17,8 @@
         "editor.defaultFormatter": null,
         "editor.formatOnSave": false
     },
-    "rust-analyzer.initializeStopped": true
+    "rust-analyzer.initializeStopped": true,
+    "rust-analyzer.cargo.buildScripts.enable": false,
+    "rust-analyzer.cargo.buildScripts.rebuildOnSave": false,
+    "rust-analyzer.checkOnSave": false
 }

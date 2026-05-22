@@ -1,80 +1,74 @@
 // static/editor.js
 
-// DOM Elements
-const videoElement = document.getElementById('editor-video');
+const video = document.getElementById('editor-video');
 const canvas = document.getElementById('editor-canvas');
-const tapButton = document.getElementById('tap-button');
-const undoButton = document.getElementById('undo-button');
-const deleteButton = document.getElementById('delete-button');
-const saveButton = document.getElementById('save-button');
-const actionCounter = document.getElementById('action-counter');
 const ctx = canvas.getContext('2d');
+const tapBtn = document.getElementById('tap-button');
+const undoBtn = document.getElementById('undo-button');
+const deleteBtn = document.getElementById('delete-button');
+const saveBtn = document.getElementById('save-button');
+const counter = document.getElementById('action-counter');
 const variantInput = document.getElementById('variant-input');
+const variantList = document.getElementById('variant-list');
 
-// State
-let baseTimestamps = [];
-let variantTimestamps = [];
-let currentVariant = '';
-let selectedTimestamps = new Set();
-let videoPath = '';
-let editorAnimationFrame = null;
+const VIEW_WINDOW_MS = 10000;
+const CLICK_RADIUS_MS = 100;
 
-// Interaction State
-let isDragging = false;
-let isSelecting = false;
-let selectionStartPos = { x: 0 };
-let selectionEndPos = { x: 0 };
-let dragStartMs = 0;
-let dragOffsetMs = 0;
+const state = {
+    base: [],
+    variant: [],
+    currentVariant: '',
+    selected: new Set(),
+    videoPath: '',
+    raf: null,
+    dragging: false,
+    selecting: false,
+    selectionStartX: 0,
+    selectionEndX: 0,
+    dragOffsetMs: 0
+};
 
-// Config
-const VIEW_WINDOW_MS = 10000; // 10 seconds of timeline visible
-const CLICK_RADIUS_MS = 100; // Click tolerance in milliseconds
+const q = (id) => document.getElementById(id);
 
 async function init() {
-    const urlParams = new URLSearchParams(window.location.search);
-    videoPath = urlParams.get('video');
-
-    const qvariant = urlParams.get('variant');
-    if (qvariant && variantInput) variantInput.value = qvariant;
-
-    if (!videoPath) {
+    const params = new URLSearchParams(window.location.search);
+    state.videoPath = params.get('video');
+    if (!state.videoPath) {
         document.body.innerHTML = '<h1>Error: No video specified.</h1>';
         return;
     }
+    const qvariant = params.get('variant');
+    if (qvariant && variantInput) variantInput.value = qvariant;
 
-    videoElement.src = `/site/video/${videoPath}`;
-    await loadExistingFunscript();
-
-    setupEventListeners();
+    video.src = `/site/video/${state.videoPath}`;
+    await loadFunscript();
+    bind();
     resizeCanvas();
-    updateCounter();
-    drawVisualizer();
+    draw();
 }
 
-function isEditingVariant() {
-    return (
-        currentVariant && currentVariant !== '' && currentVariant !== 'original'
-    );
-}
+const isEditingVariant = () =>
+    state.currentVariant &&
+    state.currentVariant !== '' &&
+    state.currentVariant !== 'original';
 
-function getEditingArray() {
-    return isEditingVariant() ? variantTimestamps : baseTimestamps;
-}
+const getEditingArray = () => (isEditingVariant() ? state.variant : state.base);
+const setEditingArray = (arr) => {
+    if (isEditingVariant()) state.variant = arr;
+    else state.base = arr;
+};
+const dedupeAndSort = (arr) => Array.from(new Set(arr)).sort((a, b) => a - b);
 
-function setEditingArray(arr) {
-    if (isEditingVariant()) {
-        variantTimestamps = arr;
-    } else {
-        baseTimestamps = arr;
+const fetchJson = async (url) => {
+    try {
+        const resp = await fetch(url);
+        if (!resp.ok) return undefined;
+        return await resp.json();
+    } catch (e) {
+        console.error(e);
+        return undefined;
     }
-}
-
-function dedupeAndSort(arr) {
-    const s = Array.from(new Set(arr));
-    s.sort((a, b) => a - b);
-    return s;
-}
+};
 
 function extractActionsFromResponse(data, variantName) {
     if (!data) return [];
@@ -90,160 +84,108 @@ function extractActionsFromResponse(data, variantName) {
     return [];
 }
 
-async function loadExistingFunscript() {
-    currentVariant = variantInput ? variantInput.value.trim() : '';
-    const baseFunscriptUrl = `/site/funscripts/${videoPath.replace(/\.[^/.]+$/, '.funscript')}`;
+async function loadFunscript() {
+    state.currentVariant = variantInput ? variantInput.value.trim() : '';
+    const baseUrl = `/site/funscripts/${state.videoPath.replace(/\.[^/.]+$/, '.funscript')}`;
 
-    // Populate variant datalist for easy selection
-    try {
-        const listResp = await fetch(baseFunscriptUrl + '?list=1');
-        if (listResp.ok) {
-            const listData = await listResp.json();
-            const variants = Array.isArray(listData.variants)
-                ? listData.variants
-                : [];
-            const datalist = document.getElementById('variant-list');
-            if (datalist) {
-                datalist.innerHTML = '';
-                variants.forEach((v) => {
-                    const opt = document.createElement('option');
-                    opt.value = v;
-                    datalist.appendChild(opt);
-                });
-            }
-        }
-    } catch (err) {
-        console.error('Error loading variant list:', err);
+    // variant list
+    const listData = await fetchJson(baseUrl + '?list=1');
+    if (listData && Array.isArray(listData.variants) && variantList) {
+        variantList.innerHTML = '';
+        listData.variants.forEach((v) => {
+            const opt = document.createElement('option');
+            opt.value = v;
+            variantList.appendChild(opt);
+        });
     }
 
-    // Load base (original) taps
-    try {
-        const response = await fetch(baseFunscriptUrl);
-        if (response.ok) {
-            const data = await response.json();
-            const actions = extractActionsFromResponse(data, 'original');
-            baseTimestamps = (actions || [])
-                .filter((a) => a.pos === 100)
-                .map((a) => a.at)
-                .sort((a, b) => a - b);
-            console.log(`Loaded ${baseTimestamps.length} base points.`);
-        } else {
-            baseTimestamps = [];
-        }
-    } catch (error) {
-        console.error('Error loading base funscript:', error);
-        baseTimestamps = [];
-    }
+    // base
+    const baseData = await fetchJson(baseUrl);
+    state.base = (extractActionsFromResponse(baseData, 'original') || [])
+        .filter((a) => a.pos === 100)
+        .map((a) => a.at)
+        .sort((a, b) => a - b);
 
-    // Load variant taps (if editing a non-original variant)
-    variantTimestamps = [];
+    // variant (if any)
+    state.variant = [];
     if (isEditingVariant()) {
-        try {
-            const vurl = `${baseFunscriptUrl}?variant=${encodeURIComponent(currentVariant)}`;
-            const vresp = await fetch(vurl);
-            if (vresp.ok) {
-                const vdata = await vresp.json();
-                let vactions = extractActionsFromResponse(
-                    vdata,
-                    currentVariant
-                );
-                variantTimestamps = (vactions || [])
-                    .filter((a) => a.pos === 100)
-                    .map((a) => a.at)
-                    .sort((a, b) => a - b);
-                console.log(
-                    `Loaded ${variantTimestamps.length} variant points (${currentVariant}).`
-                );
-            } else {
-                variantTimestamps = [];
-            }
-        } catch (error) {
-            console.error('Error loading variant funscript:', error);
-            variantTimestamps = [];
-        }
+        const vdata = await fetchJson(
+            `${baseUrl}?variant=${encodeURIComponent(state.currentVariant)}`
+        );
+        state.variant = (
+            extractActionsFromResponse(vdata, state.currentVariant) || []
+        )
+            .filter((a) => a.pos === 100)
+            .map((a) => a.at)
+            .sort((a, b) => a - b);
     }
 
-    selectedTimestamps.clear();
+    state.selected.clear();
     updateCounter();
-    drawVisualizer();
+    draw();
 }
 
-function setupEventListeners() {
-    tapButton.addEventListener('click', handleTap);
-    undoButton.addEventListener('click', handleUndo);
-    deleteButton.addEventListener('click', handleDeleteSelected);
-    saveButton.addEventListener('click', handleSave);
+function bind() {
+    tapBtn.addEventListener('click', handleTap);
+    undoBtn.addEventListener('click', handleUndo);
+    deleteBtn.addEventListener('click', handleDeleteSelected);
+    saveBtn.addEventListener('click', handleSave);
 
     document.addEventListener('keydown', (e) => {
-        const target = e.target;
-        const tag =
-            target && target.tagName ? target.tagName.toUpperCase() : '';
-        const isTextEntry =
-            tag === 'INPUT' ||
-            tag === 'TEXTAREA' ||
-            (target && target.isContentEditable);
-        if (e.code === 'Space' && !isTextEntry) {
+        const t = e.target;
+        const tag = t && t.tagName ? t.tagName.toUpperCase() : '';
+        const isText =
+            tag === 'INPUT' || tag === 'TEXTAREA' || (t && t.isContentEditable);
+        if (e.code === 'Space' && !isText) {
             e.preventDefault();
             handleTap();
         }
-        if ((e.code === 'Delete' || e.code === 'Backspace') && !isTextEntry) {
+        if ((e.code === 'Delete' || e.code === 'Backspace') && !isText) {
             e.preventDefault();
             handleDeleteSelected();
         }
     });
 
-    videoElement.addEventListener('play', startEditorRaf);
-    videoElement.addEventListener('pause', stopEditorRaf);
-    videoElement.addEventListener('seeked', drawVisualizer);
+    video.addEventListener('play', startRaf);
+    video.addEventListener('pause', stopRaf);
+    video.addEventListener('seeked', draw);
     window.addEventListener('resize', resizeCanvas);
 
     if (variantInput) {
-        variantInput.addEventListener('change', async () => {
-            await loadExistingFunscript();
-        });
-        variantInput.addEventListener('keyup', async (e) => {
-            if (e.key === 'Enter') await loadExistingFunscript();
+        variantInput.addEventListener('change', loadFunscript);
+        variantInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') loadFunscript();
         });
     }
 
-    setupCanvasEventListeners();
+    setupCanvasEvents();
 }
 
-// Funscript Logic
 function updateCounter() {
     const editing = getEditingArray();
     if (isEditingVariant()) {
-        actionCounter.textContent = `Taps: ${editing.length} (variant: ${currentVariant}) — Original: ${baseTimestamps.length}`;
+        counter.textContent = `Taps: ${editing.length} (variant: ${state.currentVariant}) — Original: ${state.base.length}`;
     } else {
-        actionCounter.textContent = `Taps: ${editing.length}`;
+        counter.textContent = `Taps: ${editing.length}`;
     }
 }
 
 function generateFunscriptActionsFromTimestamps(timestamps) {
     if (!timestamps || timestamps.length === 0) return [{ at: 0, pos: 0 }];
-
-    const sortedTaps = [...timestamps].sort((a, b) => a - b);
-    let actions = [];
-    let lastTime = 0;
-
-    for (const tapTime of sortedTaps) {
-        const downTime = Math.round((lastTime + tapTime) / 2);
-        if (actions.length > 0 || downTime > 0)
-            actions.push({ at: downTime, pos: 0 });
-        actions.push({ at: tapTime, pos: 100 });
-        lastTime = tapTime;
+    const sorted = [...timestamps].sort((a, b) => a - b);
+    const actions = [];
+    let last = 0;
+    for (const t of sorted) {
+        const down = Math.round((last + t) / 2);
+        if (actions.length > 0 || down > 0) actions.push({ at: down, pos: 0 });
+        actions.push({ at: t, pos: 100 });
+        last = t;
     }
-
-    actions.push({ at: lastTime + 500, pos: 0 });
+    actions.push({ at: last + 500, pos: 0 });
     if (actions.length > 0 && actions[0].at > 0)
         actions.unshift({ at: 0, pos: 0 });
-
     const seen = new Map();
-    for (const action of actions) {
-        // keep last action for a timestamp (preserves pos changes)
-        seen.set(action.at, action);
-    }
-
+    for (const a of actions) seen.set(a.at, a);
     return Array.from(seen.values()).sort((a, b) => a.at - b.at);
 }
 
@@ -255,274 +197,230 @@ async function handleSave() {
         return;
     }
 
-    saveButton.disabled = true;
-    saveButton.textContent = 'Saving...';
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
     try {
         const variantVal = variantInput ? variantInput.value.trim() : '';
-        const response = await fetch('/api/funscripts', {
+        const res = await fetch('/api/funscripts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                video_path: videoPath,
+                video_path: state.videoPath,
                 actions,
                 variant: variantVal || null
             })
         });
-        if (response.ok) {
-            alert('Funscript saved successfully!');
-            window.location.reload();
-        } else {
-            throw new Error(`Failed to save: ${await response.text()}`);
-        }
-    } catch (error) {
-        console.error(error);
-        alert(error.message);
+        if (!res.ok) throw new Error(`Failed to save: ${await res.text()}`);
+        alert('Funscript saved successfully!');
+        window.location.reload();
+    } catch (err) {
+        console.error(err);
+        alert(err.message);
     } finally {
-        saveButton.disabled = false;
-        saveButton.textContent = 'Save Funscript';
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Funscript';
     }
 }
 
-// User Actions
 function handleTap() {
-    const currentTime = Math.round(videoElement.currentTime * 1000);
+    const now = Math.round(video.currentTime * 1000);
     const editing = getEditingArray();
-    editing.push(currentTime);
+    editing.push(now);
     setEditingArray(dedupeAndSort(editing));
     updateCounter();
-    drawVisualizer();
+    draw();
 }
 
 function handleUndo() {
     const editing = getEditingArray();
-    if (editing.length > 0) {
-        editing.pop();
-        setEditingArray(dedupeAndSort(editing));
-        updateCounter();
-        drawVisualizer();
-    }
+    if (editing.length === 0) return;
+    editing.pop();
+    setEditingArray(dedupeAndSort(editing));
+    updateCounter();
+    draw();
 }
 
 function handleDeleteSelected() {
-    if (selectedTimestamps.size === 0) return;
+    if (state.selected.size === 0) return;
     const editing = getEditingArray();
-    const newEditing = editing.filter((t) => !selectedTimestamps.has(t));
-    setEditingArray(dedupeAndSort(newEditing));
-    selectedTimestamps.clear();
+    setEditingArray(
+        dedupeAndSort(editing.filter((t) => !state.selected.has(t)))
+    );
+    state.selected.clear();
     updateCounter();
-    drawVisualizer();
+    draw();
 }
 
-// Canvas Drawing
-function startEditorRaf() {
-    if (editorAnimationFrame) cancelAnimationFrame(editorAnimationFrame);
-    const loop = () => {
-        drawVisualizer();
-        editorAnimationFrame = requestAnimationFrame(loop);
-    };
-    editorAnimationFrame = requestAnimationFrame(loop);
+// Drawing helpers
+function getViewStartMs() {
+    return Math.max(0, video.currentTime * 1000 - VIEW_WINDOW_MS / 2);
+}
+function msToPx(ms) {
+    const start = getViewStartMs();
+    return ((ms - start) / VIEW_WINDOW_MS) * canvas.width;
+}
+function pxToMs(px) {
+    const start = getViewStartMs();
+    return Math.round((px / canvas.width) * VIEW_WINDOW_MS + start);
 }
 
-function stopEditorRaf() {
-    if (editorAnimationFrame) {
-        cancelAnimationFrame(editorAnimationFrame);
-        editorAnimationFrame = null;
+function drawWave(actions, color = '#4CAF50') {
+    if (!actions || actions.length === 0) return;
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    actions.forEach((a, i) => {
+        const x = msToPx(a.at);
+        const y =
+            canvas.height -
+            (a.pos / 100) * (canvas.height * 0.8) -
+            canvas.height * 0.1;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+}
+
+function drawTaps(list, interactive) {
+    for (const at of list) {
+        const x = msToPx(at);
+        const y = canvas.height * 0.1;
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = state.selected.has(at)
+            ? 'yellow'
+            : interactive
+              ? '#f44336'
+              : '#999';
+        ctx.fill();
     }
 }
 
-function drawVisualizer() {
+function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const currentTimeMs = video.currentTime * 1000;
 
-    const currentTime = videoElement.currentTime * 1000;
-    const viewStartMs = Math.max(0, currentTime - VIEW_WINDOW_MS / 2);
-
-    const msToPx = (ms) => ((ms - viewStartMs) / VIEW_WINDOW_MS) * canvas.width;
-
-    // Draw base and editing waveforms
-    const baseActions = generateFunscriptActionsFromTimestamps(baseTimestamps);
+    const baseActions = generateFunscriptActionsFromTimestamps(state.base);
     const editingActions =
         generateFunscriptActionsFromTimestamps(getEditingArray());
 
-    if (isEditingVariant() && baseActions.length > 0) {
-        ctx.beginPath();
-        ctx.strokeStyle = '#777';
-        ctx.lineWidth = 1;
-        baseActions.forEach((action, i) => {
-            const x = msToPx(action.at);
-            const y =
-                canvas.height -
-                (action.pos / 100) * (canvas.height * 0.8) -
-                canvas.height * 0.1;
-            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-        });
-        ctx.stroke();
-    }
+    if (isEditingVariant() && baseActions.length > 0)
+        drawWave(baseActions, '#777');
+    if (editingActions.length > 0) drawWave(editingActions, '#4CAF50');
 
-    if (editingActions.length > 0) {
-        ctx.beginPath();
-        ctx.strokeStyle = '#4CAF50';
-        ctx.lineWidth = 1;
-        editingActions.forEach((action, i) => {
-            const x = msToPx(action.at);
-            const y =
-                canvas.height -
-                (action.pos / 100) * (canvas.height * 0.8) -
-                canvas.height * 0.1;
-            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-        });
-        ctx.stroke();
-    }
-
-    // Draw tap points
     if (isEditingVariant()) {
-        // base taps - grey, not interactive
-        baseTimestamps.forEach((at) => {
-            const x = msToPx(at);
-            const y = canvas.height * 0.1;
-            ctx.beginPath();
-            ctx.arc(x, y, 5, 0, Math.PI * 2);
-            ctx.fillStyle = '#999';
-            ctx.fill();
-        });
-        // variant taps - interactive
-        variantTimestamps.forEach((at) => {
-            const x = msToPx(at);
-            const y = canvas.height * 0.1;
-            ctx.beginPath();
-            ctx.arc(x, y, 5, 0, Math.PI * 2);
-            ctx.fillStyle = selectedTimestamps.has(at) ? 'yellow' : '#f44336';
-            ctx.fill();
-        });
+        drawTaps(state.base, false);
+        drawTaps(state.variant, true);
     } else {
-        // editing original - taps are interactive
-        baseTimestamps.forEach((at) => {
-            const x = msToPx(at);
-            const y = canvas.height * 0.1;
-            ctx.beginPath();
-            ctx.arc(x, y, 5, 0, Math.PI * 2);
-            ctx.fillStyle = selectedTimestamps.has(at) ? 'yellow' : '#f44336';
-            ctx.fill();
-        });
+        drawTaps(state.base, true);
     }
 
-    // Draw playhead
-    const playheadX = msToPx(currentTime);
+    // playhead
+    const playX = msToPx(currentTimeMs);
     ctx.beginPath();
-    ctx.moveTo(playheadX, 0);
-    ctx.lineTo(playheadX, canvas.height);
+    ctx.moveTo(playX, 0);
+    ctx.lineTo(playX, canvas.height);
     ctx.strokeStyle = 'red';
     ctx.stroke();
 
-    // Draw selection box
-    if (isSelecting) {
-        const rectX = Math.min(selectionStartPos.x, selectionEndPos.x);
-        const rectW = Math.abs(selectionStartPos.x - selectionEndPos.x);
+    // selection box
+    if (state.selecting) {
+        const rx = Math.min(state.selectionStartX, state.selectionEndX);
+        const rw = Math.abs(state.selectionStartX - state.selectionEndX);
         ctx.fillStyle = 'rgba(0, 150, 255, 0.2)';
-        ctx.fillRect(rectX, 0, rectW, canvas.height);
+        ctx.fillRect(rx, 0, rw, canvas.height);
     }
 }
 
-// Canvas Interactions
-function setupCanvasEventListeners() {
-    const msToPx = (ms) => {
-        const viewStartMs = Math.max(
-            0,
-            videoElement.currentTime * 1000 - VIEW_WINDOW_MS / 2
-        );
-        return ((ms - viewStartMs) / VIEW_WINDOW_MS) * canvas.width;
+// RAF
+function startRaf() {
+    if (state.raf) cancelAnimationFrame(state.raf);
+    const loop = () => {
+        draw();
+        state.raf = requestAnimationFrame(loop);
     };
-    const pxToMs = (px) => {
-        const viewStartMs = Math.max(
-            0,
-            videoElement.currentTime * 1000 - VIEW_WINDOW_MS / 2
-        );
-        return Math.round((px / canvas.width) * VIEW_WINDOW_MS + viewStartMs);
-    };
+    state.raf = requestAnimationFrame(loop);
+}
+function stopRaf() {
+    if (state.raf) cancelAnimationFrame(state.raf);
+    state.raf = null;
+}
 
+// Canvas interactions
+function setupCanvasEvents() {
     const findPointAt = (px) => {
         const clickMs = pxToMs(px);
         const items = getEditingArray();
-        for (const timestamp of items) {
-            if (Math.abs(timestamp - clickMs) < CLICK_RADIUS_MS) {
-                return timestamp;
-            }
-        }
+        for (const t of items)
+            if (Math.abs(t - clickMs) < CLICK_RADIUS_MS) return t;
         return null;
     };
 
     canvas.addEventListener('mousedown', (e) => {
-        const pointHit = findPointAt(e.offsetX);
-
-        if (pointHit !== null) {
-            isDragging = true;
-            dragOffsetMs = pxToMs(e.offsetX) - pointHit;
-            if (!selectedTimestamps.has(pointHit)) {
-                if (!e.ctrlKey && !e.metaKey) selectedTimestamps.clear();
-                selectedTimestamps.add(pointHit);
+        const hit = findPointAt(e.offsetX);
+        if (hit !== null) {
+            state.dragging = true;
+            state.dragOffsetMs = pxToMs(e.offsetX) - hit;
+            if (!state.selected.has(hit)) {
+                if (!e.ctrlKey && !e.metaKey) state.selected.clear();
+                state.selected.add(hit);
             }
         } else {
-            isSelecting = true;
-            if (!e.ctrlKey && !e.metaKey) selectedTimestamps.clear();
-            selectionStartPos.x = e.offsetX;
-            selectionEndPos.x = e.offsetX;
+            state.selecting = true;
+            if (!e.ctrlKey && !e.metaKey) state.selected.clear();
+            state.selectionStartX = e.offsetX;
+            state.selectionEndX = e.offsetX;
         }
-        drawVisualizer();
+        draw();
     });
 
     canvas.addEventListener('mousemove', (e) => {
-        if (isDragging) {
-            const currentMouseMs = pxToMs(e.offsetX);
-            const newTapTime = currentMouseMs - dragOffsetMs;
-
-            const selectedArray = Array.from(selectedTimestamps);
-            if (selectedArray.length === 0) {
-                // nothing selected, ignore
-            } else {
-                const firstSelected = Math.min(...selectedArray);
-                const delta = newTapTime - firstSelected;
+        if (state.dragging) {
+            const currentMs = pxToMs(e.offsetX);
+            const newTapTime = currentMs - state.dragOffsetMs;
+            const selectedArray = Array.from(state.selected);
+            if (selectedArray.length > 0) {
+                const first = Math.min(...selectedArray);
+                const delta = newTapTime - first;
                 const editing = getEditingArray();
-                const newEditing = editing.map((t) =>
-                    selectedTimestamps.has(t)
+                const moved = editing.map((t) =>
+                    state.selected.has(t)
                         ? Math.max(0, Math.round(t + delta))
                         : t
                 );
-                setEditingArray(dedupeAndSort(newEditing));
-                // update selected timestamps to moved positions
-                selectedTimestamps = new Set(
-                    Array.from(selectedArray).map((t) =>
-                        Math.max(0, Math.round(t + delta))
-                    )
+                setEditingArray(dedupeAndSort(moved));
+                state.selected = new Set(
+                    selectedArray.map((t) => Math.max(0, Math.round(t + delta)))
                 );
             }
-        } else if (isSelecting) {
-            selectionEndPos.x = e.offsetX;
+        } else if (state.selecting) {
+            state.selectionEndX = e.offsetX;
         }
-        drawVisualizer();
+        draw();
     });
 
     canvas.addEventListener('mouseup', () => {
-        if (isSelecting) {
+        if (state.selecting) {
             const startMs = pxToMs(
-                Math.min(selectionStartPos.x, selectionEndPos.x)
+                Math.min(state.selectionStartX, state.selectionEndX)
             );
             const endMs = pxToMs(
-                Math.max(selectionStartPos.x, selectionEndPos.x)
+                Math.max(state.selectionStartX, state.selectionEndX)
             );
             const editing = getEditingArray();
             editing.forEach((t) => {
-                if (t >= startMs && t <= endMs) selectedTimestamps.add(t);
+                if (t >= startMs && t <= endMs) state.selected.add(t);
             });
         }
-        isDragging = false;
-        isSelecting = false;
-        drawVisualizer();
+        state.dragging = false;
+        state.selecting = false;
+        draw();
     });
 }
 
 function resizeCanvas() {
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
-    drawVisualizer();
+    draw();
 }
 
 document.addEventListener('DOMContentLoaded', init);

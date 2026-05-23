@@ -150,6 +150,8 @@ function setMultiplier(value, doSendImmediately = true) {
     updateSentIntensityDisplay();
     renderMappingList();
 
+    renderMappingGraph(bpmIntensityMapping);
+
     if (running && doSendImmediately) {
         const intensity = computeIntensityNormalized(
             selectedPreset,
@@ -233,8 +235,8 @@ function stopCalibration() {
 
 function confirmMultiplier() {
     if (!selectedPreset) return;
-    // multipliers already applied
     renderMappingList();
+    renderMappingGraph(bpmIntensityMapping);
 }
 
 function resetMultipliers() {
@@ -252,6 +254,7 @@ function resetMultipliers() {
     elements.sentIntensity.textContent = '—';
     setMultiplierControlsEnabled(false);
     renderMappingList();
+    renderMappingGraph(bpmIntensityMapping);
 }
 
 function renderMappingList() {
@@ -260,13 +263,13 @@ function renderMappingList() {
         return v === undefined ? `${p}: (inactive)` : `${p}: ${v.toFixed(3)}x`;
     }).join(' | ');
 
-    // append bpm->intensity mapping summary
+    // append intensity->bpm mapping summary (show intensity:bpm)
     if (Array.isArray(bpmIntensityMapping) && bpmIntensityMapping.length) {
         const mapText = bpmIntensityMapping
-            .map((pt) => `${pt.bpm.toFixed(0)}:${pt.intensity.toFixed(0)}`)
+            .map((pt) => `${pt.intensity.toFixed(0)}:${pt.bpm.toFixed(0)}`)
             .join(' | ');
         elements.mappingList.innerHTML +=
-            '<br/><small style="opacity:0.85; margin-top:6px; display:block;">Mapping: ' +
+            '<br/><small style="opacity:0.85; margin-top:6px; display:block;">Mapping (intensity:bpm): ' +
             mapText +
             '</small>';
     }
@@ -370,7 +373,6 @@ export function getCalibrationMultiplier(rawIntensity) {
     return 1.0;
 }
 
-/* draw simple BPM->Intensity polyline */
 function renderMappingGraph(mapping) {
     const canvas = document.getElementById('mapping-canvas');
     if (!canvas || !Array.isArray(mapping) || mapping.length === 0) return;
@@ -387,53 +389,127 @@ function renderMappingGraph(mapping) {
     ctx.clearRect(0, 0, cssWidth, cssHeight);
 
     const pad = 12;
-    const minBpm = mapping[0].bpm;
-    const maxBpm = mapping[mapping.length - 1].bpm;
-    const minY = 0;
-    const maxY = 100;
+    const minIntensity = Math.min(...mapping.map((pt) => pt.intensity));
+    const maxIntensity = Math.max(...mapping.map((pt) => pt.intensity));
+    const minBpm = Math.min(...mapping.map((pt) => pt.bpm));
+    const maxBpm = Math.max(...mapping.map((pt) => pt.bpm));
+    const intRange = maxIntensity - minIntensity || 1;
+    const bpmRange = maxBpm - minBpm || 1;
 
-    const xFor = (b) =>
-        pad + ((b - minBpm) / (maxBpm - minBpm)) * (cssWidth - pad * 2);
-    const yFor = (i) =>
-        cssHeight - pad - ((i - minY) / (maxY - minY)) * (cssHeight - pad * 2);
+    const xFor = (i) =>
+        pad + ((i - minIntensity) / intRange) * (cssWidth - pad * 2);
+    const yFor = (b) =>
+        cssHeight - pad - ((b - minBpm) / bpmRange) * (cssHeight - pad * 2);
 
-    // grid lines
+    // grid lines (vertical for intensity, horizontal for bpm)
     ctx.strokeStyle = '#333';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    [0, 25, 50, 75, 100].forEach((val) => {
+    for (let j = 0; j <= 4; j++) {
+        const val = minIntensity + (j / 4) * (maxIntensity - minIntensity);
+        const x = xFor(val);
+        ctx.moveTo(x, pad);
+        ctx.lineTo(x, cssHeight - pad);
+    }
+    for (let j = 0; j <= 4; j++) {
+        const val = minBpm + (j / 4) * (maxBpm - minBpm);
         const y = yFor(val);
         ctx.moveTo(pad, y);
         ctx.lineTo(cssWidth - pad, y);
-    });
+    }
     ctx.stroke();
 
-    // polyline
+    // baseline polyline (intensity -> bpm) - sort by intensity for a clean line
+    const sorted = mapping.slice().sort((a, b) => a.intensity - b.intensity);
     ctx.beginPath();
     ctx.strokeStyle = 'rgba(0,200,0,0.95)';
     ctx.lineWidth = 2;
-    mapping.forEach((pt, i) => {
-        const x = xFor(pt.bpm);
-        const y = yFor(pt.intensity);
+    sorted.forEach((pt, i) => {
+        const x = xFor(pt.intensity);
+        const y = yFor(pt.bpm);
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
     });
     ctx.stroke();
 
-    // points
+    // baseline points
     ctx.fillStyle = '#fff';
-    mapping.forEach((pt) => {
-        const x = xFor(pt.bpm);
-        const y = yFor(pt.intensity);
+    sorted.forEach((pt) => {
+        const x = xFor(pt.intensity);
+        const y = yFor(pt.bpm);
         ctx.beginPath();
         ctx.arc(x, y, 3, 0, Math.PI * 2);
         ctx.fill();
     });
 
-    // labels
+    // calibrated polyline: apply multiplier to BPM so same intensity -> higher BPM
+    const calibrated = sorted.map((pt) => {
+        const rawI = clamp(pt.intensity, minIntensity, maxIntensity);
+        const mult = getCalibrationMultiplier(rawI);
+        const calBpm = clamp(pt.bpm * mult, minBpm, maxBpm);
+        return { intensity: rawI, bpm: calBpm };
+    });
+
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(255,140,0,0.95)';
+    ctx.lineWidth = 2;
+    calibrated.forEach((pt, i) => {
+        const x = xFor(pt.intensity);
+        const y = yFor(pt.bpm);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // calibrated points
+    ctx.fillStyle = 'rgba(255,140,0,0.95)';
+    calibrated.forEach((pt) => {
+        const x = xFor(pt.intensity);
+        const y = yFor(pt.bpm);
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    // labels + legend
     ctx.fillStyle = '#ddd';
     ctx.font = '12px sans-serif';
-    ctx.fillText(`${minBpm.toFixed(0)} bpm`, pad, 12);
-    ctx.fillText(`${maxBpm.toFixed(0)} bpm`, cssWidth - pad - 56, 12);
-    ctx.fillText('Intensity', pad, cssHeight - pad - 48);
+    ctx.fillText(`${minIntensity.toFixed(0)}`, pad, 12);
+    ctx.fillText(`${maxIntensity.toFixed(0)}`, cssWidth - pad - 56, 12);
+    ctx.fillText('Intensity →', cssWidth / 2 - 30, cssHeight - 4);
+
+    ctx.save();
+    ctx.translate(8, cssHeight / 2 + 30);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('BPM', 0, 0);
+    ctx.restore();
+
+    // legend: bottom-right
+    const legendWidth = 120;
+    const legendPadding = 8;
+    const legendRectSize = 10;
+    const legendRight = cssWidth - pad - legendPadding;
+    const legendLeft = legendRight - legendWidth;
+    const legendTop = cssHeight - pad - 18; // place legend just above bottom padding
+
+    // draw legend entries (aligned vertically centered with rect)
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(0,200,0,0.95)';
+    ctx.fillRect(legendLeft, legendTop, legendRectSize, legendRectSize);
+    ctx.fillStyle = '#ddd';
+    ctx.fillText(
+        'Baseline',
+        legendLeft + legendRectSize + 6,
+        legendTop + legendRectSize / 2
+    );
+
+    ctx.fillStyle = 'rgba(255,140,0,0.95)';
+    ctx.fillRect(legendLeft + 56, legendTop, legendRectSize, legendRectSize);
+    ctx.fillStyle = '#ddd';
+    ctx.fillText(
+        'Calibrated',
+        legendLeft + 56 + legendRectSize + 6,
+        legendTop + legendRectSize / 2
+    );
+    ctx.textBaseline = 'alphabetic';
 }

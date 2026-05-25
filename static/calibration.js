@@ -120,12 +120,43 @@ function selectPreset(preset, btn) {
     setMultiplierControlsEnabled(true);
 }
 
+function getBpmForIntensity(intensity) {
+    const i = Number(intensity);
+    if (!isFinite(i)) return 0;
+    if (
+        !Array.isArray(bpmIntensityMapping) ||
+        bpmIntensityMapping.length === 0
+    ) {
+        // fallback: previous approximate mapping -> bpm = (intensity/25) * 60
+        return (i / 25.0) * 60.0;
+    }
+    const sorted = bpmIntensityMapping
+        .slice()
+        .sort((a, b) => a.intensity - b.intensity);
+    const minI = sorted[0].intensity;
+    const maxI = sorted[sorted.length - 1].intensity;
+    if (i <= minI) return sorted[0].bpm;
+    if (i >= maxI) return sorted[sorted.length - 1].bpm;
+    for (let k = 0; k < sorted.length - 1; k++) {
+        const i0 = sorted[k].intensity,
+            b0 = sorted[k].bpm;
+        const i1 = sorted[k + 1].intensity,
+            b1 = sorted[k + 1].bpm;
+        if (i >= i0 && i <= i1) {
+            const t = (i - i0) / (i1 - i0);
+            return b0 + (b1 - b0) * t;
+        }
+    }
+    return (i / 25.0) * 60.0;
+}
+
 function updateTargetSpinDisplay() {
     if (!selectedPreset) {
         elements.targetSpin.textContent = '—';
         return;
     }
-    const nominal = selectedPreset / 25.0; // nominal spins/sec (preset -> visual speed)
+    const bpm = getBpmForIntensity(selectedPreset);
+    const nominal = bpm / 60.0; // spins/sec
     elements.targetSpin.textContent = `${nominal.toFixed(2)}`;
 }
 
@@ -387,12 +418,11 @@ function spinnerFrame(ts) {
     if (!lastTs) lastTs = ts;
     const dt = (ts - lastTs) / 1000.0;
     lastTs = ts;
-    const spinsPerSecNominal = selectedPreset / 25.0; // visual is based on preset only
+    const spinsPerSecNominal = getBpmForIntensity(selectedPreset) / 60.0;
     const degDelta = dt * spinsPerSecNominal * 360;
     spinnerAccum += degDelta;
     spinnerAngle = spinnerAccum % 360;
     if (elements.spinnerRotor) {
-        // rotate the inner rotor so flash (on container) doesn't override rotation
         elements.spinnerRotor.style.transform = `rotate(${spinnerAngle}deg)`;
     }
 

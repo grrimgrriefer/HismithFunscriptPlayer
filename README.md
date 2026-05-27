@@ -1,5 +1,8 @@
 # Interactive Video Player
 
+[![CodeQL](https://github.com/grrimgrriefer/HismithFunscriptPlayer/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/grrimgrriefer/HismithFunscriptPlayer/actions/workflows/github-code-scanning/codeql)
+[![Dependabot Updates](https://github.com/grrimgrriefer/HismithFunscriptPlayer/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/grrimgrriefer/HismithFunscriptPlayer/actions/workflows/dependabot/dependabot-updates)
+
 A web-based video player (Rust + Actix + plain JS) that synchronizes video playback with oscillating (and vibrating) hardware devices.
 
 ## Features

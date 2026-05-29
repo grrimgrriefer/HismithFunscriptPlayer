@@ -6,7 +6,7 @@
 //! values to the Buttplug device manager. Expected JSON payload:
 //! { "o": <f64>, "v": <f64> } where `o` (oscillate) and `v` (vibrate) are optional.
 //! Values are interpreted in the 0.0..1.0 range and are clamped before being
-//! passed to device_manager::oscillate_sync and device_manager::vibrate_sync.
+//! passed to device_manager::set_oscillate and device_manager::set_vibrate.
 //! Non-JSON or binary messages result in a structured JSON error reply. Implemented
 //! as an Actix WebSocket actor.
 
@@ -46,16 +46,15 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for DeviceControlWs {
                     Ok(cmd) => {
                         if let Some(o) = cmd.o {
                             let clamped = o.max(0.0).min(1.0);
-                            device_manager::oscillate_sync(clamped);
+                            device_manager::set_oscillate(clamped);
                         }
                         if let Some(v) = cmd.v {
                             let clamped = v.max(0.0).min(1.0);
-                            device_manager::vibrate_sync(clamped);
+                            device_manager::set_vibrate(clamped);
                         }
                     }
                     Err(e) => {
                         error!("Invalid JSON command: {}", e);
-                        // reply with a structured JSON error so clients can handle it
                         ctx.text(
                             serde_json::json!({ "error": format!("invalid JSON: {}", e) })
                                 .to_string(),

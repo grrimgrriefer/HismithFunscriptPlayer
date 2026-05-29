@@ -247,7 +247,7 @@ fn generate_intensity_funscript(original_data: &FunscriptData) -> Result<Funscri
     let sample_rate_ms = 50; // Sample every 50ms
     let window_radius_ms = 500; // Look at ±500ms around each point
 
-    let intensity_actions = funscript_utils::calculate_thrust_intensity_by_scaled_speed(
+    let intensity_actions = funscript_utils::actions_to_intensity_curve(
         &mut actions_to_process,
         sample_rate_ms,
         window_radius_ms,

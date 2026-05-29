@@ -4,7 +4,7 @@
 //!
 //! Loads .env and initializes logging. Spawns background tasks for:
 //! - funscript cache initialization when FUNSCRIPT_SHARE_PATH is set
-//! - Intiface initialization via buttplug::device_manager::initialize_intiface()
+//! - Intiface initialization via buttplug::device_manager::initialize()
 //!
 //! Configures Actix HTTP server with logging and permissive CORS. Bind address is
 //! controlled by HOST_IP and SERVER_PORT environment variables (defaults to 0.0.0.0:5441).
@@ -36,7 +36,7 @@ async fn main() -> std::io::Result<()> {
 
     info!("Starting intiface initialization...");
     tokio::spawn(async {
-        if let Err(e) = device_manager::initialize_intiface().await {
+        if let Err(e) = device_manager::initialize().await {
             error!("Intiface initialization error: {}", e);
         } else {
             info!("Intiface initialization completed");

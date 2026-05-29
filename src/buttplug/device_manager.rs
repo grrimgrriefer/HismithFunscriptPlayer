@@ -1,4 +1,4 @@
-// src/buttplug/device_manager.js
+// src/buttplug/device_manager.rs
 
 //! Device connection and control module
 //!
@@ -20,219 +20,131 @@ use buttplug::{
 use futures::StreamExt;
 use once_cell::sync::OnceCell;
 use std::{sync::Arc, time::Duration};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::Mutex;
 
-/// Global singleton instance of the device manager
-///
-/// Stored in a OnceCell so other modules can access the runtime manager.
-static DEVICE_MANAGER: OnceCell<Arc<DeviceManager>> = OnceCell::new();
+static MANAGER: OnceCell<Arc<DeviceManager>> = OnceCell::new();
 
-/// Manages communication with connected devices
-///
-/// This struct is intended to be shared across tasks (Arc) and exposes
-/// interior mutability for device references via async Mutex wrappers.
-/// The control loop spawned by `new` periodically (every 100ms) writes
-/// the latest atomic values to any connected devices.
-pub struct DeviceManager {
-    /// Client connection to the Buttplug server
-    #[allow(dead_code)]
-    client: Arc<ButtplugClient>,
+const SERVER_URL: &str = "ws://127.0.0.1:12345/buttplug";
+const CONTROL_INTERVAL_MS: u64 = 100;
+const SCAN_INTERVAL_SECS: u64 = 5;
+const RECONNECT_DELAY_SECS: u64 = 5;
 
-    /// Currently connected oscillate-capable device
-    oscillate_device: Arc<Mutex<Option<Arc<ButtplugClientDevice>>>>,
-
-    /// Currently connected vibrate-capable device
-    vibrate_device: Arc<Mutex<Option<Arc<ButtplugClientDevice>>>>,
-
-    /// Latest command value to be sent (0.0 .. 1.0)
-    latest_oscillate_value: Arc<AtomicF64>,
-    latest_vibrate_value: Arc<AtomicF64>,
-
-    /// Whether currently scanning
-    scanning: Arc<RwLock<bool>>,
+struct DeviceManager {
+    oscillator: Arc<Mutex<Option<Arc<ButtplugClientDevice>>>>,
+    vibrator: Arc<Mutex<Option<Arc<ButtplugClientDevice>>>>,
+    oscillate_intensity: AtomicF64,
+    vibrate_intensity: AtomicF64,
 }
 
 impl DeviceManager {
-    /// Creates a new DeviceManager instance and starts internal control tasks.
-    ///
-    /// The returned Arc<DeviceManager> must be stored in DEVICE_MANAGER so
-    /// that the process-wide helpers can access it. This method spawns a
-    /// background task that writes current scalar values to connected devices
-    /// on a regular interval.
-    fn new(client: Arc<ButtplugClient>) -> Arc<Self> {
-        let oscillate_device = Arc::new(Mutex::new(None));
-        let vibrate_device = Arc::new(Mutex::new(None));
-        let latest_oscillate_value = Arc::new(AtomicF64::new(0.0));
-        let latest_vibrate_value = Arc::new(AtomicF64::new(0.0));
-        let scanning = Arc::new(RwLock::new(false));
-
-        let manager = Arc::new(Self {
-            client: Arc::clone(&client),
-            oscillate_device: oscillate_device.clone(),
-            vibrate_device: vibrate_device.clone(),
-            latest_oscillate_value: latest_oscillate_value.clone(),
-            latest_vibrate_value: latest_vibrate_value.clone(),
-            scanning: scanning.clone(),
+    fn new() -> Arc<Self> {
+        let mgr = Arc::new(Self {
+            oscillator: Default::default(),
+            vibrator: Default::default(),
+            oscillate_intensity: AtomicF64::new(0.0),
+            vibrate_intensity: AtomicF64::new(0.0),
         });
 
-        // Control loop: send latest_values to both devices
-        let manager_clone = Arc::clone(&manager);
+        // loop: push current intensities to devices
+        let m = mgr.clone();
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_millis(100));
+            let mut tick = tokio::time::interval(Duration::from_millis(CONTROL_INTERVAL_MS));
             loop {
-                interval.tick().await;
-                let oscillate_value = manager_clone
-                    .latest_oscillate_value
-                    .load(std::sync::atomic::Ordering::Relaxed);
-
-                // Send to oscillate device
-                let oscillate_lock = manager_clone.oscillate_device.lock().await;
-                if let Some(device) = &*oscillate_lock {
-                    if let Err(e) = device
-                        .oscillate(&ScalarValueCommand::ScalarValue(
-                            oscillate_value.max(0.0).min(1.0),
-                        ))
-                        .await
-                    {
-                        eprintln!("Error sending oscillate command: {}", e);
-                    }
-                }
-
-                let vibrate_value = manager_clone
-                    .latest_vibrate_value
-                    .load(std::sync::atomic::Ordering::Relaxed);
-
-                // Send to vibrate device
-                let vibrate_lock = manager_clone.vibrate_device.lock().await;
-                if let Some(device) = &*vibrate_lock {
-                    if let Err(e) = device
-                        .vibrate(&ScalarValueCommand::ScalarValue(
-                            vibrate_value.max(0.0).min(1.0),
-                        ))
-                        .await
-                    {
-                        eprintln!("Error sending vibrate command: {}", e);
-                    }
-                }
+                tick.tick().await;
+                m.send_commands().await;
             }
         });
 
-        manager
+        mgr
+    }
+
+    async fn send_commands(&self) {
+        let osc_val = self.oscillate_intensity.load(std::sync::atomic::Ordering::Relaxed).clamp(0.0, 1.0);
+        let vib_val = self.vibrate_intensity.load(std::sync::atomic::Ordering::Relaxed).clamp(0.0, 1.0);
+
+        if let Some(dev) = &*self.oscillator.lock().await {
+            if let Err(e) = dev.oscillate(&ScalarValueCommand::ScalarValue(osc_val)).await {
+                eprintln!("Oscillate error: {e}");
+            }
+        }
+
+        if let Some(dev) = &*self.vibrator.lock().await {
+            if let Err(e) = dev.vibrate(&ScalarValueCommand::ScalarValue(vib_val)).await {
+                eprintln!("Vibrate error: {e}");
+            }
+        }
+    }
+
+    fn has_both_sync(osc: &Option<Arc<ButtplugClientDevice>>, vib: &Option<Arc<ButtplugClientDevice>>) -> bool {
+        osc.is_some() && vib.is_some()
     }
 }
 
-/// Initializes device connection and event loop
-///
-/// Establishes a Buttplug client, spawns tasks to maintain the WebSocket
-/// connection to the server, listens for device added/removed events, and
-/// periodically ensures scanning is active until required devices are found.
-///
-/// The function returns quickly after scheduling the background tasks; errors
-/// are only returned if there is a synchronous initialization problem creating
-/// the client (rare).
-pub async fn initialize_intiface() -> Result<(), ButtplugClientError> {
-    let client = Arc::new(ButtplugClient::new("Video player Client"));
-    let manager = DeviceManager::new(client.clone());
-    DEVICE_MANAGER.set(manager.clone()).ok();
+pub async fn initialize() -> Result<(), ButtplugClientError> {
+    let client = Arc::new(ButtplugClient::new("Video Player"));
+    let mgr = DeviceManager::new();
+    MANAGER.set(mgr.clone()).ok();
 
-    let client_for_connect = client.clone();
-    let url = "ws://127.0.0.1:12345/buttplug".to_string();
+    // Connect with retries
+    let c = client.clone();
     tokio::spawn(async move {
         loop {
-            let connector = new_json_ws_client_connector(&url);
-            match client_for_connect.connect(connector).await {
-                Ok(_) => {
-                    println!("Connected to Buttplug server at {}", url);
-                    break;
-                }
-                Err(err) => {
-                    println!(
-                        "Failed to connect to Buttplug server: {}. Retrying in 5s...",
-                        err
-                    );
-                    tokio::time::sleep(Duration::from_secs(5)).await;
+            let connector = new_json_ws_client_connector(SERVER_URL);
+            match c.connect(connector).await {
+                Ok(_) => { println!("Connected to Buttplug server"); break; }
+                Err(e) => {
+                    println!("Connection failed: {e}, retrying in {RECONNECT_DELAY_SECS}s...");
+                    tokio::time::sleep(Duration::from_secs(RECONNECT_DELAY_SECS)).await;
                 }
             }
         }
     });
 
-    let oscillate_ref = manager.oscillate_device.clone();
-    let vibrate_ref = manager.vibrate_device.clone();
-    let scanning_flag = manager.scanning.clone();
-
-    // clone client for each task
-    let client_for_events = client.clone();
-    let client_for_scan = client.clone();
-
-    let mut events = client_for_events.event_stream();
-
-    // Event loop
+    let m = mgr.clone();
+    let c = client.clone();
+    let mut events = client.event_stream();
     tokio::spawn(async move {
         while let Some(event) = events.next().await {
             match event {
-                ButtplugClientEvent::DeviceAdded(device) => {
-                    println!("Device '{}' connected", device.name());
+                ButtplugClientEvent::DeviceAdded(dev) => {
+                    println!("Device connected: {}", dev.name());
 
-                    if let Some(attrs) = device.message_attributes().scalar_cmd().as_ref() {
+                    if let Some(attrs) = dev.message_attributes().scalar_cmd() {
                         for attr in attrs {
                             match attr.actuator_type() {
                                 ActuatorType::Oscillate => {
-                                    println!("Device supports oscillate. Adding.");
-                                    let mut lock = oscillate_ref.lock().await;
-                                    *lock = Some(device.clone());
+                                    println!("  -> oscillate device");
+                                    *m.oscillator.lock().await = Some(dev.clone());
                                 }
                                 ActuatorType::Vibrate => {
-                                    println!("Device supports vibrate. Adding.");
-                                    let mut lock = vibrate_ref.lock().await;
-                                    *lock = Some(device.clone());
+                                    println!("  -> vibrate device");
+                                    *m.vibrator.lock().await = Some(dev.clone());
                                 }
                                 _ => {}
                             }
                         }
                     }
 
-                    // Stop scanning only if both devices are now connected
-                    let has_both = {
-                        let o = oscillate_ref.lock().await;
-                        let v = vibrate_ref.lock().await;
-                        o.is_some() && v.is_some()
-                    };
-
-                    if has_both {
-                        let mut scanning = scanning_flag.write().await;
-                        if *scanning {
-                            if let Err(e) = client_for_events.stop_scanning().await {
-                                eprintln!("Failed to stop scanning: {}", e);
-                            } else {
-                                println!("Stopped scanning: both devices connected.");
-                                *scanning = false;
-                            }
-                        }
+                    // Stop scanning if we have everything
+                    let both = DeviceManager::has_both_sync(
+                        &*m.oscillator.lock().await,
+                        &*m.vibrator.lock().await,
+                    );
+                    if both {
+                        let _ = c.stop_scanning().await;
+                        println!("Both devices found, scanning stopped.");
                     }
                 }
 
-                ButtplugClientEvent::DeviceRemoved(info) => {
-                    println!("Device '{}' removed", info.name());
+                ButtplugClientEvent::DeviceRemoved(dev) => {
+                    println!("Device removed: {}", dev.name());
+                    let name = dev.name().to_string();
 
-                    let mut lock = oscillate_ref.lock().await;
-                    if let Some(current) = &*lock {
-                        if current.name() == info.name() {
-                            *lock = None;
-                            println!("Removed oscillate device.");
-                        }
-                    }
+                    let mut osc = m.oscillator.lock().await;
+                    if osc.as_ref().is_some_and(|d| d.name() == &name) { *osc = None; }
 
-                    let mut lock = vibrate_ref.lock().await;
-                    if let Some(current) = &*lock {
-                        if current.name() == info.name() {
-                            *lock = None;
-                            println!("Removed vibrate device.");
-                        }
-                    }
-                }
-
-                ButtplugClientEvent::ScanningFinished => {
-                    println!("Device scanning finished.");
+                    let mut vib = m.vibrator.lock().await;
+                    if vib.as_ref().is_some_and(|d| d.name() == &name) { *vib = None; }
                 }
 
                 _ => {}
@@ -240,51 +152,35 @@ pub async fn initialize_intiface() -> Result<(), ButtplugClientError> {
         }
     });
 
-    // Periodic scanning loop
-    let oscillate_ref = manager.oscillate_device.clone();
-    let vibrate_ref = manager.vibrate_device.clone();
-    let scanning_flag = manager.scanning.clone();
-
+    // Periodic re-scan when devices are missing
+    let m = mgr.clone();
+    let c = client.clone();
     tokio::spawn(async move {
         loop {
-            let has_both = {
-                let o = oscillate_ref.lock().await;
-                let v = vibrate_ref.lock().await;
-                o.is_some() && v.is_some()
-            };
+            tokio::time::sleep(Duration::from_secs(SCAN_INTERVAL_SECS)).await;
 
-            if !has_both {
-                let mut scanning = scanning_flag.write().await;
-                if !*scanning {
-                    println!("One or both devices missing, starting scan...");
-                    if let Err(e) = client_for_scan.start_scanning().await {
-                        eprintln!("Error starting scan: {}", e);
-                    } else {
-                        *scanning = true;
-                        println!("Scan started.");
-                    }
-                }
+            let both = DeviceManager::has_both_sync(
+                &*m.oscillator.lock().await,
+                &*m.vibrator.lock().await,
+            );
+            if !both {
+                println!("Missing device(s), scanning...");
+                let _ = c.start_scanning().await;
             }
-
-            tokio::time::sleep(Duration::from_secs(5)).await;
         }
     });
 
     Ok(())
 }
 
-pub fn oscillate_sync(value: f64) {
-    if let Some(manager) = DEVICE_MANAGER.get() {
-        manager
-            .latest_oscillate_value
-            .store(value, std::sync::atomic::Ordering::Relaxed);
+pub fn set_oscillate(value: f64) {
+    if let Some(m) = MANAGER.get() {
+        m.oscillate_intensity.store(value, std::sync::atomic::Ordering::Relaxed);
     }
 }
 
-pub fn vibrate_sync(value: f64) {
-    if let Some(manager) = DEVICE_MANAGER.get() {
-        manager
-            .latest_vibrate_value
-            .store(value, std::sync::atomic::Ordering::Relaxed);
+pub fn set_vibrate(value: f64) {
+    if let Some(m) = MANAGER.get() {
+        m.vibrate_intensity.store(value, std::sync::atomic::Ordering::Relaxed);
     }
 }

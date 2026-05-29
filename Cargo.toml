@@ -1,24 +1,24 @@
 [package]
 name = "hismith-player-site"
-version = "0.1.0"
-edition = "2021"
+version = "0.1.1"
+edition = "2024"
 
 [dependencies]
 dotenv = "0.15"
-log = "0.4.*"
-env_logger = "0.11.*"
+log = "0.4"
+env_logger = "0.11"
 actix = "0.13"
 actix-cors = "0.7.1"
-actix-web = "4.13.*"
+actix-web = "4.13"
 actix-web-actors = "4.2"
-actix-files = "0.6.*"
-tokio = { version = "1.*", features = ["full"] }
-serde = { version = "1.*", features = ["derive"] }
-serde_json = "1.*"
-buttplug = { version = "9.*", default-features = false, features = ["tokio-runtime", "serialize-json", "client", "websockets"] }
-futures = "0.3.*"
-once_cell = "1.*"
-atomic_float = "1.*"
+actix-files = "0.6"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+buttplug = { version = "9", default-features = false, features = ["tokio-runtime", "serialize-json", "client", "websockets"] }
+futures = "0.3"
+once_cell = "1"
+atomic_float = "1"
 walkdir = "2"
 sha2 = "0.11"
 hex = "0.4"

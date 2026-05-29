@@ -7,205 +7,184 @@
 //! (.funscript_cache.json) beside the funscript base and maps relative file paths
 //! to computed entries (sha256, average/peak intensity, sample counts, timestamp).
 
+use crate::buttplug::funscript_utils::{
+    actions_to_intensity_curve, Action, FunscriptData,
+};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
-
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::fs;
 use walkdir::WalkDir;
 
-use crate::buttplug::funscript_utils::{
-    calculate_thrust_intensity_by_scaled_speed, Action, FunscriptData,
-};
-
-/// Cache entry containing precomputed statistics for one funscript file.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FunscriptCacheEntry {
-    /// SHA256 hash of the file contents used to detect changes.
     pub sha256: String,
-    /// Time-weighted average intensity (0..100) across the sample timeline.
     pub average_intensity: f64,
-    /// Maximum intensity observed in the generated intensity timeline.
     pub peak_intensity: f64,
-    /// Number of samples generated when computing intensity (sample_count).
     pub sample_count: usize,
-    /// Unix seconds timestamp when entry was last updated.
     pub last_updated: u64,
 }
 
 pub type FunscriptCache = HashMap<String, FunscriptCacheEntry>;
 
-fn now_unix_secs() -> u64 {
+fn unix_now_secs() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
-async fn load_cache_file(path: &Path) -> Result<FunscriptCache, String> {
+fn is_funscript_file(path: &Path) -> bool {
+    path.is_file()
+        && path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|s| s.eq_ignore_ascii_case("funscript"))
+            .unwrap_or(false)
+}
+
+fn cache_key(base: &Path, file: &Path) -> String {
+    file.strip_prefix(base)
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| file.to_string_lossy().to_string())
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    hex::encode(hasher.finalize())
+}
+
+fn intensity_stats(samples: &[Action]) -> (f64, f64) {
+    if samples.is_empty() {
+        return (0.0, 0.0);
+    }
+
+    let peak = samples.iter().map(|a| a.pos).fold(0.0, f64::max);
+
+    if samples.len() == 1 {
+        return (samples[0].pos, peak);
+    }
+
+    let mut weighted_sum = 0.0;
+    let mut total_dt = 0.0;
+
+    for pair in samples.windows(2) {
+        let dt = (pair[1].at as f64 - pair[0].at as f64).max(0.0);
+        if dt == 0.0 {
+            continue;
+        }
+        let avg_pos = (pair[0].pos + pair[1].pos) / 2.0;
+        weighted_sum += avg_pos * dt;
+        total_dt += dt;
+    }
+
+    if total_dt > 0.0 {
+        (weighted_sum / total_dt, peak)
+    } else {
+        let mean = samples.iter().map(|a| a.pos).sum::<f64>() / samples.len() as f64;
+        (mean, peak)
+    }
+}
+
+fn build_entry(content: &str, sha256: String) -> Result<FunscriptCacheEntry, String> {
+    let data: FunscriptData = serde_json::from_str(content)
+        .map_err(|e| format!("Failed to parse funscript json: {}", e))?;
+
+    if data.actions.len() < 2 {
+        return Ok(FunscriptCacheEntry {
+            sha256,
+            average_intensity: 0.0,
+            peak_intensity: 0.0,
+            sample_count: 0,
+            last_updated: unix_now_secs(),
+        });
+    }
+
+    let mut actions = data.actions.clone();
+    let intensity = actions_to_intensity_curve(&mut actions, 100, 500);
+    let (average_intensity, peak_intensity) = intensity_stats(&intensity);
+
+    Ok(FunscriptCacheEntry {
+        sha256,
+        average_intensity,
+        peak_intensity,
+        sample_count: intensity.len(),
+        last_updated: unix_now_secs(),
+    })
+}
+
+async fn read_cache(path: &Path) -> Result<FunscriptCache, String> {
     match fs::read_to_string(path).await {
-        Ok(s) => serde_json::from_str(&s).map_err(|e| format!("Failed parse cache json: {}", e)),
+        Ok(raw) => serde_json::from_str(&raw).map_err(|e| format!("Failed parse cache json: {}", e)),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(HashMap::new()),
         Err(e) => Err(format!("Failed read cache file {:?}: {}", path, e)),
     }
 }
 
-async fn save_cache_file(path: &Path, cache: &FunscriptCache) -> Result<(), String> {
+async fn write_cache(path: &Path, cache: &FunscriptCache) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         let _ = fs::create_dir_all(parent).await;
     }
-    let s = serde_json::to_string_pretty(cache).map_err(|e| format!("Ser failed: {}", e))?;
-    fs::write(path, s)
+
+    let json = serde_json::to_string_pretty(cache).map_err(|e| format!("Ser failed: {}", e))?;
+    fs::write(path, json)
         .await
         .map_err(|e| format!("Failed write cache {:?}: {}", path, e))
 }
 
-/// Compute time-weighted average and peak intensity from a sampled intensity timeline.
-///
-/// The average is computed by integrating the (linear) average value between
-/// successive samples weighted by the time delta between samples. If the timeline
-/// contains only one sample, that sample is returned as the average.
-fn compute_stats_from_intensity(intensity: &[Action]) -> (f64, f64) {
-    if intensity.is_empty() {
-        return (0.0, 0.0);
-    }
-    let peak = intensity.iter().map(|a| a.pos).fold(0.0, f64::max);
-
-    // time-weighted average between samples
-    if intensity.len() == 1 {
-        return (intensity[0].pos, peak);
-    }
-    let mut num = 0.0;
-    let mut den = 0.0;
-    for w in intensity.windows(2) {
-        let dt = (w[1].at as f64 - w[0].at as f64).max(0.0);
-        if dt <= 0.0 {
-            continue;
-        }
-        let avg_pos = (w[0].pos + w[1].pos) / 2.0;
-        num += avg_pos * dt;
-        den += dt;
-    }
-    if den > 0.0 {
-        (num / den, peak)
-    } else {
-        // fallback to simple mean
-        let mean = intensity.iter().map(|a| a.pos).sum::<f64>() / intensity.len() as f64;
-        (mean, peak)
-    }
-}
-
-/// Compute sha256 hex digest for a byte slice.
-fn sha256_of_bytes(b: &[u8]) -> String {
-    let mut h = Sha256::new();
-    h.update(b);
-    let res = h.finalize();
-    hex::encode(res)
-}
-
-/// Parse funscript JSON content, compute intensity timeline and stats, and produce a cache entry.
-///
-/// Returns an entry with zeroed stats for files that are valid but contain too few actions.
-fn compute_entry_from_content(content: &str) -> Result<FunscriptCacheEntry, String> {
-    let sha = sha256_of_bytes(content.as_bytes());
-    let fun: FunscriptData = serde_json::from_str(content)
-        .map_err(|e| format!("Failed to parse funscript json: {}", e))?;
-
-    if fun.actions.len() < 2 {
-        return Ok(FunscriptCacheEntry {
-            sha256: sha,
-            average_intensity: 0.0,
-            peak_intensity: 0.0,
-            sample_count: 0,
-            last_updated: now_unix_secs(),
-        });
-    }
-
-    let mut actions_vec: Vec<Action> = fun.actions.clone();
-    let intensity = calculate_thrust_intensity_by_scaled_speed(&mut actions_vec, 100, 500);
-    let sample_count = intensity.len();
-    let (avg, peak) = compute_stats_from_intensity(&intensity);
-
-    Ok(FunscriptCacheEntry {
-        sha256: sha,
-        average_intensity: avg,
-        peak_intensity: peak,
-        sample_count,
-        last_updated: now_unix_secs(),
-    })
-}
-
-/// Scan the funscript directory and update the cache file (creates/overwrites cache_path)
-///
-/// This function walks the funscript_base directory recursively, processes files with
-/// extension ".funscript", computes or reuses cached entries based on SHA256, and writes
-/// the resulting cache JSON to cache_path.
 pub async fn scan_and_update_cache(
     funscript_base: &Path,
     cache_path: &Path,
 ) -> Result<FunscriptCache, String> {
-    let mut cache = load_cache_file(cache_path).await.unwrap_or_default();
+    let mut cache = read_cache(cache_path).await.unwrap_or_default();
     let mut seen: HashSet<String> = HashSet::new();
 
-    for entry in WalkDir::new(funscript_base)
-        .into_iter()
-        .filter_map(Result::ok)
-    {
-        let p = entry.path();
-        if !p.is_file() {
+    for item in WalkDir::new(funscript_base).into_iter().filter_map(Result::ok) {
+        let path = item.path();
+        if !is_funscript_file(path) {
             continue;
         }
-        if p.extension()
-            .and_then(|e| e.to_str())
-            .map(|s| s.eq_ignore_ascii_case("funscript"))
-            .unwrap_or(false)
-        {
-            let rel = p
-                .strip_prefix(funscript_base)
-                .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_else(|_| p.to_string_lossy().to_string());
-            seen.insert(rel.clone());
 
-            match fs::read_to_string(p).await {
-                Ok(content) => {
-                    let sha = sha256_of_bytes(content.as_bytes());
-                    let needs = match cache.get(&rel) {
-                        Some(e) => e.sha256 != sha,
-                        None => true,
-                    };
-                    if needs {
-                        match compute_entry_from_content(&content) {
-                            Ok(entry) => {
-                                cache.insert(rel, entry);
-                            }
-                            Err(e) => log::error!("Failed compute stats for {:?}: {}", p, e),
-                        }
-                    }
-                }
-                Err(e) => log::error!("Failed read funscript {:?}: {}", p, e),
+        let key = cache_key(funscript_base, path);
+        seen.insert(key.clone());
+
+        let content = match fs::read_to_string(path).await {
+            Ok(s) => s,
+            Err(e) => {
+                log::error!("Failed read funscript {:?}: {}", path, e);
+                continue;
+            }
+        };
+
+        let sha = sha256_hex(content.as_bytes());
+        let unchanged = cache
+            .get(&key)
+            .map(|entry| entry.sha256 == sha)
+            .unwrap_or(false);
+
+        if unchanged {
+            continue;
+        }
+
+        match build_entry(&content, sha) {
+            Ok(entry) => {
+                cache.insert(key, entry);
+            }
+            Err(e) => {
+                cache.remove(&key);
+                log::error!("Failed compute stats for {:?}: {}", path, e);
             }
         }
     }
 
-    // remove stale entries
-    let stale: Vec<String> = cache
-        .keys()
-        .filter(|k| !seen.contains(*k))
-        .cloned()
-        .collect();
-    for k in stale {
-        cache.remove(&k);
-    }
-
-    save_cache_file(cache_path, &cache).await?;
+    cache.retain(|k, _| seen.contains(k));
+    write_cache(cache_path, &cache).await?;
     Ok(cache)
 }
 
-/// Public helper to get or build a cache for a given base directory.
-///
-/// The function writes/updates a ".funscript_cache.json" file inside the base path.
 pub async fn get_cache_for_base(funscript_base: &Path) -> Result<FunscriptCache, String> {
     let cache_path = funscript_base.join(".funscript_cache.json");
     scan_and_update_cache(funscript_base, &cache_path).await

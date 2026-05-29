@@ -9,99 +9,66 @@
 use serde::Serialize;
 use std::collections::HashMap;
 use std::{
-    fs,
+    fs, io,
     path::{Path, PathBuf},
 };
-use walkdir::WalkDir;
+use walkdir::{DirEntry, WalkDir};
 
-/// Represents a node in the file system tree structure
-///
-/// This structure is serialized to JSON and sent to the frontend where it's used
-/// to build the directory navigation interface.
 #[derive(Serialize)]
 pub struct FileNode {
-    /// Name of the file or directory
     pub name: String,
-    /// Relative path from the root directory
     pub path: String,
-    /// Whether this node represents a directory
     pub is_dir: bool,
-    /// Child nodes if this is a directory, None otherwise
     pub children: Option<Vec<FileNode>>,
 }
 
-/// Recursively builds a tree structure representing the directory hierarchy
-///
-/// # Arguments
-/// * `path` - The absolute path to scan
-/// * `relative_path` - The relative path from the root directory (used for URLs)
-///
-/// # Returns
-/// * `Ok(FileNode)` - Root node of the directory tree
-/// * `Err(std::io::Error)` - If directory reading fails
-///
-/// # Example
-/// ```
-/// use std::path::PathBuf;
-/// let path = PathBuf::from("/path/to/videos");
-/// let tree = build_directory_tree(&path, "")?;
-/// ```
-pub fn build_directory_tree(
-    path: &PathBuf,
-    relative_path: &str,
-) -> Result<FileNode, std::io::Error> {
-    // Vector to store child nodes
+fn is_funscripts_dir(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .map(|n| n.eq_ignore_ascii_case("funscripts"))
+        .unwrap_or(false)
+}
+
+fn join_relative_path(parent: &str, name: &str) -> String {
+    if parent.is_empty() {
+        name.to_string()
+    } else {
+        format!("{parent}/{name}")
+    }
+}
+
+pub fn build_directory_tree(path: &Path, relative_path: &str) -> io::Result<FileNode> {
     let mut children = Vec::new();
 
-    // Read directory entries
     for entry in fs::read_dir(path)? {
         let entry = entry?;
         let file_type = entry.file_type()?;
-        let file_name = entry.file_name();
-        let file_name_str = file_name.to_string_lossy().to_string();
+        let name = entry.file_name().to_string_lossy().to_string();
 
-        // Skip directory named "funscripts"
-        if file_type.is_dir() && file_name_str.eq_ignore_ascii_case("funscripts") {
+        if file_type.is_dir() && name.eq_ignore_ascii_case("funscripts") {
             continue;
         }
 
-        // Build relative path for URLs
-        let file_path = if relative_path.is_empty() {
-            file_name_str.clone()
-        } else {
-            format!("{}/{}", relative_path, file_name_str)
-        };
+        let child_relative_path = join_relative_path(relative_path, &name);
 
-        // Create node based on entry type
         let node = if file_type.is_dir() {
-            // Recursively scan subdirectories
-            build_directory_tree(&entry.path(), &file_path)?
+            build_directory_tree(&entry.path(), &child_relative_path)?
         } else if file_type.is_file() {
-            // Create leaf node for files
             FileNode {
-                name: file_name_str,
-                path: file_path,
+                name,
+                path: child_relative_path,
                 is_dir: false,
                 children: None,
             }
         } else {
-            // Skip other file types (symlinks, etc.)
             continue;
         };
 
         children.push(node);
     }
 
-    // Sort nodes: directories first, then alphabetically
-    children.sort_by(|a, b| {
-        match (a.is_dir, b.is_dir) {
-            (true, false) => std::cmp::Ordering::Less, // Directories before files
-            (false, true) => std::cmp::Ordering::Greater, // Files after directories
-            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()), // Alphabetical within each group
-        }
-    });
+    children.sort_by_cached_key(|n| (!n.is_dir, n.name.to_lowercase()));
 
-    // Create and return root node
     Ok(FileNode {
         name: path
             .file_name()
@@ -114,27 +81,38 @@ pub fn build_directory_tree(
     })
 }
 
-/// Return a map of relative video file paths to their sizes (in bytes).
-///
-/// Walks `base_path` recursively and includes regular files with common video
-/// extensions (mp4, mkv, webm, mov). The returned keys are PathBuf values
-/// relative to `base_path`.
-pub fn get_all_files_with_size(base_path: &Path) -> Result<HashMap<PathBuf, u64>, std::io::Error> {
+fn is_video_file(path: &Path) -> bool {
+    matches!(
+        path.extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_ascii_lowercase()),
+        Some(ext) if matches!(ext.as_str(), "mp4" | "mkv" | "webm" | "mov")
+    )
+}
+
+pub fn get_all_files_with_size(base_path: &Path) -> io::Result<HashMap<PathBuf, u64>> {
     let mut file_map = HashMap::new();
-    for entry in WalkDir::new(base_path).into_iter().filter_map(|e| e.ok()) {
+
+    let walker = WalkDir::new(base_path)
+        .into_iter()
+        .filter_entry(|e: &DirEntry| !is_funscripts_dir(e.path()));
+
+    for entry in walker {
+        let entry = entry.map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
         let path = entry.path();
-        if path.is_file() {
-            if let Ok(metadata) = fs::metadata(path) {
-                if let Ok(relative_path) = path.strip_prefix(base_path) {
-                    // We only care about video files, you can add more extensions if needed
-                    if let Some(ext) = relative_path.extension().and_then(|e| e.to_str()) {
-                        if matches!(ext.to_lowercase().as_str(), "mp4" | "mkv" | "webm" | "mov") {
-                            file_map.insert(relative_path.to_path_buf(), metadata.len());
-                        }
-                    }
-                }
-            }
+
+        if !entry.file_type().is_file() || !is_video_file(path) {
+            continue;
         }
+
+        let relative = match path.strip_prefix(base_path) {
+            Ok(p) => p.to_path_buf(),
+            Err(_) => continue,
+        };
+
+        let size = entry.metadata()?.len();
+        file_map.insert(relative, size);
     }
+
     Ok(file_map)
 }

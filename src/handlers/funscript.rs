@@ -18,240 +18,117 @@ use std::{
 };
 use tokio::fs;
 
-/// Response structure for funscript requests containing both original and
-/// generated intensity data
 #[derive(Serialize, Debug)]
 pub struct FunscriptResponse {
-    /// The original funscript data, if found
     pub original: Option<FunscriptData>,
-    /// Generated intensity data, if original was found and processing succeeded  
     pub intensity: Option<FunscriptData>,
 }
 
-/// Handles requests for funscript files and generates intensity data
-///
-/// This handler:
-/// 1. Loads the original funscript file for a video
-/// 2. Generates intensity data based on motion patterns
-/// 3. Returns both original and processed data as JSON
-///
-/// # Arguments
-/// * `path` - The path to the video file (funscript has same name, different extension)
-///
-/// # Returns
-/// * `HttpResponse` - JSON response containing original and intensity data
-/// * Returns 404 if funscript not found
-/// * Returns 500 for server configuration errors
 pub async fn handle_funscript(
     path: web::Path<String>,
     query: web::Query<HashMap<String, String>>,
 ) -> HttpResponse {
-    let requested_video_path = path.into_inner();
-    info!(
-        "Handling funscript request for video: {}",
-        &requested_video_path
-    );
+    let video_path = path.into_inner();
 
-    // Get base path from environment
-    let funscript_base_path = match env::var("FUNSCRIPT_SHARE_PATH") {
+    let base_path = match env::var("FUNSCRIPT_SHARE_PATH") {
         Ok(p) => p,
-        Err(e) => {
-            error!("FUNSCRIPT_SHARE_PATH environment variable not set: {}", e);
-            return HttpResponse::InternalServerError().json(FunscriptResponse {
-                original: None,
-                intensity: None,
-            });
+        Err(_) => {
+            error!("FUNSCRIPT_SHARE_PATH not set");
+            return HttpResponse::InternalServerError().finish();
         }
     };
 
-    // list of available variants
-    if query.get("list").is_some() {
-        let fun_path = PathBuf::from(&funscript_base_path).join(&requested_video_path);
-        let dir = fun_path.parent().unwrap_or(Path::new(&funscript_base_path));
-        let base_stem = fun_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-
-        let mut variants: Vec<String> = Vec::new();
-        if let Ok(entries) = stdfs::read_dir(dir) {
-            for entry in entries.filter_map(Result::ok) {
-                let path = entry.path();
-                if path.extension().and_then(|e| e.to_str()) == Some("funscript") {
-                    if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                        if stem == base_stem {
-                            variants.push("original".to_string());
-                        } else if stem.starts_with(&format!("{}.", base_stem)) {
-                            let var = &stem[base_stem.len() + 1..];
-                            variants.push(var.to_string());
-                        }
-                    }
-                }
-            }
-        }
-        variants.sort();
-        variants.dedup();
+    // List available variants for this video
+    if query.contains_key("list") {
+        let variants = list_variants(&base_path, &video_path);
         return HttpResponse::Ok().json(serde_json::json!({ "variants": variants }));
     }
 
-    let requested_variant = query
+    let variant = query
         .get("variant")
-        .cloned()
-        .unwrap_or_else(|| "original".to_string());
+        .map(|s| s.as_str())
+        .unwrap_or("original");
 
-    let funscript_filepath = match get_funscript_path_for_video(
-        &requested_video_path,
-        &funscript_base_path,
-        &requested_variant,
-    ) {
-        Ok(p) => p,
+    let funscript_path = build_funscript_path(&video_path, &base_path, variant);
+
+    let original = match read_funscript(&funscript_path).await {
+        Ok(data) => data,
         Err(e) => {
-            error!("Path determination error: {}", e);
-            return HttpResponse::BadRequest().json(FunscriptResponse {
+            info!("Funscript not found for {}: {}", video_path, e);
+            return HttpResponse::NotFound().json(FunscriptResponse {
                 original: None,
                 intensity: None,
             });
         }
     };
 
-    let filename_only = funscript_filepath
-        .file_name()
-        .map(|f| f.to_string_lossy().to_string())
-        .unwrap_or_else(|| requested_video_path.clone());
-
-    // Load and process funscript data
-    let original_result = read_and_deserialize_funscript(&funscript_filepath).await;
-    let mut intensity_error_message: Option<String> = None;
-
-    let intensity_result = match &original_result {
-        Ok(orig_data) => {
-            info!(
-                "Original loaded, generating intensity for: {}",
-                &filename_only
-            );
-            match generate_intensity_funscript(orig_data) {
-                Ok(generated_data) => {
-                    info!("Successfully generated intensity for: {}", &filename_only);
-                    Ok(generated_data)
-                }
-                Err(e) => {
-                    error!(
-                        "Failed to generate intensity for {}: {}",
-                        &filename_only,
-                        e.clone()
-                    );
-                    intensity_error_message = Some(e);
-                    Err("Intensity generation failed.".to_string())
-                }
-            }
-        }
+    let intensity = match generate_intensity(&original) {
+        Ok(data) => Some(data),
         Err(e) => {
-            let err_msg = format!("Original funscript failed to load: {}", e);
-            info!(
-                "Original script {} failed to load, cannot generate intensity: {}",
-                &filename_only, e
-            );
-            intensity_error_message = Some(err_msg.clone());
-            Err(err_msg)
+            warn!("Could not generate intensity for {}: {}", video_path, e);
+            None
         }
     };
 
-    // Prepare response
-    let response_payload = FunscriptResponse {
-        original: original_result.ok(),
-        intensity: intensity_result.ok(),
+    HttpResponse::Ok().json(FunscriptResponse {
+        original: Some(original),
+        intensity,
+    })
+}
+
+fn list_variants(base_path: &str, video_path: &str) -> Vec<String> {
+    let full_path = PathBuf::from(base_path).join(video_path);
+    let dir = full_path.parent().unwrap_or(Path::new(base_path));
+    let stem = full_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+
+    let mut variants: Vec<String> = Vec::new();
+    let Ok(entries) = stdfs::read_dir(dir) else {
+        return variants;
     };
 
-    let status_code = if response_payload.original.is_some() {
-        actix_web::http::StatusCode::OK
-    } else {
-        actix_web::http::StatusCode::NOT_FOUND
-    };
-
-    // Log response status
-    if status_code == actix_web::http::StatusCode::NOT_FOUND {
-        info!(
-            "Responding with 404 Not Found for: {}",
-            requested_video_path
-        );
-    } else {
-        info!("Responding with 200 OK for: {}", requested_video_path);
-        if response_payload.intensity.is_none() {
-            if let Some(e) = intensity_error_message {
-                warn!("Intensity data is missing for {}: {}", &filename_only, e);
-            }
+    for entry in entries.filter_map(Result::ok) {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("funscript") {
+            continue;
+        }
+        let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        if file_stem == stem {
+            variants.push("original".to_string());
+        } else if let Some(suffix) = file_stem.strip_prefix(&format!("{}.", stem)) {
+            variants.push(suffix.to_string());
         }
     }
 
-    HttpResponse::build(status_code)
-        .content_type("application/json")
-        .json(response_payload)
+    variants.sort();
+    variants.dedup();
+    variants
 }
 
-/// Constructs the path to a funscript file based on the video path
-///
-/// # Arguments
-/// * `requested_video_path` - Relative path to the video file
-/// * `funscript_base_path` - Base directory for fun files
-///
-/// # Returns
-/// * `Ok(PathBuf)` - Full path to the funscript file
-/// * `Err(String)` - Error message if path construction fails
-fn get_funscript_path_for_video(
-    requested_video_path: &str,
-    funscript_base_path: &str,
-    variant: &str,
-) -> Result<PathBuf, String> {
-    let fun_path = PathBuf::from(funscript_base_path).join(requested_video_path);
-    let ext = if variant.is_empty() || variant == "original" {
-        "funscript".to_string()
+fn build_funscript_path(video_path: &str, base_path: &str, variant: &str) -> PathBuf {
+    let full_path = PathBuf::from(base_path).join(video_path);
+    if variant.is_empty() || variant == "original" {
+        full_path.with_extension("funscript")
     } else {
-        format!("{}.funscript", variant)
-    };
-    let funscript_path = fun_path.with_extension(ext);
-    Ok(funscript_path)
+        full_path.with_extension(format!("{}.funscript", variant))
+    }
 }
 
-/// Reads and parses a funscript file from disk
-///
-/// # Arguments
-/// * `filepath` - Path to the funscript file
-///
-/// # Returns
-/// * `Ok(FunscriptData)` - Parsed funscript data
-/// * `Err(String)` - Error message if reading or parsing fails
-async fn read_and_deserialize_funscript(filepath: &Path) -> Result<FunscriptData, String> {
-    let content = fs::read_to_string(filepath)
+async fn read_funscript(path: &Path) -> Result<FunscriptData, String> {
+    let content = fs::read_to_string(path)
         .await
-        .map_err(|e| format!("Failed to read file {:?}: {}", filepath, e))?;
-
-    serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to deserialize file {:?}: {}", filepath, e))
+        .map_err(|e| format!("Read error {:?}: {}", path, e))?;
+    serde_json::from_str(&content).map_err(|e| format!("Parse error {:?}: {}", path, e))
 }
 
-/// Generates intensity data from original funscript actions
-///
-/// Processes the original motion data to calculate continuous intensity values
-/// that represent the speed and amplitude of movements.
-///
-/// # Arguments
-/// * `original_data` - The original funscript motion data
-///
-/// # Returns
-/// * `Ok(FunscriptData)` - Generated intensity data
-/// * `Err(String)` - Error message if generation fails
-fn generate_intensity_funscript(original_data: &FunscriptData) -> Result<FunscriptData, String> {
-    let mut actions_to_process = original_data.actions.clone();
-
-    if actions_to_process.len() < 2 {
-        return Err("Cannot generate intensity: requires at least 2 actions.".to_string());
+fn generate_intensity(original: &FunscriptData) -> Result<FunscriptData, String> {
+    let mut actions = original.actions.clone();
+    if actions.len() < 2 {
+        return Err("Need at least 2 actions".to_string());
     }
 
-    let sample_rate_ms = 50; // Sample every 50ms
-    let window_radius_ms = 500; // Look at ±500ms around each point
-
-    let intensity_actions = funscript_utils::actions_to_intensity_curve(
-        &mut actions_to_process,
-        sample_rate_ms,
-        window_radius_ms,
-    );
+    let intensity_actions = funscript_utils::actions_to_intensity_curve(&mut actions, 50, 500);
 
     Ok(FunscriptData {
         actions: intensity_actions,

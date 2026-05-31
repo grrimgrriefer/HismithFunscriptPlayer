@@ -1,4 +1,4 @@
-// src/handlers/funscript_cache.rs
+// src/funscript_cache.rs
 
 //! Funscript cache utilities
 //!

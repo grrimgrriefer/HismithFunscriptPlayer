@@ -10,245 +10,270 @@ import {
     getCurrentIntensityUnclamped
 } from './funscript_handler.js';
 
+const TIME_RANGE_MS = 1500; // visible range before/after current time
+const BEAT_CIRCLE_OFFSET_Y = 30;
+const HIT_MARGIN_PX = 5;
+const FLASH_DECAY = 0.05;
+const MAX_CANVAS_HEIGHT = 150;
+const CANVAS_HEIGHT_RATIO = 0.1;
+
+let flashIntensity = 0;
+
 export function createFunscriptDisplayBox() {
-    let funscriptBox = document.getElementById('funscript-box');
-    if (!funscriptBox) {
-        funscriptBox = document.createElement('div');
-        funscriptBox.id = 'funscript-box';
-        funscriptBox.style.position = 'absolute';
-        funscriptBox.style.bottom = '0';
-        funscriptBox.style.left = '0';
-        funscriptBox.style.padding = '0';
-        funscriptBox.style.width = '100%'; // Full width of the page
-        funscriptBox.style.backgroundColor = 'rgba(0, 0, 0, 0)';
-        funscriptBox.style.overflow = 'hidden';
-        funscriptBox.style.pointerEvents = 'none';
-        funscriptBox.style.justifyContent = 'center';
-        funscriptBox.style.display = 'flex';
+    let box = document.getElementById('funscript-box');
+    if (box) return;
 
-        // Create the canvas for rendering the curve and dots
-        const canvas = document.createElement('canvas');
-        canvas.id = 'funscript-canvas';
-        canvas.width = window.innerWidth / 2; // Match the full width of the page
-        canvas.height = Math.min(window.innerHeight * 0.1, 150); // 10% of screen height, max 150px
-        canvas.style.backgroundColor = 'rgba(0, 0, 0, 0)';
-        funscriptBox.appendChild(canvas);
+    box = document.createElement('div');
+    box.id = 'funscript-box';
+    Object.assign(box.style, {
+        position: 'absolute',
+        bottom: '0',
+        left: '0',
+        padding: '0',
+        width: '100%',
+        backgroundColor: 'rgba(0, 0, 0, 0)',
+        overflow: 'hidden',
+        pointerEvents: 'none',
+        justifyContent: 'center',
+        display: 'flex'
+    });
 
-        document.body.appendChild(funscriptBox);
+    const canvas = document.createElement('canvas');
+    canvas.id = 'funscript-canvas';
+    resizeCanvas(canvas);
+    box.appendChild(canvas);
+    document.body.appendChild(box);
 
-        // Update canvas size on window resize
-        window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth / 2;
-            canvas.height = Math.min(window.innerHeight * 0.1, 150); // Recalculate height
-        });
-    }
+    window.addEventListener('resize', () => resizeCanvas(canvas));
 }
 
-let flashIntensity = 0; // Global variable to track the flash intensity
+function resizeCanvas(canvas) {
+    canvas.width = window.innerWidth / 2;
+    canvas.height = Math.min(
+        window.innerHeight * CANVAS_HEIGHT_RATIO,
+        MAX_CANVAS_HEIGHT
+    );
+    canvas.style.backgroundColor = 'rgba(0, 0, 0, 0)';
+}
 
 export function updateFunscriptDisplayBox(currentTime) {
     const canvas = document.getElementById('funscript-canvas');
-    if (!canvas) return;
+    if (!canvas || !funscriptActions || !intensityActions) return;
 
-    const rawMaxIntensity = getCurrentVideoMaxIntensity();
-    const absoluteMax = getAbsoluteMaximum();
-    const absoluteMaximumInverseCalibrated =
-        getAbsoluteMaximumInverseCalibrated();
-    const currentIntensity = getCurrentIntensity(currentTime);
-    const currentIntensityUnclamped = getCurrentIntensityUnclamped(currentTime);
+    const rawMax = getCurrentVideoMaxIntensity();
+    const absMax = getAbsoluteMaximum();
+    const absMaxInvCal = getAbsoluteMaximumInverseCalibrated();
+    const intensity = getCurrentIntensity(currentTime);
+    const intensityUnclamped = getCurrentIntensityUnclamped(currentTime);
 
     const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const { width, height } = canvas;
+    ctx.clearRect(0, 0, width, height);
 
-    const blackBase = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    blackBase.addColorStop(0, 'rgba(0, 0, 0, 0.4)'); // Fully visible green at the top
-    blackBase.addColorStop(1, 'rgba(0, 0, 0, 0)'); // Fully transparent at the bottom
-    ctx.fillStyle = blackBase; // Use the gradient as the fill style
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const startTime = Math.max(0, currentTime - TIME_RANGE_MS);
+    const endTime = currentTime + TIME_RANGE_MS;
+    const scaleX = width / (2 * TIME_RANGE_MS);
+    const scaleY = height / rawMax;
+    const progressX = (currentTime - startTime) * scaleX;
 
-    const range = 1500; // 3 seconds before and after in milliseconds
-    const startTime = Math.max(0, currentTime - range);
-    const endTime = currentTime + range;
+    drawBackground(ctx, width, height);
+    drawIntensityCurve(
+        ctx,
+        startTime,
+        endTime,
+        scaleX,
+        scaleY,
+        width,
+        height,
+        absMaxInvCal,
+        intensity,
+        rawMax
+    );
+    const hit = drawBeatCircles(
+        ctx,
+        startTime,
+        endTime,
+        scaleX,
+        height,
+        progressX
+    );
+    drawProgressLine(ctx, progressX, height, hit);
+    drawClampLine(
+        ctx,
+        width,
+        height,
+        scaleY,
+        absMaxInvCal,
+        absMax,
+        rawMax,
+        intensityUnclamped
+    );
+    drawEdgeFadeMask(ctx, width, height);
+}
 
-    const scaleX = canvas.width / (2 * range); // Scale to fit 6 seconds (3 before + 3 after)
-    const scaleY = canvas.height / rawMaxIntensity;
+function drawBackground(ctx, width, height) {
+    const grad = ctx.createLinearGradient(0, 0, 0, height);
+    grad.addColorStop(0, 'rgba(0, 0, 0, 0.4)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, width, height);
+}
 
-    if (funscriptActions === undefined || intensityActions === undefined) {
-        return;
-    }
-
-    // Draw the intensity curve as a filled graph
+function drawIntensityCurve(
+    ctx,
+    startTime,
+    endTime,
+    scaleX,
+    scaleY,
+    width,
+    height,
+    absMaxInvCal,
+    intensity,
+    rawMax
+) {
     ctx.beginPath();
-    ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)'; // Semi-transparent green
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
 
-    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    let customGradientValue = 1 - currentIntensity / rawMaxIntensity;
-    if (isNaN(customGradientValue) || !isFinite(customGradientValue)) {
-        customGradientValue = 0;
-    }
+    // Dynamic gradient based on current intensity
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    let gradStop = 1 - intensity / rawMax;
+    if (!isFinite(gradStop)) gradStop = 0;
+    gradStop = Math.max(0, Math.min(0.95, gradStop));
+
+    gradient.addColorStop(gradStop, 'rgba(0, 255, 0, 0.25)');
     gradient.addColorStop(
-        Math.max(0, Math.min(0.95, customGradientValue)),
-        'rgba(0, 255, 0, 0.25)'
-    ); // Fully visible green at the top
-    gradient.addColorStop(
-        Math.max(0, Math.min(0.95, customGradientValue + 0.2)),
+        Math.min(0.95, gradStop + 0.2),
         'rgba(0, 255, 0, 0.12)'
-    ); // Fully transparent at the bottom
-    gradient.addColorStop(1, 'rgba(0, 255, 0, 0)'); // Fully transparent at the bottom
+    );
+    gradient.addColorStop(1, 'rgba(0, 255, 0, 0)');
+    ctx.fillStyle = gradient;
 
-    ctx.fillStyle = gradient; // Use the gradient as the fill style
-
+    let started = false;
     for (let i = 0; i < intensityActions.length - 1; i++) {
-        const current = intensityActions[i];
+        const cur = intensityActions[i];
         const next = intensityActions[i + 1];
+        if (cur.at < startTime || next.at > endTime) continue;
 
-        if (current.at >= startTime && next.at <= endTime) {
-            const currentX = (current.at - startTime) * scaleX;
-            const currentY =
-                canvas.height -
-                Math.min(current.pos, absoluteMaximumInverseCalibrated) *
-                    scaleY;
-            const nextX = (next.at - startTime) * scaleX;
-            const nextY =
-                canvas.height -
-                Math.min(next.pos, absoluteMaximumInverseCalibrated) * scaleY;
+        const curX = (cur.at - startTime) * scaleX;
+        const curY = height - Math.min(cur.pos, absMaxInvCal) * scaleY;
+        const nextX = (next.at - startTime) * scaleX;
+        const nextY = height - Math.min(next.pos, absMaxInvCal) * scaleY;
 
-            if (i === 0) ctx.moveTo(currentX, canvas.height); // Start from the bottom
-            ctx.lineTo(currentX, currentY);
-            ctx.lineTo(nextX, nextY);
+        if (!started) {
+            ctx.moveTo(curX, height);
+            started = true;
         }
+        ctx.lineTo(curX, curY);
+        ctx.lineTo(nextX, nextY);
     }
-    ctx.lineTo(canvas.width, canvas.height); // Close the graph at the bottom
-    ctx.lineTo(0, canvas.height);
+
+    ctx.lineTo(width, height);
+    ctx.lineTo(0, height);
     ctx.closePath();
     ctx.fill();
+
+    ctx.lineWidth = flashIntensity > 0 ? 2 + flashIntensity * 5 : 1;
+    if (flashIntensity > 0) flashIntensity -= FLASH_DECAY;
     ctx.stroke();
+}
 
-    // flashing width
-    if (flashIntensity > 0) {
-        ctx.lineWidth = 2 + flashIntensity * 5; // Line width surges smoothly
-        flashIntensity -= 0.05; // Gradually decrease the intensity
-    } else {
-        ctx.lineWidth = 1; // Default line width
-    }
-
-    // Draw and animate ellipses
+function drawBeatCircles(ctx, startTime, endTime, scaleX, height, progressX) {
     ctx.beginPath();
     ctx.fillStyle = 'rgba(0, 122, 0, 0.5)';
     ctx.strokeStyle = 'rgb(255, 255, 255)';
 
-    let hit = false; // Flag to detect if a circle hits the progress bar
+    let hit = false;
+    const circleSize = height * 0.08;
+    const circleY = height - BEAT_CIRCLE_OFFSET_Y;
 
-    for (let i = 0; i < funscriptActions.length; i++) {
-        const current = funscriptActions[i];
+    for (let i = 1; i < funscriptActions.length; i++) {
         const prev = funscriptActions[i - 1];
+        const cur = funscriptActions[i];
 
-        if (
-            current.pos === 100 &&
-            prev &&
-            prev.pos === 0 &&
-            current.at >= startTime &&
-            current.at <= currentTime + range
-        ) {
-            const currentX = (current.at - startTime) * scaleX;
-            const currentY = canvas.height - 30;
+        if (cur.pos !== 100 || prev.pos !== 0) continue;
+        if (cur.at < startTime || cur.at > endTime) continue;
 
-            if (currentX >= (currentTime - startTime) * scaleX) {
-                const size = canvas.height * 0.08;
-                ctx.moveTo(currentX + size, currentY);
-                ctx.ellipse(currentX, currentY, size, size, 0, 0, 360);
+        const x = (cur.at - startTime) * scaleX;
+        if (x < progressX) continue;
 
-                const progressX = (currentTime - startTime) * scaleX;
-                if (Math.abs(currentX - progressX) < 5) {
-                    // Allow a small margin of error
-                    hit = true; // Trigger the surge effect
-                }
-            }
-        }
+        ctx.moveTo(x + circleSize, circleY);
+        ctx.ellipse(x, circleY, circleSize, circleSize, 0, 0, Math.PI * 2);
+
+        if (Math.abs(x - progressX) < HIT_MARGIN_PX) hit = true;
     }
+
     ctx.fill();
     ctx.stroke();
+    return hit;
+}
 
-    // Draw a progress line
-    const progressX = (currentTime - startTime) * scaleX;
+function drawProgressLine(ctx, progressX, height, hit) {
+    if (hit) flashIntensity = 1;
 
-    if (hit) {
-        flashIntensity = 1; // Start the surge effect
-    }
     if (flashIntensity > 0) {
-        ctx.strokeStyle = `rgba(255, 255, 0, ${flashIntensity})`; // Yellow with fading intensity
-        flashIntensity -= 0.05; // Gradually decrease the intensity
+        ctx.strokeStyle = `rgba(255, 255, 0, ${flashIntensity})`;
+        flashIntensity -= FLASH_DECAY;
     } else {
-        ctx.strokeStyle = 'red'; // Default red color
+        ctx.strokeStyle = 'red';
     }
 
     ctx.beginPath();
     ctx.moveTo(progressX, 0);
-    ctx.lineTo(progressX, canvas.height);
+    ctx.lineTo(progressX, height);
     ctx.stroke();
+}
 
+function drawClampLine(
+    ctx,
+    width,
+    height,
+    scaleY,
+    absMaxInvCal,
+    absMax,
+    rawMax,
+    intensityUnclamped
+) {
+    const clampY = height - absMaxInvCal * scaleY;
+
+    // Label
     ctx.fillStyle = 'white';
+    let label = `Max: ${rawMax.toFixed(2)}`;
+    if (rawMax > absMax) label += ` (Clamped: ${absMax.toFixed(2)})`;
 
-    let displayText = `Max: ${rawMaxIntensity.toFixed(2)}`;
-    if (rawMaxIntensity > absoluteMax) {
-        displayText += ` (Clamped: ${absoluteMax.toFixed(2)})`;
-    }
-
-    const fontSize = Math.min(16, canvas.height * 0.1);
+    const fontSize = Math.min(16, height * 0.1);
     ctx.font = `${fontSize}px Arial`;
     ctx.textAlign = 'center';
-    ctx.fillText(
-        displayText,
-        canvas.width / 2,
-        canvas.height + fontSize / 4 - absoluteMaximumInverseCalibrated * scaleY
-    );
+    ctx.fillText(label, width / 2, clampY + fontSize / 4);
 
-    // Calculate text dimensions
-    const textMetrics = ctx.measureText(displayText);
-    const textWidth = textMetrics.width;
+    const textWidth = ctx.measureText(label).width;
+    const gapLeft = (width - textWidth - 10) / 2;
+    const gapRight = (width + textWidth + 10) / 2;
 
+    // Clamp line (red if exceeding, white otherwise)
     ctx.beginPath();
-    if (currentIntensityUnclamped > absoluteMax) {
+    if (intensityUnclamped > absMax) {
         ctx.strokeStyle = 'rgb(255, 0, 0)';
         ctx.lineWidth = 8;
     } else {
         ctx.strokeStyle = 'rgb(255, 255, 255)';
         ctx.lineWidth = 2;
     }
-    ctx.moveTo(0, canvas.height - absoluteMaximumInverseCalibrated * scaleY);
-    ctx.lineTo(
-        (canvas.width - textWidth - 10) / 2,
-        canvas.height - absoluteMaximumInverseCalibrated * scaleY
-    );
-    ctx.moveTo(
-        (canvas.width + textWidth + 10) / 2,
-        canvas.height - absoluteMaximumInverseCalibrated * scaleY
-    );
-    ctx.lineTo(
-        canvas.width,
-        canvas.height - absoluteMaximumInverseCalibrated * scaleY
-    );
+    ctx.moveTo(0, clampY);
+    ctx.lineTo(gapLeft, clampY);
+    ctx.moveTo(gapRight, clampY);
+    ctx.lineTo(width, clampY);
     ctx.stroke();
+}
 
-    // Create a gradient mask
-    const mask = ctx.createLinearGradient(0, 0, canvas.width, 0);
-    const center = 0.5; // Center of the canvas (50%)
+function drawEdgeFadeMask(ctx, width, height) {
+    const mask = ctx.createLinearGradient(0, 0, width, 0);
+    mask.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    mask.addColorStop(0.5, 'rgba(0, 0, 0, 1)');
+    mask.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
-    // Define mask stops
-    mask.addColorStop(0, 'rgba(0, 0, 0, 0)'); // Fully transparent at the left edge
-    mask.addColorStop(center, 'rgba(0, 0, 0, 1)'); // Fully opaque in the center
-    mask.addColorStop(1, 'rgba(0, 0, 0, 0)'); // Fully transparent at the right edge
-
-    // Save the current canvas state
     ctx.save();
-
-    // Set the global composite operation to 'destination-in' to apply the mask
     ctx.globalCompositeOperation = 'destination-in';
-
-    // Fill the canvas with the mask mask
     ctx.fillStyle = mask;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Restore the canvas state
+    ctx.fillRect(0, 0, width, height);
     ctx.restore();
 }

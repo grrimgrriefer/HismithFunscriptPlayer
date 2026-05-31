@@ -1,5 +1,12 @@
 // static/editor.js
 
+// ── Constants ──────────────────────────────────────────────────────────
+
+const VIEW_WINDOW_MS = 10000;
+const CLICK_RADIUS_MS = 100;
+
+// ── DOM Elements ───────────────────────────────────────────────────────
+
 const video = document.getElementById('editor-video');
 const canvas = document.getElementById('editor-canvas');
 const ctx = canvas.getContext('2d');
@@ -11,8 +18,7 @@ const counter = document.getElementById('action-counter');
 const variantInput = document.getElementById('variant-input');
 const variantList = document.getElementById('variant-list');
 
-const VIEW_WINDOW_MS = 10000;
-const CLICK_RADIUS_MS = 100;
+// ── State ──────────────────────────────────────────────────────────────
 
 const state = {
     base: [],
@@ -28,24 +34,7 @@ const state = {
     dragOffsetMs: 0
 };
 
-const q = (id) => document.getElementById(id);
-
-async function init() {
-    const params = new URLSearchParams(window.location.search);
-    state.videoPath = params.get('video');
-    if (!state.videoPath) {
-        document.body.innerHTML = '<h1>Error: No video specified.</h1>';
-        return;
-    }
-    const qvariant = params.get('variant');
-    if (qvariant && variantInput) variantInput.value = qvariant;
-
-    video.src = `/site/video/${state.videoPath}`;
-    await loadFunscript();
-    bind();
-    resizeCanvas();
-    draw();
-}
+// ── Utilities ──────────────────────────────────────────────────────────
 
 const isEditingVariant = () =>
     state.currentVariant &&
@@ -53,13 +42,15 @@ const isEditingVariant = () =>
     state.currentVariant !== 'original';
 
 const getEditingArray = () => (isEditingVariant() ? state.variant : state.base);
+
 const setEditingArray = (arr) => {
     if (isEditingVariant()) state.variant = arr;
     else state.base = arr;
 };
+
 const dedupeAndSort = (arr) => Array.from(new Set(arr)).sort((a, b) => a - b);
 
-const fetchJson = async (url) => {
+async function fetchJson(url) {
     try {
         const resp = await fetch(url);
         if (!resp.ok) return undefined;
@@ -68,45 +59,79 @@ const fetchJson = async (url) => {
         console.error(e);
         return undefined;
     }
-};
+}
 
 function extractActionsFromResponse(data, variantName) {
     if (!data) return [];
-    if (
-        variantName &&
-        data[variantName] &&
-        Array.isArray(data[variantName].actions)
-    )
+    if (variantName && data[variantName]?.actions)
         return data[variantName].actions;
-    if (data.original && Array.isArray(data.original.actions))
-        return data.original.actions;
+    if (data.original?.actions) return data.original.actions;
     if (Array.isArray(data.actions)) return data.actions;
     return [];
 }
 
+function getViewStartMs() {
+    return Math.max(0, video.currentTime * 1000 - VIEW_WINDOW_MS / 2);
+}
+
+function msToPx(ms) {
+    return ((ms - getViewStartMs()) / VIEW_WINDOW_MS) * canvas.width;
+}
+
+function pxToMs(px) {
+    return Math.round((px / canvas.width) * VIEW_WINDOW_MS + getViewStartMs());
+}
+
+// ── Funscript Generation ───────────────────────────────────────────────
+
+function generateFunscriptActions(timestamps) {
+    if (!timestamps || timestamps.length === 0) return [{ at: 0, pos: 0 }];
+
+    const sorted = [...timestamps].sort((a, b) => a - b);
+    const actions = [];
+    let last = 0;
+
+    for (const t of sorted) {
+        const down = Math.round((last + t) / 2);
+        if (actions.length > 0 || down > 0) actions.push({ at: down, pos: 0 });
+        actions.push({ at: t, pos: 100 });
+        last = t;
+    }
+
+    actions.push({ at: last + 500, pos: 0 });
+    if (actions[0]?.at > 0) actions.unshift({ at: 0, pos: 0 });
+
+    // Dedupe by timestamp
+    const seen = new Map();
+    for (const a of actions) seen.set(a.at, a);
+    return Array.from(seen.values()).sort((a, b) => a.at - b.at);
+}
+
+// ── Data Loading ───────────────────────────────────────────────────────
+
 async function loadFunscript() {
-    state.currentVariant = variantInput ? variantInput.value.trim() : '';
+    state.currentVariant = variantInput?.value.trim() ?? '';
     const baseUrl = `/site/funscripts/${state.videoPath.replace(/\.[^/.]+$/, '.funscript')}`;
 
-    // variant list
-    const listData = await fetchJson(baseUrl + '?list=1');
-    if (listData && Array.isArray(listData.variants) && variantList) {
+    // Variant list
+    const listData = await fetchJson(`${baseUrl}?list=1`);
+    if (listData?.variants && variantList) {
         variantList.innerHTML = '';
-        listData.variants.forEach((v) => {
+        for (const v of listData.variants) {
             const opt = document.createElement('option');
             opt.value = v;
             variantList.appendChild(opt);
-        });
+        }
     }
 
-    // base
+    // Base actions
     const baseData = await fetchJson(baseUrl);
     state.base = (extractActionsFromResponse(baseData, 'original') || [])
         .filter((a) => a.pos === 100)
         .map((a) => a.at)
         .sort((a, b) => a - b);
 
-    // variant (if any)
+    // Variant actions
     state.variant = [];
     if (isEditingVariant()) {
         const vdata = await fetchJson(
@@ -125,102 +150,16 @@ async function loadFunscript() {
     draw();
 }
 
-function bind() {
-    tapBtn.addEventListener('click', handleTap);
-    undoBtn.addEventListener('click', handleUndo);
-    deleteBtn.addEventListener('click', handleDeleteSelected);
-    saveBtn.addEventListener('click', handleSave);
-
-    document.addEventListener('keydown', (e) => {
-        const t = e.target;
-        const tag = t && t.tagName ? t.tagName.toUpperCase() : '';
-        const isText =
-            tag === 'INPUT' || tag === 'TEXTAREA' || (t && t.isContentEditable);
-        if (e.code === 'Space' && !isText) {
-            e.preventDefault();
-            handleTap();
-        }
-        if ((e.code === 'Delete' || e.code === 'Backspace') && !isText) {
-            e.preventDefault();
-            handleDeleteSelected();
-        }
-    });
-
-    video.addEventListener('play', startRaf);
-    video.addEventListener('pause', stopRaf);
-    video.addEventListener('seeked', draw);
-    window.addEventListener('resize', resizeCanvas);
-
-    if (variantInput) {
-        variantInput.addEventListener('change', loadFunscript);
-        variantInput.addEventListener('keyup', (e) => {
-            if (e.key === 'Enter') loadFunscript();
-        });
-    }
-
-    setupCanvasEvents();
-}
+// ── UI Updates ─────────────────────────────────────────────────────────
 
 function updateCounter() {
     const editing = getEditingArray();
-    if (isEditingVariant()) {
-        counter.textContent = `Taps: ${editing.length} (variant: ${state.currentVariant}) — Original: ${state.base.length}`;
-    } else {
-        counter.textContent = `Taps: ${editing.length}`;
-    }
+    counter.textContent = isEditingVariant()
+        ? `Taps: ${editing.length} (variant: ${state.currentVariant}) — Original: ${state.base.length}`
+        : `Taps: ${editing.length}`;
 }
 
-function generateFunscriptActionsFromTimestamps(timestamps) {
-    if (!timestamps || timestamps.length === 0) return [{ at: 0, pos: 0 }];
-    const sorted = [...timestamps].sort((a, b) => a - b);
-    const actions = [];
-    let last = 0;
-    for (const t of sorted) {
-        const down = Math.round((last + t) / 2);
-        if (actions.length > 0 || down > 0) actions.push({ at: down, pos: 0 });
-        actions.push({ at: t, pos: 100 });
-        last = t;
-    }
-    actions.push({ at: last + 500, pos: 0 });
-    if (actions.length > 0 && actions[0].at > 0)
-        actions.unshift({ at: 0, pos: 0 });
-    const seen = new Map();
-    for (const a of actions) seen.set(a.at, a);
-    return Array.from(seen.values()).sort((a, b) => a.at - b.at);
-}
-
-async function handleSave() {
-    const editing = getEditingArray();
-    const actions = generateFunscriptActionsFromTimestamps(editing);
-    if (actions.length < 2) {
-        alert('Not enough actions to create a funscript.');
-        return;
-    }
-
-    saveBtn.disabled = true;
-    saveBtn.textContent = 'Saving...';
-    try {
-        const variantVal = variantInput ? variantInput.value.trim() : '';
-        const res = await fetch('/api/funscripts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                video_path: state.videoPath,
-                actions,
-                variant: variantVal || null
-            })
-        });
-        if (!res.ok) throw new Error(`Failed to save: ${await res.text()}`);
-        alert('Funscript saved successfully!');
-        window.location.reload();
-    } catch (err) {
-        console.error(err);
-        alert(err.message);
-    } finally {
-        saveBtn.disabled = false;
-        saveBtn.textContent = 'Save Funscript';
-    }
-}
+// ── Actions ────────────────────────────────────────────────────────────
 
 function handleTap() {
     const now = Math.round(video.currentTime * 1000);
@@ -251,41 +190,66 @@ function handleDeleteSelected() {
     draw();
 }
 
-// Drawing helpers
-function getViewStartMs() {
-    return Math.max(0, video.currentTime * 1000 - VIEW_WINDOW_MS / 2);
+async function handleSave() {
+    const actions = generateFunscriptActions(getEditingArray());
+    if (actions.length < 2) {
+        alert('Not enough actions to create a funscript.');
+        return;
+    }
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+
+    try {
+        const variantVal = variantInput?.value.trim() ?? '';
+        const res = await fetch('/api/funscripts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                video_path: state.videoPath,
+                actions,
+                variant: variantVal || null
+            })
+        });
+        if (!res.ok) throw new Error(`Failed to save: ${await res.text()}`);
+        alert('Funscript saved successfully!');
+        window.location.reload();
+    } catch (err) {
+        console.error(err);
+        alert(err.message);
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Funscript';
+    }
 }
-function msToPx(ms) {
-    const start = getViewStartMs();
-    return ((ms - start) / VIEW_WINDOW_MS) * canvas.width;
-}
-function pxToMs(px) {
-    const start = getViewStartMs();
-    return Math.round((px / canvas.width) * VIEW_WINDOW_MS + start);
-}
+
+// ── Drawing ────────────────────────────────────────────────────────────
 
 function drawWave(actions, color = '#4CAF50') {
     if (!actions || actions.length === 0) return;
+
     ctx.beginPath();
     ctx.strokeStyle = color;
     ctx.lineWidth = 1;
-    actions.forEach((a, i) => {
-        const x = msToPx(a.at);
+
+    for (let i = 0; i < actions.length; i++) {
+        const x = msToPx(actions[i].at);
         const y =
             canvas.height -
-            (a.pos / 100) * (canvas.height * 0.8) -
+            (actions[i].pos / 100) * (canvas.height * 0.8) -
             canvas.height * 0.1;
         i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-    });
+    }
+
     ctx.stroke();
 }
 
 function drawTaps(list, interactive) {
+    const y = canvas.height * 0.1;
+
     for (const at of list) {
-        const x = msToPx(at);
-        const y = canvas.height * 0.1;
         ctx.beginPath();
-        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.arc(msToPx(at), y, 5, 0, Math.PI * 2);
         ctx.fillStyle = state.selected.has(at)
             ? 'yellow'
             : interactive
@@ -299,9 +263,8 @@ function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const currentTimeMs = video.currentTime * 1000;
 
-    const baseActions = generateFunscriptActionsFromTimestamps(state.base);
-    const editingActions =
-        generateFunscriptActionsFromTimestamps(getEditingArray());
+    const baseActions = generateFunscriptActions(state.base);
+    const editingActions = generateFunscriptActions(getEditingArray());
 
     if (isEditingVariant() && baseActions.length > 0)
         drawWave(baseActions, '#777');
@@ -314,7 +277,7 @@ function draw() {
         drawTaps(state.base, true);
     }
 
-    // playhead
+    // Playhead
     const playX = msToPx(currentTimeMs);
     ctx.beginPath();
     ctx.moveTo(playX, 0);
@@ -322,7 +285,7 @@ function draw() {
     ctx.strokeStyle = 'red';
     ctx.stroke();
 
-    // selection box
+    // Selection box
     if (state.selecting) {
         const rx = Math.min(state.selectionStartX, state.selectionEndX);
         const rw = Math.abs(state.selectionStartX - state.selectionEndX);
@@ -331,7 +294,8 @@ function draw() {
     }
 }
 
-// RAF
+// ── Animation Frame ────────────────────────────────────────────────────
+
 function startRaf() {
     if (state.raf) cancelAnimationFrame(state.raf);
     const loop = () => {
@@ -340,23 +304,26 @@ function startRaf() {
     };
     state.raf = requestAnimationFrame(loop);
 }
+
 function stopRaf() {
     if (state.raf) cancelAnimationFrame(state.raf);
     state.raf = null;
 }
 
-// Canvas interactions
-function setupCanvasEvents() {
-    const findPointAt = (px) => {
-        const clickMs = pxToMs(px);
-        const items = getEditingArray();
-        for (const t of items)
-            if (Math.abs(t - clickMs) < CLICK_RADIUS_MS) return t;
-        return null;
-    };
+// ── Canvas Interaction ─────────────────────────────────────────────────
 
+function findPointAt(px) {
+    const clickMs = pxToMs(px);
+    for (const t of getEditingArray()) {
+        if (Math.abs(t - clickMs) < CLICK_RADIUS_MS) return t;
+    }
+    return null;
+}
+
+function setupCanvasEvents() {
     canvas.addEventListener('mousedown', (e) => {
         const hit = findPointAt(e.offsetX);
+
         if (hit !== null) {
             state.dragging = true;
             state.dragOffsetMs = pxToMs(e.offsetX) - hit;
@@ -370,14 +337,15 @@ function setupCanvasEvents() {
             state.selectionStartX = e.offsetX;
             state.selectionEndX = e.offsetX;
         }
+
         draw();
     });
 
     canvas.addEventListener('mousemove', (e) => {
         if (state.dragging) {
-            const currentMs = pxToMs(e.offsetX);
-            const newTapTime = currentMs - state.dragOffsetMs;
+            const newTapTime = pxToMs(e.offsetX) - state.dragOffsetMs;
             const selectedArray = Array.from(state.selected);
+
             if (selectedArray.length > 0) {
                 const first = Math.min(...selectedArray);
                 const delta = newTapTime - first;
@@ -395,6 +363,7 @@ function setupCanvasEvents() {
         } else if (state.selecting) {
             state.selectionEndX = e.offsetX;
         }
+
         draw();
     });
 
@@ -406,20 +375,83 @@ function setupCanvasEvents() {
             const endMs = pxToMs(
                 Math.max(state.selectionStartX, state.selectionEndX)
             );
-            const editing = getEditingArray();
-            editing.forEach((t) => {
+
+            for (const t of getEditingArray()) {
                 if (t >= startMs && t <= endMs) state.selected.add(t);
-            });
+            }
         }
+
         state.dragging = false;
         state.selecting = false;
         draw();
     });
 }
 
+// ── Event Binding ──────────────────────────────────────────────────────
+
 function resizeCanvas() {
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
+    draw();
+}
+
+function isTextInput(target) {
+    const tag = target?.tagName?.toUpperCase() ?? '';
+    return tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable;
+}
+
+function bind() {
+    tapBtn.addEventListener('click', handleTap);
+    undoBtn.addEventListener('click', handleUndo);
+    deleteBtn.addEventListener('click', handleDeleteSelected);
+    saveBtn.addEventListener('click', handleSave);
+
+    document.addEventListener('keydown', (e) => {
+        if (isTextInput(e.target)) return;
+
+        if (e.code === 'Space') {
+            e.preventDefault();
+            handleTap();
+        } else if (e.code === 'Delete' || e.code === 'Backspace') {
+            e.preventDefault();
+            handleDeleteSelected();
+        }
+    });
+
+    video.addEventListener('play', startRaf);
+    video.addEventListener('pause', stopRaf);
+    video.addEventListener('seeked', draw);
+    window.addEventListener('resize', resizeCanvas);
+
+    if (variantInput) {
+        variantInput.addEventListener('change', loadFunscript);
+        variantInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') loadFunscript();
+        });
+    }
+
+    setupCanvasEvents();
+}
+
+// ── Init ───────────────────────────────────────────────────────────────
+
+async function init() {
+    const params = new URLSearchParams(window.location.search);
+    state.videoPath = params.get('video');
+
+    if (!state.videoPath) {
+        document.body.innerHTML = '<h1>Error: No video specified.</h1>';
+        return;
+    }
+
+    if (params.get('variant') && variantInput) {
+        variantInput.value = params.get('variant');
+    }
+
+    video.src = `/site/video/${state.videoPath}`;
+    await loadFunscript();
+    bind();
+    resizeCanvas();
     draw();
 }
 

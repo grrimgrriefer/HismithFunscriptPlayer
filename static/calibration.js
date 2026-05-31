@@ -2,419 +2,497 @@
 
 import { initWebSocket, sendDeviceCommand } from './socket.js';
 
+// ── Constants ──────────────────────────────────────────────────────────
 const PRESETS = [10, 20, 30, 40, 50];
-const multipliers = {};
-multipliers[PRESETS[0]] = 1.0;
+const FLASH_DURATION_MS = 220;
+const RAMP_MS = 700;
+const SEND_INTERVAL_MS = 100;
+const KEEPALIVE_MS = 1500;
+const MULTIPLIER_MIN = 0.5;
+const MULTIPLIER_MAX = 3.0;
+const FALLBACK_BPM_SCALE = 60.0 / 25.0; // intensity-to-BPM when no mapping
 
-let selectedPreset = null;
-let running = false;
-let sendInterval = null;
-let spinnerAnimId = null;
-let spinnerAngle = 0;
-let lastTs = null;
+// ── State ──────────────────────────────────────────────────────────────
+const multipliers = { [PRESETS[0]]: 1.0 };
 
-let lastSentIntensity = null;
-let lastSendTime = 0;
-
-const elements = {
-    presetsContainer: null,
-    spinner: null,
-    spinnerRotor: null,
-    multiplierValue: null,
-    startBtn: null,
-    stopBtn: null,
-    multDecLarge: null,
-    multDecSmall: null,
-    multIncSmall: null,
-    multIncLarge: null,
-    multiplierInput: null,
+const state = {
     selectedPreset: null,
-    targetSpin: null,
-    sentIntensity: null,
-    mappingList: null,
-    profileSelect: null,
-    profileName: null,
-    resetBtn: null
+    running: false,
+    sendInterval: null,
+    spinnerAnimId: null,
+    spinnerAngle: 0,
+    spinnerAccum: 0,
+    lastTs: null,
+    lastSpinCount: 0,
+    lastSentIntensity: null,
+    lastSendTime: 0,
+    bpmIntensityMapping: [],
+    audioCtx: null
 };
 
-let bpmIntensityMapping = [];
+const ramp = {
+    active: false,
+    startIntensity: 0,
+    targetIntensity: 0,
+    startTime: 0,
+    spinnerStartBpm: 0,
+    spinnerTargetBpm: 0,
+    spinnerCurrentBpm: 0
+};
 
-let audioCtx = null;
-let spinnerAccum = 0;
-let lastSpinCount = 0;
-const FLASH_DURATION_MS = 220;
+const els = {};
 
-let ramping = false;
-let rampStartIntensity = 0; // normalized [0..1]
-let rampTargetIntensity = 0;
-let rampStartTime = 0;
-const RAMP_MS = 700; // ramp duration (ms)
+// ── Utilities ──────────────────────────────────────────────────────────
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const round2 = (v) => Math.round(v * 100) / 100;
+const smoothstep = (t) => t * t * (3 - 2 * t);
+const getMultiplier = (preset) => multipliers[preset] ?? 1.0;
 
-let spinnerStartBpm = 0;
-let spinnerTargetBpm = 0;
-let spinnerCurrentBpm = 0;
+function intensityToNormalized(preset, multiplier) {
+    return Math.min(1.0, (preset / 100.0) * multiplier);
+}
+
+// ── DOM Initialization ─────────────────────────────────────────────────
+const ELEMENT_IDS = {
+    presetsContainer: 'preset-buttons',
+    spinner: 'calibration-spinner',
+    spinnerRotor: 'calibration-rotor',
+    multiplierValue: 'multiplier-value',
+    startBtn: 'start-button',
+    stopBtn: 'stop-button',
+    multDecLarge: 'mult-dec-large',
+    multDecSmall: 'mult-dec-small',
+    multIncSmall: 'mult-inc-small',
+    multIncLarge: 'mult-inc-large',
+    multiplierInput: 'multiplier-input',
+    selectedPreset: 'selected-preset',
+    targetSpin: 'target-spin',
+    sentIntensity: 'sent-intensity',
+    mappingList: 'mapping-list',
+    profileSelect: 'profile-select',
+    profileName: 'profile-name',
+    resetBtn: 'reset-button'
+};
 
 function initElements() {
-    elements.presetsContainer = document.getElementById('preset-buttons');
-    elements.spinner = document.getElementById('calibration-spinner');
-    elements.spinnerRotor = document.getElementById('calibration-rotor');
-    elements.multiplierValue = document.getElementById('multiplier-value');
-    elements.startBtn = document.getElementById('start-button');
-    elements.stopBtn = document.getElementById('stop-button');
-    elements.multDecLarge = document.getElementById('mult-dec-large');
-    elements.multDecSmall = document.getElementById('mult-dec-small');
-    elements.multIncSmall = document.getElementById('mult-inc-small');
-    elements.multIncLarge = document.getElementById('mult-inc-large');
-    elements.multiplierInput = document.getElementById('multiplier-input');
-    elements.selectedPreset = document.getElementById('selected-preset');
-    elements.targetSpin = document.getElementById('target-spin');
-    elements.sentIntensity = document.getElementById('sent-intensity');
-    elements.mappingList = document.getElementById('mapping-list');
-    elements.profileSelect = document.getElementById('profile-select');
-    elements.profileName = document.getElementById('profile-name');
-    elements.resetBtn = document.getElementById('reset-button');
-}
-
-function buildPresetButtons() {
-    elements.presetsContainer.innerHTML = '';
-    PRESETS.forEach((p) => {
-        const btn = document.createElement('button');
-        btn.className = 'preset-btn';
-        btn.textContent = p.toString();
-        if (multipliers[p] === undefined) btn.classList.add('inactive');
-        btn.onclick = () => {
-            // activate on first click if inactive, then select
-            if (multipliers[p] === undefined) {
-                multipliers[p] = 1.0;
-                btn.classList.remove('inactive');
-            }
-            selectPreset(p, btn);
-        };
-        elements.presetsContainer.appendChild(btn);
-    });
-}
-
-function setMultiplierControlsEnabled(enabled) {
-    const list = [
-        elements.multDecLarge,
-        elements.multDecSmall,
-        elements.multIncSmall,
-        elements.multIncLarge,
-        elements.multiplierInput
-    ];
-    list.forEach((el) => {
-        if (el) el.disabled = !enabled;
-    });
-}
-
-function selectPreset(preset, btn) {
-    const previousPreset = selectedPreset;
-    selectedPreset = preset;
-    // highlight active
-    Array.from(elements.presetsContainer.children).forEach((b) =>
-        b.classList.remove('active')
-    );
-    btn.classList.add('active');
-    btn.classList.remove('inactive');
-    // update UI
-    elements.selectedPreset.textContent = `${preset}`;
-    elements.multiplierInput.value = (multipliers[preset] ?? 1.0).toFixed(2);
-    elements.multiplierValue.textContent = (multipliers[preset] ?? 1.0).toFixed(
-        2
-    );
-    updateTargetSpinDisplay();
-    updateSentIntensityDisplay();
-    setMultiplierControlsEnabled(true);
-
-    // smooth transition if already running: ramp both device intensity and spinner BPM
-    if (running) {
-        const targetIntensity = computeIntensityNormalized(
-            selectedPreset,
-            multipliers[selectedPreset] ?? 1.0
-        );
-        rampStartIntensity = getCurrentRampedIntensity();
-        rampTargetIntensity = targetIntensity;
-        rampStartTime = performance.now();
-        ramping = true;
-
-        spinnerStartBpm =
-            spinnerCurrentBpm ||
-            (previousPreset ? getBpmForIntensity(previousPreset) : 0);
-        spinnerTargetBpm = getBpmForIntensity(preset);
+    for (const [key, id] of Object.entries(ELEMENT_IDS)) {
+        els[key] = document.getElementById(id);
     }
 }
 
+// ── BPM / Mapping ──────────────────────────────────────────────────────
 function getBpmForIntensity(intensity) {
     const i = Number(intensity);
     if (!isFinite(i)) return 0;
-    if (
-        !Array.isArray(bpmIntensityMapping) ||
-        bpmIntensityMapping.length === 0
-    ) {
-        // fallback: previous approximate mapping -> bpm = (intensity/25) * 60
-        return (i / 25.0) * 60.0;
+
+    const mapping = state.bpmIntensityMapping;
+    if (!Array.isArray(mapping) || mapping.length === 0) {
+        return i * FALLBACK_BPM_SCALE;
     }
-    const sorted = bpmIntensityMapping
-        .slice()
-        .sort((a, b) => a.intensity - b.intensity);
-    const minI = sorted[0].intensity;
-    const maxI = sorted[sorted.length - 1].intensity;
-    if (i <= minI) return sorted[0].bpm;
-    if (i >= maxI) return sorted[sorted.length - 1].bpm;
+
+    const sorted = mapping.slice().sort((a, b) => a.intensity - b.intensity);
+    if (i <= sorted[0].intensity) return sorted[0].bpm;
+    if (i >= sorted.at(-1).intensity) return sorted.at(-1).bpm;
+
     for (let k = 0; k < sorted.length - 1; k++) {
-        const i0 = sorted[k].intensity,
-            b0 = sorted[k].bpm;
-        const i1 = sorted[k + 1].intensity,
-            b1 = sorted[k + 1].bpm;
+        const { intensity: i0, bpm: b0 } = sorted[k];
+        const { intensity: i1, bpm: b1 } = sorted[k + 1];
         if (i >= i0 && i <= i1) {
             const t = (i - i0) / (i1 - i0);
             return b0 + (b1 - b0) * t;
         }
     }
-    return (i / 25.0) * 60.0;
+    return i * FALLBACK_BPM_SCALE;
+}
+
+// ── Ramp ───────────────────────────────────────────────────────────────
+function getRampProgress() {
+    if (!ramp.active) return 1;
+    return clamp((performance.now() - ramp.startTime) / RAMP_MS, 0, 1);
 }
 
 function getCurrentRampedIntensity() {
-    if (!ramping) return lastSentIntensity ?? 0;
-    const t = clamp((performance.now() - rampStartTime) / RAMP_MS, 0, 1);
-    const s = t * t * (3 - 2 * t); // smoothstep
-    return rampStartIntensity + (rampTargetIntensity - rampStartIntensity) * s;
+    if (!ramp.active) return state.lastSentIntensity ?? 0;
+    const t = getRampProgress();
+    return (
+        ramp.startIntensity +
+        (ramp.targetIntensity - ramp.startIntensity) * smoothstep(t)
+    );
 }
 
-function updateTargetSpinDisplay() {
-    if (!selectedPreset) {
-        elements.targetSpin.textContent = '—';
+function startRamp(fromIntensity, toIntensity, fromBpm, toBpm) {
+    Object.assign(ramp, {
+        active: true,
+        startIntensity: fromIntensity,
+        targetIntensity: toIntensity,
+        startTime: performance.now(),
+        spinnerStartBpm: fromBpm,
+        spinnerTargetBpm: toBpm
+    });
+}
+
+function resetRamp() {
+    Object.assign(ramp, {
+        active: false,
+        startIntensity: 0,
+        targetIntensity: 0,
+        startTime: 0,
+        spinnerStartBpm: 0,
+        spinnerTargetBpm: 0,
+        spinnerCurrentBpm: 0
+    });
+}
+
+// ── UI Updates ─────────────────────────────────────────────────────────
+function updateMultiplierDisplay(value) {
+    const text = value.toFixed(2);
+    els.multiplierInput.value = text;
+    els.multiplierValue.textContent = text;
+}
+
+function setMultiplierControlsEnabled(enabled) {
+    const controls = [
+        els.multDecLarge,
+        els.multDecSmall,
+        els.multIncSmall,
+        els.multIncLarge,
+        els.multiplierInput
+    ];
+    for (const el of controls) {
+        if (el) el.disabled = !enabled;
+    }
+}
+
+function updateInfoDisplays() {
+    if (!state.selectedPreset) {
+        els.targetSpin.textContent = '—';
+        els.sentIntensity.textContent = '—';
         return;
     }
-    const bpm = getBpmForIntensity(selectedPreset);
-    const nominal = bpm / 60.0; // spins/sec
-    elements.targetSpin.textContent = `${nominal.toFixed(2)}`;
+
+    const nominalSpinsPerSec = getBpmForIntensity(state.selectedPreset) / 60.0;
+    els.targetSpin.textContent = nominalSpinsPerSec.toFixed(2);
+
+    const val =
+        state.running && state.lastSentIntensity !== null
+            ? state.lastSentIntensity
+            : intensityToNormalized(
+                  state.selectedPreset,
+                  getMultiplier(state.selectedPreset)
+              );
+    els.sentIntensity.textContent = val.toFixed(3);
 }
 
-function computeIntensityNormalized(preset, multiplier) {
-    // baseline intensity = preset/100, apply multiplier, clamp to 1.0
-    return Math.min(1.0, (preset / 100.0) * multiplier);
-}
+function renderMappingList() {
+    const presetText = PRESETS.map((p) =>
+        multipliers[p] === undefined
+            ? `${p}: (inactive)`
+            : `${p}: ${multipliers[p].toFixed(3)}x`
+    ).join(' | ');
 
-function updateSentIntensityDisplay() {
-    if (!selectedPreset) {
-        elements.sentIntensity.textContent = '—';
-        return;
+    let html = presetText;
+    if (state.bpmIntensityMapping.length > 0) {
+        const mapText = state.bpmIntensityMapping
+            .map((pt) => `${pt.intensity.toFixed(0)}:${pt.bpm.toFixed(0)}`)
+            .join(' | ');
+        html += `<br/><small style="opacity:0.85; margin-top:6px; display:block;">Mapping (intensity:bpm): ${mapText}</small>`;
     }
-    let val;
-    if (running && lastSentIntensity !== null) {
-        val = lastSentIntensity;
-    } else {
-        val = computeIntensityNormalized(
-            selectedPreset,
-            multipliers[selectedPreset]
-        );
-    }
-    elements.sentIntensity.textContent = val.toFixed(3);
+    els.mappingList.innerHTML = html;
 }
 
-function clamp(v, lo, hi) {
-    return Math.min(hi, Math.max(lo, v));
-}
-function round2(v) {
-    return Math.round(v * 100) / 100;
-}
-
-function setMultiplier(value, doSendImmediately = true) {
-    if (!selectedPreset) return;
-    const clamped = round2(clamp(value, 0.5, 3.0));
-    multipliers[selectedPreset] = clamped;
-    elements.multiplierInput.value = clamped.toFixed(2);
-    elements.multiplierValue.textContent = clamped.toFixed(2);
-    updateTargetSpinDisplay();
-    updateSentIntensityDisplay();
+function refreshDisplays() {
+    updateInfoDisplays();
     renderMappingList();
+    renderMappingGraph();
+}
 
-    renderMappingGraph(bpmIntensityMapping);
+// ── Preset / Multiplier Logic ──────────────────────────────────────────
+function selectPreset(preset, btn) {
+    const previousPreset = state.selectedPreset;
+    state.selectedPreset = preset;
 
-    if (running && doSendImmediately) {
-        const targetIntensity = computeIntensityNormalized(
-            selectedPreset,
-            multipliers[selectedPreset]
+    for (const b of els.presetsContainer.children) b.classList.remove('active');
+    btn.classList.add('active');
+    btn.classList.remove('inactive');
+
+    els.selectedPreset.textContent = `${preset}`;
+    updateMultiplierDisplay(getMultiplier(preset));
+    setMultiplierControlsEnabled(true);
+    refreshDisplays();
+
+    if (state.running) {
+        const targetIntensity = intensityToNormalized(
+            preset,
+            getMultiplier(preset)
         );
-        rampStartIntensity = getCurrentRampedIntensity();
-        rampTargetIntensity = targetIntensity;
-        rampStartTime = performance.now();
-        ramping = true;
+        const fromBpm =
+            ramp.spinnerCurrentBpm ||
+            (previousPreset ? getBpmForIntensity(previousPreset) : 0);
+        startRamp(
+            getCurrentRampedIntensity(),
+            targetIntensity,
+            fromBpm,
+            getBpmForIntensity(preset)
+        );
+    }
+}
 
-        // multiplier doesn't affect visual spinner speed, keep spinner BPM unchanged
-        spinnerStartBpm =
-            spinnerCurrentBpm || getBpmForIntensity(selectedPreset);
-        spinnerTargetBpm = spinnerStartBpm;
+function setMultiplier(value, doRamp = true) {
+    if (!state.selectedPreset) return;
+    const clamped = round2(clamp(value, MULTIPLIER_MIN, MULTIPLIER_MAX));
+    multipliers[state.selectedPreset] = clamped;
+    updateMultiplierDisplay(clamped);
+    refreshDisplays();
+
+    if (state.running && doRamp) {
+        const targetIntensity = intensityToNormalized(
+            state.selectedPreset,
+            clamped
+        );
+        const currentBpm =
+            ramp.spinnerCurrentBpm || getBpmForIntensity(state.selectedPreset);
+        startRamp(
+            getCurrentRampedIntensity(),
+            targetIntensity,
+            currentBpm,
+            currentBpm
+        );
     }
 }
 
 function adjustMultiplier(delta) {
-    if (!selectedPreset) return;
-    const newVal = (multipliers[selectedPreset] || 1.0) + delta;
-    setMultiplier(newVal);
+    if (!state.selectedPreset) return;
+    setMultiplier(getMultiplier(state.selectedPreset) + delta);
 }
 
+// ── Audio ──────────────────────────────────────────────────────────────
 function ensureAudioContext() {
-    if (audioCtx) return;
+    if (state.audioCtx) return;
     try {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        state.audioCtx = new (
+            window.AudioContext || window.webkitAudioContext
+        )();
     } catch (e) {
         console.warn('Web Audio API not available', e);
-        audioCtx = null;
     }
 }
 
 function playClick() {
-    if (!audioCtx) return;
-    const now = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    if (!state.audioCtx) return;
+    const now = state.audioCtx.currentTime;
+    const osc = state.audioCtx.createOscillator();
+    const gain = state.audioCtx.createGain();
     osc.type = 'square';
     osc.frequency.setValueAtTime(1200, now);
     gain.gain.setValueAtTime(0.0001, now);
     gain.gain.exponentialRampToValueAtTime(0.25, now + 0.002);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
     osc.connect(gain);
-    gain.connect(audioCtx.destination);
+    gain.connect(state.audioCtx.destination);
     osc.start(now);
     osc.stop(now + 0.07);
 }
 
 function handleFullRotations(count) {
-    if (!elements.spinner || !elements.spinnerRotor) return;
-    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    if (!els.spinner || !els.spinnerRotor) return;
+    if (state.audioCtx?.state === 'suspended') state.audioCtx.resume();
+
     for (let i = 0; i < count; i++) {
-        const delay = i * FLASH_DURATION_MS;
         setTimeout(() => {
-            elements.spinner.classList.remove('spinner-flash');
-            void elements.spinner.offsetWidth; // force reflow to restart animation
-            elements.spinner.classList.add('spinner-flash');
+            els.spinner.classList.remove('spinner-flash');
+            void els.spinner.offsetWidth;
+            els.spinner.classList.add('spinner-flash');
             playClick();
-        }, delay);
+        }, i * FLASH_DURATION_MS);
     }
 }
 
+// ── Spinner Animation ──────────────────────────────────────────────────
+function updateRampState(timestamp) {
+    if (ramp.active) {
+        const t = clamp((timestamp - ramp.startTime) / RAMP_MS, 0, 1);
+        const s = smoothstep(t);
+        ramp.spinnerCurrentBpm =
+            ramp.spinnerStartBpm +
+            (ramp.spinnerTargetBpm - ramp.spinnerStartBpm) * s;
+        if (t >= 1) {
+            ramp.active = false;
+            ramp.spinnerCurrentBpm = ramp.spinnerTargetBpm;
+        }
+    } else {
+        ramp.spinnerCurrentBpm = getBpmForIntensity(state.selectedPreset);
+    }
+}
+
+function spinnerFrame(ts) {
+    if (!state.lastTs) state.lastTs = ts;
+    const dt = (ts - state.lastTs) / 1000.0;
+    state.lastTs = ts;
+
+    updateRampState(ts);
+
+    const degDelta = dt * (ramp.spinnerCurrentBpm / 60.0) * 360;
+    state.spinnerAccum += degDelta;
+    state.spinnerAngle = state.spinnerAccum % 360;
+
+    if (els.spinnerRotor) {
+        els.spinnerRotor.style.transform = `rotate(${state.spinnerAngle}deg)`;
+    }
+
+    const spinCount = Math.floor(state.spinnerAccum / 360);
+    if (spinCount > state.lastSpinCount) {
+        handleFullRotations(spinCount - state.lastSpinCount);
+        state.lastSpinCount = spinCount;
+    }
+
+    state.spinnerAnimId = requestAnimationFrame(spinnerFrame);
+}
+
+function startSpinner() {
+    if (!state.selectedPreset) return;
+    if (state.spinnerAnimId) cancelAnimationFrame(state.spinnerAnimId);
+    state.lastTs = null;
+    state.spinnerAccum = state.spinnerAngle;
+    state.lastSpinCount = Math.floor(state.spinnerAccum / 360);
+    state.spinnerAnimId = requestAnimationFrame(spinnerFrame);
+}
+
+function resetSpinner(flash = true) {
+    state.spinnerAccum = 0;
+    state.spinnerAngle = 0;
+    state.lastSpinCount = 0;
+    if (els.spinnerRotor) els.spinnerRotor.style.transform = 'rotate(0deg)';
+    state.lastTs = performance.now();
+    if (state.running && flash) handleFullRotations(1);
+}
+
+// ── Calibration Start/Stop ─────────────────────────────────────────────
 function startCalibration() {
-    if (!selectedPreset || running) return;
+    if (!state.selectedPreset || state.running) return;
 
     ensureAudioContext();
-    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    if (state.audioCtx?.state === 'suspended') state.audioCtx.resume();
 
-    running = true;
-    lastSentIntensity = 0;
-    lastSendTime = Date.now();
+    state.running = true;
+    state.lastSentIntensity = 0;
+    state.lastSendTime = Date.now();
 
-    // target intensity (normalized)
-    const initial = computeIntensityNormalized(
-        selectedPreset,
-        multipliers[selectedPreset]
+    const initial = intensityToNormalized(
+        state.selectedPreset,
+        getMultiplier(state.selectedPreset)
     );
+    startRamp(0, initial, 0, getBpmForIntensity(state.selectedPreset));
 
-    // start ramp from 0 -> initial
-    rampStartIntensity = 0;
-    rampTargetIntensity = initial;
-    rampStartTime = performance.now();
-    ramping = true;
-
-    // spinner: ramp from 0 BPM -> nominal BPM for selectedPreset
-    spinnerStartBpm = 0;
-    spinnerTargetBpm = getBpmForIntensity(selectedPreset);
-    spinnerCurrentBpm = spinnerStartBpm;
-
-    // ensure device starts at 0
     sendDeviceCommand(0, 0);
-    lastSentIntensity = 0;
-    lastSendTime = Date.now();
-    updateSentIntensityDisplay();
+    updateInfoDisplays();
 
-    // more frequent sends during ramps for smoothness
-    if (sendInterval) {
-        clearInterval(sendInterval);
-        sendInterval = null;
-    }
-    sendInterval = setInterval(() => {
-        if (!running) return;
-
-        const nowPerf = performance.now();
-        let intensity = computeIntensityNormalized(
-            selectedPreset,
-            multipliers[selectedPreset]
-        );
-
-        if (ramping) {
-            const t = clamp((nowPerf - rampStartTime) / RAMP_MS, 0, 1);
-            const s = t * t * (3 - 2 * t); // smoothstep
-            const start = rampStartIntensity ?? 0;
-            const target = rampTargetIntensity ?? intensity;
-            intensity = start + (target - start) * s;
-
-            // update spinner current BPM in lock-step
-            const sb = spinnerStartBpm ?? 0;
-            const tb = spinnerTargetBpm ?? getBpmForIntensity(selectedPreset);
-            spinnerCurrentBpm = sb + (tb - sb) * s;
-
-            if (t >= 1) {
-                ramping = false;
-                spinnerCurrentBpm = tb;
-            }
-        } else {
-            spinnerCurrentBpm = getBpmForIntensity(selectedPreset);
-        }
-
-        if (
-            lastSentIntensity === null ||
-            Math.abs(intensity - lastSentIntensity) > 1e-6
-        ) {
-            sendDeviceCommand(intensity, 0);
-            lastSentIntensity = intensity;
-            lastSendTime = Date.now();
-            updateSentIntensityDisplay();
-        } else if (Date.now() - lastSendTime >= 1500) {
-            sendDeviceCommand(intensity, 0);
-            lastSendTime = Date.now();
-        }
-    }, 100);
+    if (state.sendInterval) clearInterval(state.sendInterval);
+    state.sendInterval = setInterval(sendLoop, SEND_INTERVAL_MS);
 
     startSpinner();
-    elements.startBtn.disabled = true;
-    elements.stopBtn.disabled = false;
+    els.startBtn.disabled = true;
+    els.stopBtn.disabled = false;
+}
+
+function sendLoop() {
+    if (!state.running) return;
+
+    const nowPerf = performance.now();
+    let intensity = intensityToNormalized(
+        state.selectedPreset,
+        getMultiplier(state.selectedPreset)
+    );
+
+    if (ramp.active) {
+        const t = clamp((nowPerf - ramp.startTime) / RAMP_MS, 0, 1);
+        const s = smoothstep(t);
+        intensity =
+            ramp.startIntensity +
+            (ramp.targetIntensity - ramp.startIntensity) * s;
+        ramp.spinnerCurrentBpm =
+            ramp.spinnerStartBpm +
+            (ramp.spinnerTargetBpm - ramp.spinnerStartBpm) * s;
+
+        if (t >= 1) {
+            ramp.active = false;
+            ramp.spinnerCurrentBpm = ramp.spinnerTargetBpm;
+        }
+    } else {
+        ramp.spinnerCurrentBpm = getBpmForIntensity(state.selectedPreset);
+    }
+
+    const changed =
+        state.lastSentIntensity === null ||
+        Math.abs(intensity - state.lastSentIntensity) > 1e-6;
+    const stale = Date.now() - state.lastSendTime >= KEEPALIVE_MS;
+
+    if (changed || stale) {
+        sendDeviceCommand(intensity, 0);
+        state.lastSentIntensity = intensity;
+        state.lastSendTime = Date.now();
+        updateInfoDisplays();
+    }
 }
 
 function stopCalibration() {
-    if (!running) return;
-    running = false;
-    if (sendInterval) {
-        clearInterval(sendInterval);
-        sendInterval = null;
-    }
-    if (spinnerAnimId) cancelAnimationFrame(spinnerAnimId);
-    spinnerAnimId = null;
-    lastTs = null;
+    if (!state.running) return;
+    state.running = false;
+
+    if (state.sendInterval) clearInterval(state.sendInterval);
+    state.sendInterval = null;
+
+    if (state.spinnerAnimId) cancelAnimationFrame(state.spinnerAnimId);
+    state.spinnerAnimId = null;
+    state.lastTs = null;
+
     sendDeviceCommand(0, 0);
-    lastSentIntensity = null;
-    lastSendTime = 0;
+    state.lastSentIntensity = null;
+    state.lastSendTime = 0;
+    resetRamp();
 
-    // reset ramp state
-    ramping = false;
-    rampStartIntensity = 0;
-    rampTargetIntensity = 0;
-    rampStartTime = 0;
-    spinnerStartBpm = 0;
-    spinnerTargetBpm = 0;
-    spinnerCurrentBpm = 0;
+    els.startBtn.disabled = false;
+    els.stopBtn.disabled = true;
+}
 
-    elements.startBtn.disabled = false;
-    elements.stopBtn.disabled = true;
+// ── Profiles ───────────────────────────────────────────────────────────
+async function loadProfilesFromServer() {
+    try {
+        const resp = await fetch('/api/calibration-profiles');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        window.__calibrationProfiles = data || {};
+
+        if (!els.profileSelect) return;
+        els.profileSelect.innerHTML = '';
+
+        const noneOpt = document.createElement('option');
+        noneOpt.value = '';
+        noneOpt.textContent = '(none)';
+        els.profileSelect.appendChild(noneOpt);
+
+        for (const name of Object.keys(data)) {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            els.profileSelect.appendChild(opt);
+        }
+    } catch (err) {
+        console.error('Failed to load profiles', err);
+    }
 }
 
 async function saveProfileToServer(name) {
     if (!name) return;
-    const payload = { name: name, multipliers: {} };
-    PRESETS.forEach((p) => {
-        if (multipliers[p] !== undefined)
-            payload.multipliers[p.toString()] = multipliers[p];
-    });
+    const payload = {
+        name,
+        multipliers: Object.fromEntries(
+            PRESETS.filter((p) => multipliers[p] !== undefined).map((p) => [
+                String(p),
+                multipliers[p]
+            ])
+        )
+    };
+
     try {
         const resp = await fetch('/api/calibration-profiles', {
             method: 'POST',
@@ -425,299 +503,80 @@ async function saveProfileToServer(name) {
         window.__calibrationProfiles = window.__calibrationProfiles || {};
         window.__calibrationProfiles[name] = payload.multipliers;
         await loadProfilesFromServer();
-        if (elements.profileSelect) elements.profileSelect.value = name;
+        if (els.profileSelect) els.profileSelect.value = name;
     } catch (err) {
         console.error('Failed to save profile', err);
         alert('Failed to save calibration profile');
     }
 }
 
-function confirmMultiplier() {
-    // make non-blocking save; users expect fast close
-    (async () => {
-        if (!selectedPreset) return;
-        renderMappingList();
-        renderMappingGraph(bpmIntensityMapping);
-        const name =
-            (elements.profileName && elements.profileName.value.trim()) ||
-            (elements.profileSelect && elements.profileSelect.value) ||
-            '';
-        if (name) await saveProfileToServer(name);
-    })();
-}
-
-export async function saveOnClose() {
-    if (!elements.profileSelect && !elements.profileName) return;
-    const name =
-        (elements.profileName && elements.profileName.value.trim()) ||
-        (elements.profileSelect && elements.profileSelect.value) ||
-        '';
-    if (!name) return;
-    await saveProfileToServer(name);
-}
-
-function resetMultipliers() {
-    PRESETS.forEach((p, i) => {
-        if (i === 0)
-            multipliers[p] = 1.0; // keep first preset active
-        else delete multipliers[p];
-    });
-    selectedPreset = null;
-    buildPresetButtons();
-    elements.multiplierInput.value = '1.00';
-    elements.multiplierValue.textContent = '1.00';
-    elements.selectedPreset.textContent = '—';
-    elements.targetSpin.textContent = '—';
-    elements.sentIntensity.textContent = '—';
-    setMultiplierControlsEnabled(false);
-    renderMappingList();
-    renderMappingGraph(bpmIntensityMapping);
-}
-
-function renderMappingList() {
-    elements.mappingList.innerHTML = PRESETS.map((p) => {
-        const v = multipliers[p];
-        return v === undefined ? `${p}: (inactive)` : `${p}: ${v.toFixed(3)}x`;
-    }).join(' | ');
-
-    // append intensity->bpm mapping summary (show intensity:bpm)
-    if (Array.isArray(bpmIntensityMapping) && bpmIntensityMapping.length) {
-        const mapText = bpmIntensityMapping
-            .map((pt) => `${pt.intensity.toFixed(0)}:${pt.bpm.toFixed(0)}`)
-            .join(' | ');
-        elements.mappingList.innerHTML +=
-            '<br/><small style="opacity:0.85; margin-top:6px; display:block;">Mapping (intensity:bpm): ' +
-            mapText +
-            '</small>';
-    }
-}
-
-/* Spinner animation -- uses preset nominal speed only (multiplier does not affect visual) */
-function startSpinner() {
-    if (!selectedPreset) return;
-    if (spinnerAnimId) cancelAnimationFrame(spinnerAnimId);
-    lastTs = null;
-    spinnerAccum = spinnerAngle;
-    lastSpinCount = Math.floor(spinnerAccum / 360);
-    spinnerAnimId = requestAnimationFrame(spinnerFrame);
-}
-
-function spinnerFrame(ts) {
-    if (!lastTs) lastTs = ts;
-    const dt = (ts - lastTs) / 1000.0;
-    lastTs = ts;
-
-    // update current spinner BPM smoothly if ramping, using the same ramp timeline
-    if (ramping) {
-        const t = clamp((ts - rampStartTime) / RAMP_MS, 0, 1);
-        const s = t * t * (3 - 2 * t);
-        spinnerCurrentBpm =
-            spinnerStartBpm + (spinnerTargetBpm - spinnerStartBpm) * s;
-        if (t >= 1) {
-            ramping = false;
-            spinnerCurrentBpm = spinnerTargetBpm;
-        }
-    } else {
-        spinnerCurrentBpm = getBpmForIntensity(selectedPreset);
-    }
-
-    const spinsPerSecNominal = spinnerCurrentBpm / 60.0;
-    const degDelta = dt * spinsPerSecNominal * 360;
-    spinnerAccum += degDelta;
-    spinnerAngle = spinnerAccum % 360;
-    if (elements.spinnerRotor) {
-        elements.spinnerRotor.style.transform = `rotate(${spinnerAngle}deg)`;
-    }
-
-    const spinCount = Math.floor(spinnerAccum / 360);
-    if (spinCount > lastSpinCount) {
-        const times = spinCount - lastSpinCount;
-        lastSpinCount = spinCount;
-        handleFullRotations(times);
-    }
-
-    spinnerAnimId = requestAnimationFrame(spinnerFrame);
-}
-
-/* Profiles: load from server and apply to UI */
-async function loadProfilesFromServer() {
-    try {
-        const resp = await fetch('/api/calibration-profiles');
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const data = await resp.json();
-        window.__calibrationProfiles = data || {};
-        const sel = elements.profileSelect;
-        if (!sel) return;
-        sel.innerHTML = '';
-        const noneOpt = document.createElement('option');
-        noneOpt.value = '';
-        noneOpt.textContent = '(none)';
-        sel.appendChild(noneOpt);
-        Object.keys(window.__calibrationProfiles).forEach((name) => {
-            const opt = document.createElement('option');
-            opt.value = name;
-            opt.textContent = name;
-            sel.appendChild(opt);
-        });
-    } catch (err) {
-        console.error('Failed to load profiles', err);
-    }
-}
-
 function applyProfile(profile) {
-    PRESETS.forEach((p) => {
-        if (
-            profile &&
-            Object.prototype.hasOwnProperty.call(profile, String(p))
-        ) {
-            multipliers[p] = parseFloat(profile[String(p)]);
+    for (const p of PRESETS) {
+        const key = String(p);
+        if (profile && Object.prototype.hasOwnProperty.call(profile, key)) {
+            multipliers[p] = parseFloat(profile[key]);
         } else {
             delete multipliers[p];
         }
-    });
+    }
     buildPresetButtons();
 
-    // auto-select first active preset if any
     const first = PRESETS.find((p) => multipliers[p] !== undefined);
     if (first) {
-        const btns = elements.presetsContainer.children;
-        for (let i = 0; i < btns.length; i++) {
-            const b = btns[i];
-            if (b.textContent === String(first)) {
-                selectPreset(first, b);
-                break;
-            }
-        }
+        const btn = [...els.presetsContainer.children].find(
+            (b) => b.textContent === String(first)
+        );
+        if (btn) selectPreset(first, btn);
     } else {
-        elements.multiplierInput.value = '1.00';
-        elements.multiplierValue.textContent = '1.00';
-        elements.selectedPreset.textContent = '—';
+        updateMultiplierDisplay(1.0);
+        els.selectedPreset.textContent = '—';
         setMultiplierControlsEnabled(false);
     }
-
-    renderMappingList();
-    renderMappingGraph(bpmIntensityMapping);
+    refreshDisplays();
 }
 
-/* Events binding */
-export function setup() {
-    initWebSocket();
-    initElements();
+function getProfileName() {
+    return els.profileName?.value.trim() || els.profileSelect?.value || '';
+}
+
+// ── Preset Buttons ─────────────────────────────────────────────────────
+function buildPresetButtons() {
+    els.presetsContainer.innerHTML = '';
+    for (const p of PRESETS) {
+        const btn = document.createElement('button');
+        btn.className = 'preset-btn';
+        btn.textContent = p.toString();
+        if (multipliers[p] === undefined) btn.classList.add('inactive');
+        btn.onclick = () => {
+            if (multipliers[p] === undefined) {
+                multipliers[p] = 1.0;
+                btn.classList.remove('inactive');
+            }
+            selectPreset(p, btn);
+        };
+        els.presetsContainer.appendChild(btn);
+    }
+}
+
+function resetMultipliers() {
+    for (const [i, p] of PRESETS.entries()) {
+        if (i === 0) multipliers[p] = 1.0;
+        else delete multipliers[p];
+    }
+    state.selectedPreset = null;
     buildPresetButtons();
-    renderMappingList();
-
-    fetch('/api/calibration-mapping')
-        .then((r) => r.json())
-        .then((mapping) => {
-            bpmIntensityMapping = Array.isArray(mapping) ? mapping : [];
-            renderMappingList();
-            renderMappingGraph(bpmIntensityMapping);
-            window.addEventListener('resize', () =>
-                renderMappingGraph(bpmIntensityMapping)
-            );
-        })
-        .catch((err) => {
-            console.error('Failed to load BPM->intensity mapping:', err);
-        });
-
-    // load saved profiles
-    loadProfilesFromServer().then(() => {
-        if (elements.profileSelect) {
-            elements.profileSelect.addEventListener('change', (e) => {
-                const name = e.target.value;
-                if (!name) return;
-                const prof = window.__calibrationProfiles
-                    ? window.__calibrationProfiles[name]
-                    : null;
-                if (prof) applyProfile(prof);
-            });
-        }
-    });
-
-    // multiplier controls
-    elements.multDecLarge.addEventListener('click', () =>
-        adjustMultiplier(-0.1)
-    );
-    elements.multDecSmall.addEventListener('click', () =>
-        adjustMultiplier(-0.01)
-    );
-    elements.multIncSmall.addEventListener('click', () =>
-        adjustMultiplier(+0.01)
-    );
-    elements.multIncLarge.addEventListener('click', () =>
-        adjustMultiplier(+0.1)
-    );
-    elements.multiplierInput.addEventListener('change', (e) => {
-        const val = parseFloat(e.target.value);
-        if (!isNaN(val)) setMultiplier(val);
-        else
-            elements.multiplierInput.value = (
-                multipliers[selectedPreset] || 1.0
-            ).toFixed(2);
-    });
-
-    elements.startBtn.addEventListener('click', startCalibration);
-    elements.stopBtn.addEventListener('click', stopCalibration);
-
-    elements.resetBtn.addEventListener('click', () => resetSpinner(true));
-    elements.spinner.addEventListener('click', () => resetSpinner(true));
-    elements.spinner.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            resetSpinner(true);
-        }
-    });
-
-    // initial state
-    elements.stopBtn.disabled = true;
-    elements.startBtn.disabled = false;
-    elements.multiplierValue.textContent = '1.00';
-    elements.selectedPreset.textContent = '—';
-    elements.targetSpin.textContent = '—';
-    elements.sentIntensity.textContent = '—';
+    updateMultiplierDisplay(1.0);
+    els.selectedPreset.textContent = '—';
+    els.targetSpin.textContent = '—';
+    els.sentIntensity.textContent = '—';
     setMultiplierControlsEnabled(false);
+    refreshDisplays();
 }
 
-export function getCalibrationMultiplier(rawIntensity) {
-    const v = clamp(rawIntensity, 0, 100);
-    const active = PRESETS.filter((p) => multipliers[p] !== undefined);
-    if (active.length === 0) return 1.0;
-    if (active.length === 1) return multipliers[active[0]] ?? 1.0;
-    if (v <= active[0]) return multipliers[active[0]];
-    if (v >= active[active.length - 1])
-        return multipliers[active[active.length - 1]];
-    for (let i = 0; i < active.length - 1; i++) {
-        const a = active[i],
-            b = active[i + 1];
-        if (v >= a && v <= b) {
-            const t = (v - a) / (b - a);
-            const s = t * t * (3 - 2 * t); // smoothstep (cubic) easing
-            const ma = multipliers[a];
-            const mb = multipliers[b];
-            return ma + (mb - ma) * s;
-        }
-    }
-    return 1.0;
-}
-
-// Reset rotation to zero (keep same speed). If running, emit one click/flash so user can sync.
-function resetSpinner(flash = true) {
-    // set to zero position
-    spinnerAccum = 0;
-    spinnerAngle = 0;
-    lastSpinCount = Math.floor(spinnerAccum / 360);
-    if (elements.spinnerRotor)
-        elements.spinnerRotor.style.transform = `rotate(0deg)`;
-    // avoid a large delta on next frame
-    lastTs = performance.now();
-    // optional immediate click/flash to mark reset point
-    if (running && flash) {
-        handleFullRotations(1);
-    }
-}
-
-function renderMappingGraph(mapping) {
+// ── Mapping Graph ──────────────────────────────────────────────────────
+function renderMappingGraph() {
     const canvas = document.getElementById('mapping-canvas');
+    const mapping = state.bpmIntensityMapping;
     if (!canvas || !Array.isArray(mapping) || mapping.length === 0) return;
 
     const dpr = window.devicePixelRatio || 1;
@@ -725,100 +584,88 @@ function renderMappingGraph(mapping) {
     const cssHeight = 120;
     canvas.width = Math.floor(cssWidth * dpr);
     canvas.height = Math.floor(cssHeight * dpr);
-    canvas.style.height = cssHeight + 'px';
+    canvas.style.height = `${cssHeight}px`;
 
     const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssWidth, cssHeight);
 
     const pad = 12;
-    const minIntensity = Math.min(...mapping.map((pt) => pt.intensity));
-    const maxIntensity = Math.max(...mapping.map((pt) => pt.intensity));
-    const minBpm = Math.min(...mapping.map((pt) => pt.bpm));
-    const maxBpm = Math.max(...mapping.map((pt) => pt.bpm));
-    const intRange = maxIntensity - minIntensity || 1;
-    const bpmRange = maxBpm - minBpm || 1;
+    const intensities = mapping.map((pt) => pt.intensity);
+    const bpms = mapping.map((pt) => pt.bpm);
+    const minI = Math.min(...intensities),
+        maxI = Math.max(...intensities);
+    const minB = Math.min(...bpms),
+        maxB = Math.max(...bpms);
+    const iRange = maxI - minI || 1;
+    const bRange = maxB - minB || 1;
 
-    const xFor = (i) =>
-        pad + ((i - minIntensity) / intRange) * (cssWidth - pad * 2);
+    const xFor = (i) => pad + ((i - minI) / iRange) * (cssWidth - pad * 2);
     const yFor = (b) =>
-        cssHeight - pad - ((b - minBpm) / bpmRange) * (cssHeight - pad * 2);
+        cssHeight - pad - ((b - minB) / bRange) * (cssHeight - pad * 2);
 
-    // grid lines (vertical for intensity, horizontal for bpm)
+    // Grid
     ctx.strokeStyle = '#333';
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let j = 0; j <= 4; j++) {
-        const val = minIntensity + (j / 4) * (maxIntensity - minIntensity);
-        const x = xFor(val);
+        const x = xFor(minI + (j / 4) * iRange);
         ctx.moveTo(x, pad);
         ctx.lineTo(x, cssHeight - pad);
-    }
-    for (let j = 0; j <= 4; j++) {
-        const val = minBpm + (j / 4) * (maxBpm - minBpm);
-        const y = yFor(val);
+        const y = yFor(minB + (j / 4) * bRange);
         ctx.moveTo(pad, y);
         ctx.lineTo(cssWidth - pad, y);
     }
     ctx.stroke();
 
-    // baseline polyline (intensity -> bpm) - sort by intensity for a clean line
     const sorted = mapping.slice().sort((a, b) => a.intensity - b.intensity);
-    ctx.beginPath();
-    ctx.strokeStyle = 'rgba(0,200,0,0.95)';
-    ctx.lineWidth = 2;
-    sorted.forEach((pt, i) => {
-        const x = xFor(pt.intensity);
-        const y = yFor(pt.bpm);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
 
-    // baseline points
-    ctx.fillStyle = '#fff';
-    sorted.forEach((pt) => {
-        const x = xFor(pt.intensity);
-        const y = yFor(pt.bpm);
+    function drawPolyline(points, xFn, yFn, lineColor, dotColor) {
         ctx.beginPath();
-        ctx.arc(x, y, 3, 0, Math.PI * 2);
-        ctx.fill();
-    });
+        ctx.strokeStyle = lineColor;
+        ctx.lineWidth = 2;
+        points.forEach((pt, i) => {
+            const x = xFn(pt),
+                y = yFn(pt);
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        });
+        ctx.stroke();
 
-    // calibrated polyline: apply multiplier to BPM so same intensity -> higher BPM
-    const calibrated = sorted.map((pt) => {
-        const rawI = clamp(pt.intensity, minIntensity, maxIntensity);
-        const mult = getCalibrationMultiplier(rawI);
-        const calBpm = clamp(pt.bpm * mult, minBpm, maxBpm);
-        return { intensity: rawI, bpm: calBpm };
-    });
+        ctx.fillStyle = dotColor;
+        for (const pt of points) {
+            ctx.beginPath();
+            ctx.arc(xFn(pt), yFn(pt), 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
 
-    ctx.beginPath();
-    ctx.strokeStyle = 'rgba(255,140,0,0.95)';
-    ctx.lineWidth = 2;
-    calibrated.forEach((pt, i) => {
-        const x = xFor(pt.intensity);
-        const y = yFor(pt.bpm);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
+    // Baseline
+    drawPolyline(
+        sorted,
+        (pt) => xFor(pt.intensity),
+        (pt) => yFor(pt.bpm),
+        'rgba(0,200,0,0.95)',
+        '#fff'
+    );
 
-    // calibrated points
-    ctx.fillStyle = 'rgba(255,140,0,0.95)';
-    calibrated.forEach((pt) => {
-        const x = xFor(pt.intensity);
-        const y = yFor(pt.bpm);
-        ctx.beginPath();
-        ctx.arc(x, y, 3, 0, Math.PI * 2);
-        ctx.fill();
-    });
+    // Calibrated
+    const calibrated = sorted.map((pt) => ({
+        intensity: pt.intensity,
+        bpm: clamp(pt.bpm * getCalibrationMultiplier(pt.intensity), minB, maxB)
+    }));
+    drawPolyline(
+        calibrated,
+        (pt) => xFor(pt.intensity),
+        (pt) => yFor(pt.bpm),
+        'rgba(255,140,0,0.95)',
+        'rgba(255,140,0,0.95)'
+    );
 
-    // labels + legend
+    // Labels
     ctx.fillStyle = '#ddd';
     ctx.font = '12px sans-serif';
-    ctx.fillText(`${minIntensity.toFixed(0)}`, pad, 12);
-    ctx.fillText(`${maxIntensity.toFixed(0)}`, cssWidth - pad - 56, 12);
+    ctx.fillText(`${minI.toFixed(0)}`, pad, 12);
+    ctx.fillText(`${maxI.toFixed(0)}`, cssWidth - pad - 56, 12);
     ctx.fillText('Intensity →', cssWidth / 2 - 30, cssHeight - 4);
 
     ctx.save();
@@ -827,32 +674,104 @@ function renderMappingGraph(mapping) {
     ctx.fillText('BPM', 0, 0);
     ctx.restore();
 
-    // legend: bottom-right
-    const legendWidth = 120;
-    const legendPadding = 8;
-    const legendRectSize = 10;
-    const legendRight = cssWidth - pad - legendPadding;
-    const legendLeft = legendRight - legendWidth;
-    const legendTop = cssHeight - pad - 18; // place legend just above bottom padding
-
-    // draw legend entries (aligned vertically centered with rect)
+    // Legend
+    const legendLeft = cssWidth - pad - 8 - 120;
+    const legendTop = cssHeight - pad - 18;
     ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(0,200,0,0.95)';
-    ctx.fillRect(legendLeft, legendTop, legendRectSize, legendRectSize);
+    ctx.fillRect(legendLeft, legendTop, 10, 10);
     ctx.fillStyle = '#ddd';
-    ctx.fillText(
-        'Baseline',
-        legendLeft + legendRectSize + 6,
-        legendTop + legendRectSize / 2
-    );
-
+    ctx.fillText('Baseline', legendLeft + 16, legendTop + 5);
     ctx.fillStyle = 'rgba(255,140,0,0.95)';
-    ctx.fillRect(legendLeft + 56, legendTop, legendRectSize, legendRectSize);
+    ctx.fillRect(legendLeft + 56, legendTop, 10, 10);
     ctx.fillStyle = '#ddd';
-    ctx.fillText(
-        'Calibrated',
-        legendLeft + 56 + legendRectSize + 6,
-        legendTop + legendRectSize / 2
-    );
+    ctx.fillText('Calibrated', legendLeft + 72, legendTop + 5);
     ctx.textBaseline = 'alphabetic';
+}
+
+// ── Public API ─────────────────────────────────────────────────────────
+export function getCalibrationMultiplier(rawIntensity) {
+    const v = clamp(rawIntensity, 0, 100);
+    const active = PRESETS.filter((p) => multipliers[p] !== undefined);
+    if (active.length === 0) return 1.0;
+    if (active.length === 1) return getMultiplier(active[0]);
+    if (v <= active[0]) return getMultiplier(active[0]);
+    if (v >= active.at(-1)) return getMultiplier(active.at(-1));
+
+    for (let i = 0; i < active.length - 1; i++) {
+        const a = active[i],
+            b = active[i + 1];
+        if (v >= a && v <= b) {
+            const t = (v - a) / (b - a);
+            return (
+                getMultiplier(a) +
+                (getMultiplier(b) - getMultiplier(a)) * smoothstep(t)
+            );
+        }
+    }
+    return 1.0;
+}
+
+export async function saveOnClose() {
+    const name = getProfileName();
+    if (name) await saveProfileToServer(name);
+}
+
+export function setup() {
+    initWebSocket();
+    initElements();
+    buildPresetButtons();
+    renderMappingList();
+
+    // Load BPM mapping
+    fetch('/api/calibration-mapping')
+        .then((r) => r.json())
+        .then((mapping) => {
+            state.bpmIntensityMapping = Array.isArray(mapping) ? mapping : [];
+            renderMappingList();
+            renderMappingGraph();
+            window.addEventListener('resize', renderMappingGraph);
+        })
+        .catch((err) =>
+            console.error('Failed to load BPM->intensity mapping:', err)
+        );
+
+    // Load profiles
+    loadProfilesFromServer().then(() => {
+        els.profileSelect?.addEventListener('change', (e) => {
+            const prof = window.__calibrationProfiles?.[e.target.value];
+            if (prof) applyProfile(prof);
+        });
+    });
+
+    // Multiplier controls
+    els.multDecLarge.addEventListener('click', () => adjustMultiplier(-0.1));
+    els.multDecSmall.addEventListener('click', () => adjustMultiplier(-0.01));
+    els.multIncSmall.addEventListener('click', () => adjustMultiplier(+0.01));
+    els.multIncLarge.addEventListener('click', () => adjustMultiplier(+0.1));
+    els.multiplierInput.addEventListener('change', (e) => {
+        const val = parseFloat(e.target.value);
+        if (!isNaN(val)) setMultiplier(val);
+        else updateMultiplierDisplay(getMultiplier(state.selectedPreset));
+    });
+
+    els.startBtn.addEventListener('click', startCalibration);
+    els.stopBtn.addEventListener('click', stopCalibration);
+    els.resetBtn.addEventListener('click', () => resetSpinner(true));
+    els.spinner.addEventListener('click', () => resetSpinner(true));
+    els.spinner.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            resetSpinner(true);
+        }
+    });
+
+    // Initial state
+    els.stopBtn.disabled = true;
+    els.startBtn.disabled = false;
+    updateMultiplierDisplay(1.0);
+    els.selectedPreset.textContent = '—';
+    els.targetSpin.textContent = '—';
+    els.sentIntensity.textContent = '—';
+    setMultiplierControlsEnabled(false);
 }

@@ -2,10 +2,14 @@
 
 import { getAbsoluteMaximum, getVibrateMode } from './funscript_handler.js';
 
+const WS_PORT = 5441;
+const RECONNECT_DELAY_MS = 1000;
+const VIBRATE_DEADZONE = 0.03;
+const VIBRATE_SCALE = 1.5;
+
 let ws = null;
 
 export function initWebSocket() {
-    // Check if websocket already exists and is connected/connecting
     if (
         ws &&
         (ws.readyState === WebSocket.OPEN ||
@@ -16,44 +20,36 @@ export function initWebSocket() {
     }
 
     try {
-        console.log('Attempting WebSocket connection...');
-        ws = new WebSocket(`ws://${window.location.hostname}:5441/ws`);
-
-        ws.onopen = () => {
-            console.log('WebSocket connected successfully');
-        };
-
-        ws.onerror = (error) => {
-            console.error('WebSocket error:', error);
-            console.log('WebSocket readyState:', ws.readyState);
-        };
-
+        ws = new WebSocket(`ws://${window.location.hostname}:${WS_PORT}/ws`);
+        ws.onopen = () => console.log('WebSocket connected');
+        ws.onerror = (error) => console.error('WebSocket error:', error);
         ws.onclose = (event) => {
-            console.log('WebSocket closed with code:', event.code);
-            console.log('WebSocket close reason:', event.reason);
-            setTimeout(initWebSocket, 1000);
+            console.log(`WebSocket closed: ${event.code} ${event.reason}`);
+            setTimeout(initWebSocket, RECONNECT_DELAY_MS);
         };
-
-        ws.onmessage = (event) => {
-            console.log('WebSocket message received:', event.data);
-        };
+        ws.onmessage = (event) => console.log('WebSocket message:', event.data);
     } catch (e) {
         console.error('WebSocket initialization error:', e);
     }
 }
 
 export function sendDeviceCommand(oscillate, vibrate) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        const payload = {
-            o: Math.max(0, Math.min(oscillate, getAbsoluteMaximum() / 100)),
-            v: (() => {
-                let value = vibrate;
-                if (getVibrateMode() === 'Rate') {
-                    value = value < 0.03 ? 0.0 : (value - 0.03) * 1.5;
-                }
-                return Math.max(0, Math.min(value, 1.0));
-            })()
-        };
-        ws.send(JSON.stringify(payload));
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+    const maxOscillate = getAbsoluteMaximum() / 100;
+    let vibrateValue = vibrate;
+
+    if (getVibrateMode() === 'Rate') {
+        vibrateValue =
+            vibrateValue < VIBRATE_DEADZONE
+                ? 0.0
+                : (vibrateValue - VIBRATE_DEADZONE) * VIBRATE_SCALE;
     }
+
+    ws.send(
+        JSON.stringify({
+            o: Math.max(0, Math.min(oscillate, maxOscillate)),
+            v: Math.max(0, Math.min(vibrateValue, 1.0))
+        })
+    );
 }

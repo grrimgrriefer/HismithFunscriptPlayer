@@ -15,43 +15,34 @@ export async function loadFunscript(funscriptUrl) {
     intensityActions = [];
     currentVideoRawMaxIntensity = 0;
     let fetchUrl = funscriptUrl;
-
     if (!fetchUrl.includes('variant=')) {
         fetchUrl +=
             (fetchUrl.includes('?') ? '&' : '?') +
             `variant=${encodeURIComponent(selectedVariant)}`;
     }
-
-    await fetch(fetchUrl)
-        .then((response) => {
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return response.json();
-        })
-        .then((data) => {
-            if (data && data.original && Array.isArray(data.original.actions)) {
-                funscriptActions = data.original.actions;
-            } else {
-                funscriptActions = [];
-            }
-            if (
-                data &&
-                data.intensity &&
-                Array.isArray(data.intensity.actions)
-            ) {
-                intensityActions = data.intensity.actions;
-                const positions = intensityActions.map((action) => action.pos);
-                if (positions.length > 0) {
-                    currentVideoRawMaxIntensity = Math.max(...positions);
-                }
-            } else {
-                intensityActions = [];
-            }
-        })
-        .catch((error) => {
-            console.error('Failed to load funscript:', error);
+    try {
+        const response = await fetch(fetchUrl);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        if (data && data.original && Array.isArray(data.original.actions)) {
+            funscriptActions = data.original.actions;
+        } else {
             funscriptActions = [];
+        }
+        if (data && data.intensity && Array.isArray(data.intensity.actions)) {
+            intensityActions = data.intensity.actions;
+            const positions = intensityActions.map((action) => action.pos);
+            if (positions.length > 0) {
+                currentVideoRawMaxIntensity = Math.max(...positions);
+            }
+        } else {
             intensityActions = [];
-        });
+        }
+    } catch (error) {
+        console.error('Failed to load funscript:', error);
+        funscriptActions = [];
+        intensityActions = [];
+    }
 }
 
 export function getCurrentIntensity(currentTime) {

@@ -23,8 +23,6 @@ const elements = {
     multiplierValue: null,
     startBtn: null,
     stopBtn: null,
-    confirmBtn: null,
-    resetBtn: null,
     multDecLarge: null,
     multDecSmall: null,
     multIncSmall: null,
@@ -35,7 +33,8 @@ const elements = {
     sentIntensity: null,
     mappingList: null,
     profileSelect: null,
-    profileName: null
+    profileName: null,
+    resetBtn: null
 };
 
 let bpmIntensityMapping = [];
@@ -62,8 +61,6 @@ function initElements() {
     elements.multiplierValue = document.getElementById('multiplier-value');
     elements.startBtn = document.getElementById('start-button');
     elements.stopBtn = document.getElementById('stop-button');
-    elements.confirmBtn = document.getElementById('confirm-button');
-    elements.resetBtn = document.getElementById('reset-button');
     elements.multDecLarge = document.getElementById('mult-dec-large');
     elements.multDecSmall = document.getElementById('mult-dec-small');
     elements.multIncSmall = document.getElementById('mult-inc-small');
@@ -75,6 +72,7 @@ function initElements() {
     elements.mappingList = document.getElementById('mapping-list');
     elements.profileSelect = document.getElementById('profile-select');
     elements.profileName = document.getElementById('profile-name');
+    elements.resetBtn = document.getElementById('reset-button');
 }
 
 function buildPresetButtons() {
@@ -660,8 +658,15 @@ export function setup() {
 
     elements.startBtn.addEventListener('click', startCalibration);
     elements.stopBtn.addEventListener('click', stopCalibration);
-    elements.confirmBtn.addEventListener('click', confirmMultiplier);
-    elements.resetBtn.addEventListener('click', resetMultipliers);
+
+    elements.resetBtn.addEventListener('click', () => resetSpinner(true));
+    elements.spinner.addEventListener('click', () => resetSpinner(true));
+    elements.spinner.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            resetSpinner(true);
+        }
+    });
 
     // initial state
     elements.stopBtn.disabled = true;
@@ -693,6 +698,22 @@ export function getCalibrationMultiplier(rawIntensity) {
         }
     }
     return 1.0;
+}
+
+// Reset rotation to zero (keep same speed). If running, emit one click/flash so user can sync.
+function resetSpinner(flash = true) {
+    // set to zero position
+    spinnerAccum = 0;
+    spinnerAngle = 0;
+    lastSpinCount = Math.floor(spinnerAccum / 360);
+    if (elements.spinnerRotor)
+        elements.spinnerRotor.style.transform = `rotate(0deg)`;
+    // avoid a large delta on next frame
+    lastTs = performance.now();
+    // optional immediate click/flash to mark reset point
+    if (running && flash) {
+        handleFullRotations(1);
+    }
 }
 
 function renderMappingGraph(mapping) {

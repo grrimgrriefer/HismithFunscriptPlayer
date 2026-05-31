@@ -39,8 +39,8 @@ pub fn setup_routes(cfg: &mut web::ServiceConfig) {
                             Files::new("", "./static")
                                 .show_files_listing()
                                 .use_last_modified(true)
-                                .prefer_utf8(true)
-                        )
-                )
+                                .prefer_utf8(true),
+                        ),
+                ),
         );
 }

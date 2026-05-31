@@ -7,7 +7,7 @@
 //! data used for device control.
 
 use crate::buttplug::funscript_utils::{self, FunscriptData};
-use actix_web::{web, HttpResponse};
+use actix_web::{HttpResponse, web};
 use log::{error, info, warn};
 use serde::Serialize;
 use std::collections::HashMap;
@@ -123,12 +123,20 @@ async fn read_funscript(path: &Path) -> Result<FunscriptData, String> {
 }
 
 fn generate_intensity(original: &FunscriptData) -> Result<FunscriptData, String> {
-    let mut actions = original.actions.clone();
-    if actions.len() < 2 {
-        return Err("Need at least 2 actions".to_string());
+    if original.actions.len() < 2 {
+        return Err("Funscript has fewer than 2 actions".to_string());
     }
 
+    let mut actions = original.actions.clone();
     let intensity_actions = funscript_utils::actions_to_intensity_curve(&mut actions, 50, 500);
+
+    if intensity_actions.is_empty() {
+        return Err(
+            "Could not generate intensity curve. \
+             The funscript may not be a binary (0/100) script or has insufficient data."
+                .to_string(),
+        );
+    }
 
     Ok(FunscriptData {
         actions: intensity_actions,

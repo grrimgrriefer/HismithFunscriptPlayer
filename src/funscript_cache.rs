@@ -7,14 +7,12 @@
 //! (.funscript_cache.json) beside the funscript base and maps relative file paths
 //! to computed entries (sha256, average/peak intensity, sample counts, timestamp).
 
-use crate::buttplug::funscript_utils::{
-    actions_to_intensity_curve, Action, FunscriptData,
-};
+use crate::buttplug::funscript_utils::{Action, FunscriptData, actions_to_intensity_curve};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use tokio::fs;
 use walkdir::WalkDir;
 
@@ -118,7 +116,9 @@ fn build_entry(content: &str, sha256: String) -> Result<FunscriptCacheEntry, Str
 
 async fn read_cache(path: &Path) -> Result<FunscriptCache, String> {
     match fs::read_to_string(path).await {
-        Ok(raw) => serde_json::from_str(&raw).map_err(|e| format!("Failed parse cache json: {}", e)),
+        Ok(raw) => {
+            serde_json::from_str(&raw).map_err(|e| format!("Failed parse cache json: {}", e))
+        }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(HashMap::new()),
         Err(e) => Err(format!("Failed read cache file {:?}: {}", path, e)),
     }
@@ -136,51 +136,56 @@ async fn write_cache(path: &Path, cache: &FunscriptCache) -> Result<(), String> 
 }
 
 pub async fn scan_and_update_cache(
-    funscript_base: &Path,
+    base: &Path,
     cache_path: &Path,
 ) -> Result<FunscriptCache, String> {
-    let mut cache = read_cache(cache_path).await.unwrap_or_default();
-    let mut seen: HashSet<String> = HashSet::new();
-
-    for item in WalkDir::new(funscript_base).into_iter().filter_map(Result::ok) {
-        let path = item.path();
-        if !is_funscript_file(path) {
-            continue;
-        }
-
-        let key = cache_key(funscript_base, path);
-        seen.insert(key.clone());
-
-        let content = match fs::read_to_string(path).await {
-            Ok(s) => s,
-            Err(e) => {
-                log::error!("Failed read funscript {:?}: {}", path, e);
-                continue;
+    let mut cache = read_cache(cache_path).await?;
+    let base_owned = base.to_path_buf();
+    let discovered: Vec<(String, std::path::PathBuf)> = tokio::task::spawn_blocking(move || {
+        let mut files = Vec::new();
+        for entry in WalkDir::new(&base_owned).into_iter().filter_map(|e| e.ok()) {
+            let path = entry.path().to_path_buf();
+            if is_funscript_file(&path) {
+                let key = cache_key(&base_owned, &path);
+                files.push((key, path));
             }
-        };
+        }
+        files
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking join error: {}", e))?;
+
+    let mut seen_keys = HashSet::new();
+
+    for (key, path) in &discovered {
+        seen_keys.insert(key.clone());
+
+        let content = fs::read_to_string(&path)
+            .await
+            .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
 
         let sha = sha256_hex(content.as_bytes());
-        let unchanged = cache
-            .get(&key)
-            .map(|entry| entry.sha256 == sha)
-            .unwrap_or(false);
 
-        if unchanged {
-            continue;
+        // Skip if already cached with the same hash
+        if let Some(existing) = cache.get(key) {
+            if existing.sha256 == sha {
+                continue;
+            }
         }
 
         match build_entry(&content, sha) {
             Ok(entry) => {
-                cache.insert(key, entry);
+                cache.insert(key.clone(), entry);
             }
             Err(e) => {
-                cache.remove(&key);
-                log::error!("Failed compute stats for {:?}: {}", path, e);
+                log::warn!("Skipping {}: {}", key, e);
             }
         }
     }
 
-    cache.retain(|k, _| seen.contains(k));
+    // Remove entries for files that no longer exist
+    cache.retain(|k, _| seen_keys.contains(k));
+
     write_cache(cache_path, &cache).await?;
     Ok(cache)
 }

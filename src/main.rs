@@ -10,7 +10,7 @@
 //! controlled by HOST_IP and SERVER_PORT environment variables (defaults to 0.0.0.0:5441).
 
 use actix_cors::Cors;
-use actix_web::{middleware::Logger, App, HttpServer};
+use actix_web::{App, HttpServer, middleware::Logger};
 use env_logger::Env;
 use hismith_player_site::{buttplug::device_manager, routes};
 use log::{error, info};

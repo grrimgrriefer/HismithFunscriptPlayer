@@ -12,7 +12,7 @@ use std::{
     fs, io,
     path::{Path, PathBuf},
 };
-use walkdir::{DirEntry, WalkDir};
+use walkdir::WalkDir;
 
 #[derive(Serialize)]
 pub struct FileNode {
@@ -95,23 +95,13 @@ pub fn get_all_files_with_size(base_path: &Path) -> io::Result<HashMap<PathBuf, 
 
     let walker = WalkDir::new(base_path)
         .into_iter()
-        .filter_entry(|e: &DirEntry| !is_funscripts_dir(e.path()));
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file());
 
     for entry in walker {
-        let entry = entry.map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-        let path = entry.path();
-
-        if !entry.file_type().is_file() || !is_video_file(path) {
-            continue;
+        if let Ok(meta) = entry.metadata() {
+            file_map.insert(entry.path().to_path_buf(), meta.len());
         }
-
-        let relative = match path.strip_prefix(base_path) {
-            Ok(p) => p.to_path_buf(),
-            Err(_) => continue,
-        };
-
-        let size = entry.metadata()?.len();
-        file_map.insert(relative, size);
     }
 
     Ok(file_map)

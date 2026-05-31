@@ -8,9 +8,10 @@
 
 use actix_files::NamedFile;
 use actix_web::{
+    Error, HttpRequest, HttpResponse,
     error::{ErrorBadRequest, ErrorInternalServerError, ErrorNotFound},
     http::header::{self, ContentDisposition, DispositionType},
-    web, Error, HttpRequest, HttpResponse,
+    web,
 };
 use log::{error, info};
 use std::{

@@ -12,13 +12,12 @@ use crate::funscript_cache;
 use actix_files::NamedFile;
 use actix_web::{HttpResponse, Responder, Result};
 use log::{error, info, warn};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{env, path::PathBuf};
 
 const VIDEO_SHARE_ENV: &str = "VIDEO_SHARE_PATH";
 const FUNSCRIPT_SHARE_ENV: &str = "FUNSCRIPT_SHARE_PATH";
-const FUNSCRIPT_PERMISSION_ERROR: &str =
-    "Server cannot write to the funscripts directory; caching disabled. \
+const FUNSCRIPT_PERMISSION_ERROR: &str = "Server cannot write to the funscripts directory; caching disabled. \
 Please ensure the server process has write permissions to the FUNSCRIPT_SHARE_PATH.";
 
 /// Handles the main index page request by serving the static `index.html` file.
@@ -87,5 +86,7 @@ async fn load_funscript_cache() -> (Value, Option<String>) {
 
 fn is_permission_like_error(error_text: &str) -> bool {
     let text = error_text.to_lowercase();
-    text.contains("permission denied") || text.contains("failed write") || text.contains("permission")
+    text.contains("permission denied")
+        || text.contains("failed write")
+        || text.contains("permission")
 }

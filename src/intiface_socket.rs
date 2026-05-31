@@ -12,7 +12,7 @@
 
 use crate::buttplug::device_manager;
 use actix::prelude::*;
-use actix_web::{web, Error, HttpRequest, HttpResponse};
+use actix_web::{Error, HttpRequest, HttpResponse, web};
 use actix_web_actors::ws;
 use log::{debug, error, info};
 use serde::Deserialize;
@@ -41,27 +41,24 @@ impl Actor for DeviceControlWs {
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for DeviceControlWs {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg {
-            Ok(ws::Message::Text(text)) => {
-                match serde_json::from_str::<ControlCommand>(&text) {
-                    Ok(cmd) => {
-                        if let Some(o) = cmd.o {
-                            let clamped = o.max(0.0).min(1.0);
-                            device_manager::set_oscillate(clamped);
-                        }
-                        if let Some(v) = cmd.v {
-                            let clamped = v.max(0.0).min(1.0);
-                            device_manager::set_vibrate(clamped);
-                        }
+            Ok(ws::Message::Text(text)) => match serde_json::from_str::<ControlCommand>(&text) {
+                Ok(cmd) => {
+                    if let Some(o) = cmd.o {
+                        let clamped = o.max(0.0).min(1.0);
+                        device_manager::set_oscillate(clamped);
                     }
-                    Err(e) => {
-                        error!("Invalid JSON command: {}", e);
-                        ctx.text(
-                            serde_json::json!({ "error": format!("invalid JSON: {}", e) })
-                                .to_string(),
-                        );
+                    if let Some(v) = cmd.v {
+                        let clamped = v.max(0.0).min(1.0);
+                        device_manager::set_vibrate(clamped);
                     }
                 }
-            }
+                Err(e) => {
+                    error!("Invalid JSON command: {}", e);
+                    ctx.text(
+                        serde_json::json!({ "error": format!("invalid JSON: {}", e) }).to_string(),
+                    );
+                }
+            },
 
             Ok(ws::Message::Ping(msg)) => {
                 debug!("Received ping");

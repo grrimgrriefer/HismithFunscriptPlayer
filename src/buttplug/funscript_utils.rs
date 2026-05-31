@@ -40,8 +40,12 @@ pub struct FunscriptData {
     pub metadata: Option<serde_json::Value>,
 }
 
-fn default_version() -> String { "1.0".into() }
-fn default_range() -> u32 { 100 }
+fn default_version() -> String {
+    "1.0".into()
+}
+fn default_range() -> u32 {
+    100
+}
 
 impl Default for FunscriptData {
     fn default() -> Self {
@@ -87,23 +91,27 @@ pub fn get_bpm_intensity_mapping() -> Vec<BpmIntensityPoint> {
 /// Linearly interpolate position between two actions at a given time.
 fn lerp_position(before: Option<&Action>, after: Option<&Action>, time: u64) -> f64 {
     match (before, after) {
-        (None, None) => 0.0,
-        (None, Some(a)) => a.pos,
-        (Some(a), None) => a.pos,
-        (Some(a), Some(b)) => {
-            if time <= a.at { return a.pos; }
-            if time >= b.at { return b.pos; }
-            if a.at == b.at { return a.pos; }
-            let t = (time - a.at) as f64 / (b.at - a.at) as f64;
-            a.pos + (b.pos - a.pos) * t
+        (Some(b), Some(a)) => {
+            if a.at == b.at {
+                b.pos
+            } else {
+                let t = (time as f64 - b.at as f64) / (a.at as f64 - b.at as f64);
+                let t = t.clamp(0.0, 1.0);
+                b.pos + (a.pos - b.pos) * t
+            }
         }
+        (Some(b), None) => b.pos,
+        (None, Some(a)) => a.pos,
+        (None, None) => 0.0,
     }
 }
 
 /// Merge runs of same-position actions within `max_gap_ms` into one action
 /// at the averaged timestamp.
 fn merge_same_position_runs(actions: &mut Vec<Action>, max_gap_ms: u64) {
-    if actions.is_empty() { return; }
+    if actions.is_empty() {
+        return;
+    }
 
     let mut result = Vec::new();
     let mut run_start = 0;
@@ -116,7 +124,10 @@ fn merge_same_position_runs(actions: &mut Vec<Action>, max_gap_ms: u64) {
         if end_of_run {
             let run = &actions[run_start..i];
             let avg_time = run.iter().map(|a| a.at as u128).sum::<u128>() / run.len() as u128;
-            result.push(Action { at: avg_time as u64, pos: run[0].pos });
+            result.push(Action {
+                at: avg_time as u64,
+                pos: run[0].pos,
+            });
             run_start = i;
         }
     }
@@ -125,10 +136,14 @@ fn merge_same_position_runs(actions: &mut Vec<Action>, max_gap_ms: u64) {
 
 /// Piecewise-linear lookup: BPM → intensity (0..100). Clamps to table bounds.
 fn bpm_to_intensity(bpm: f64) -> f64 {
-    if !bpm.is_finite() || bpm <= 0.0 { return 0.0; }
+    if !bpm.is_finite() || bpm <= 0.0 {
+        return 0.0;
+    }
 
     let table = &BPM_TO_INTENSITY;
-    if bpm >= table.last().unwrap().0 { return table.last().unwrap().1; }
+    if bpm >= table.last().unwrap().0 {
+        return table.last().unwrap().1;
+    }
 
     for pair in table.windows(2) {
         let (b0, i0) = pair[0];
@@ -144,59 +159,89 @@ fn bpm_to_intensity(bpm: f64) -> f64 {
 /// Sum absolute position changes within [win_start, win_end], convert to BPM,
 /// then map to intensity. Inserts interpolated boundary points.
 fn window_intensity(actions: &[Action], win_start: u64, win_end: u64) -> f64 {
-    let duration = win_end.saturating_sub(win_start);
-    if duration == 0 { return 0.0; }
+    if actions.is_empty() || win_end <= win_start {
+        return 0.0;
+    }
 
-    let before_idx = actions.iter().rposition(|a| a.at <= win_start).unwrap_or(0);
-    let after_idx = actions.iter().position(|a| a.at >= win_end).unwrap_or(actions.len() - 1);
+    // Find the index range of actions that fall within or straddle the window.
+    // before_idx: last action at or before win_start
+    // after_idx:  first action at or after win_end
+    let before_idx = actions.iter().rposition(|a| a.at <= win_start);
+    let after_idx = actions.iter().position(|a| a.at >= win_end);
 
-    // Build sample points: interpolated start, interior actions, interpolated end
-    let mut points = Vec::new();
-    points.push(Action {
-        at: win_start,
-        pos: lerp_position(Some(&actions[before_idx]), actions.get(before_idx + 1), win_start),
-    });
-    points.extend(
-        actions.iter()
-            .filter(|a| a.at > win_start && a.at < win_end)
-            .cloned(),
+    // Build a small working list with interpolated boundary points.
+    let mut window_actions: Vec<Action> = Vec::new();
+
+    // Interpolated start-boundary point
+    let start_pos = lerp_position(
+        before_idx.map(|i| &actions[i]),
+        actions.iter().find(|a| a.at > win_start),
+        win_start,
     );
-    let prev = actions[..after_idx].iter().rfind(|a| a.at < win_end)
-        .unwrap_or(&actions[before_idx]);
-    points.push(Action {
-        at: win_end,
-        pos: lerp_position(Some(prev), Some(&actions[after_idx]), win_end),
+    window_actions.push(Action {
+        at: win_start,
+        pos: start_pos,
     });
 
-    let total_change: f64 = points.windows(2)
-        .filter(|w| w[1].at > w[0].at)
-        .map(|w| (w[1].pos - w[0].pos).abs())
+    // All actions strictly inside the window
+    for action in actions
+        .iter()
+        .filter(|a| a.at > win_start && a.at < win_end)
+    {
+        window_actions.push(action.clone());
+    }
+
+    // Interpolated end-boundary point
+    let end_pos = lerp_position(
+        actions.iter().rev().find(|a| a.at < win_end),
+        after_idx.map(|i| &actions[i]),
+        win_end,
+    );
+    window_actions.push(Action {
+        at: win_end,
+        pos: end_pos,
+    });
+
+    // Total absolute position change across the window
+    let total_change: f64 = window_actions
+        .windows(2)
+        .map(|pair| (pair[1].pos - pair[0].pos).abs())
         .sum();
 
-    // 200% change = 1 full stroke. BPM = strokes/min = (total_change/200) / (duration/60000)
-    let bpm = (total_change / duration as f64) * 300.0;
+    let duration_sec = (win_end - win_start) as f64 / 1000.0;
+    if duration_sec <= 0.0 {
+        return 0.0;
+    }
+
+    // Each full 0→100→0 stroke is 200 position-units and equals one "beat".
+    // BPM = (total_change / 200) / (duration_sec / 60)
+    //     = total_change * 60 / (200 * duration_sec)
+    //     = total_change * 300.0 / (1000.0 * duration_sec)   [when duration is in ms]
+    let bpm = (total_change / 200.0) * (60.0 / duration_sec);
     bpm_to_intensity(bpm)
 }
 
 /// Convert binary (0/100) funscript actions into a smoothed intensity curve.
 ///
 /// Returns evenly-spaced actions where `pos` represents intensity (0..100).
-/// `sample_rate_ms`: output spacing. `window_ms`: half-width of analysis window.
-pub fn actions_to_intensity_curve(
-    actions: &mut [Action],
-    sample_rate_ms: u64,
-    window_ms: u64,
-) -> Vec<Action> {
-    if actions.len() < 2 || sample_rate_ms == 0 { return Vec::new(); }
-
-    // Only binary scripts supported
-    if actions.iter().any(|a| a.pos != 0.0 && a.pos != 100.0) {
-        eprintln!("Error: actions_to_intensity_curve requires binary (0/100) positions");
+///
+/// Returns an empty `Vec` if the input is not a binary script (positions must
+/// be 0 or 100) or contains fewer than 2 actions.
+pub fn actions_to_intensity_curve(actions: &[Action], step_ms: u64, window_ms: u64) -> Vec<Action> {
+    if actions.len() < 2 {
         return Vec::new();
     }
 
-    actions.sort_by_key(|a| a.at);
+    if !is_binary_script(actions) {
+        log::warn!(
+            "actions_to_intensity_curve: input is not a binary (0/100) script — \
+             found non-binary positions. Returning empty intensity curve."
+        );
+        return Vec::new();
+    }
+
     let mut sorted = actions.to_vec();
+    sorted.sort_by_key(|a| a.at);
     merge_same_position_runs(&mut sorted, 200);
 
     let end_time = sorted.last().unwrap().at;
@@ -204,7 +249,7 @@ pub fn actions_to_intensity_curve(
 
     const MAX_RISE_PER_SEC: f64 = 40.0;
     const SMOOTHING: f64 = 0.6;
-    let max_rise_per_step = MAX_RISE_PER_SEC / 1000.0 * sample_rate_ms as f64;
+    let max_rise_per_step = MAX_RISE_PER_SEC / 1000.0 * step_ms as f64;
 
     let mut output = Vec::new();
     if start_time > 0 {
@@ -230,13 +275,24 @@ pub fn actions_to_intensity_curve(
         let smoothed = prev_smooth + SMOOTHING * (intensity - prev_smooth);
         let final_val = intensity.max(smoothed);
 
-        let snapped_time = ((t as f64 / sample_rate_ms as f64).round() as u64) * sample_rate_ms;
-        output.push(Action { at: snapped_time, pos: final_val });
+        let snapped_time = ((t as f64 / step_ms as f64).round() as u64) * step_ms;
+        output.push(Action {
+            at: snapped_time,
+            pos: final_val,
+        });
 
         prev_smooth = smoothed;
         prev_intensity = final_val;
-        t += sample_rate_ms;
+        t += step_ms;
     }
 
     output
+}
+
+/// Returns `true` when every action position is either 0 or 100 (binary funscript).
+fn is_binary_script(actions: &[Action]) -> bool {
+    actions.iter().all(|a| {
+        let p = a.pos.round() as i64;
+        p == 0 || p == 100
+    })
 }

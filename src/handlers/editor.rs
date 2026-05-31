@@ -11,7 +11,7 @@
 use crate::buttplug::funscript_utils::{Action, FunscriptData};
 use crate::funscript_cache;
 use actix_files::NamedFile;
-use actix_web::{web, Error, HttpResponse, Responder};
+use actix_web::{Error, HttpResponse, Responder, web};
 use serde::Deserialize;
 use std::{
     env,
@@ -96,10 +96,7 @@ fn read_share_path() -> Result<PathBuf, String> {
 }
 
 fn is_safe_relative_path(path: &Path) -> bool {
-    !path.is_absolute()
-        && path
-            .components()
-            .all(|c| matches!(c, Component::Normal(_)))
+    !path.is_absolute() && path.components().all(|c| matches!(c, Component::Normal(_)))
 }
 
 fn normalize_variant(variant: Option<&str>) -> Result<Option<String>, &'static str> {

@@ -9,7 +9,7 @@
 //! lookup table used by the frontend calibration interface.
 
 use actix_files::NamedFile;
-use actix_web::{web, Error, HttpResponse, Responder};
+use actix_web::{Error, HttpResponse, Responder, web};
 use log::{error, info};
 use serde::Deserialize;
 use std::{collections::HashMap, env, io::ErrorKind, path::PathBuf};
@@ -39,7 +39,10 @@ async fn read_profiles_file() -> Result<CalibrationProfiles, String> {
         Ok(raw_json) => serde_json::from_str(&raw_json)
             .map_err(|e| format!("Failed to parse calibration profile JSON: {e}")),
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(HashMap::new()),
-        Err(e) => Err(format!("Failed to read calibration profile file {:?}: {e}", path)),
+        Err(e) => Err(format!(
+            "Failed to read calibration profile file {:?}: {e}",
+            path
+        )),
     }
 }
 

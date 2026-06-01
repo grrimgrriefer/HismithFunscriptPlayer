@@ -70,6 +70,16 @@ export async function refreshVariantsForCurrentVideo() {
         const serverVariants = Array.isArray(data.variants)
             ? data.variants
             : [];
+
+        const variantRow = select.closest('.variant-row');
+        const variantLabel = variantRow?.previousElementSibling;
+        const hasVariants = serverVariants.length > 1;
+
+        if (variantRow && variantLabel) {
+            variantRow.style.display = hasVariants ? 'flex' : 'none';
+            variantLabel.style.display = hasVariants ? 'block' : 'none';
+        }
+
         const variants = serverVariants.length ? serverVariants : ['original'];
 
         select.innerHTML = '';

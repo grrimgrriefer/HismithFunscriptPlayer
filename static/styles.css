@@ -315,7 +315,7 @@ button#toggle-directory {
 }
 
 .settings-label {
-    display: block;
+    display: none;
     margin-bottom: 5px;
     color: #fff;
 }
@@ -353,7 +353,7 @@ button#toggle-directory {
 
 /* Variant row */
 .variant-row {
-    display: flex;
+    display: none;
     gap: 6px;
     align-items: center;
 }

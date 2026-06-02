@@ -127,12 +127,28 @@ function ensureInit() {
     const menu = document.getElementById('settings-menu');
     if (!menu) return;
 
+    initSBSToggle(menu);
     initLoopToggle(menu);
     initVariantSelect(menu);
     initCalibrationButton(menu);
     initHardLimit(menu);
     initVibrateMode(menu);
     initEditorButton(menu);
+}
+
+function initSBSToggle(menu) {
+    const toggle = menu.querySelector('#sbs-toggle');
+    const container = document.getElementById('video-container');
+    if (!toggle || !container) return;
+
+    const saved = localStorage.getItem('sbsMode') === 'true';
+    toggle.checked = saved;
+    if (saved) container.classList.add('sbs-mode');
+
+    toggle.onchange = () => {
+        localStorage.setItem('sbsMode', toggle.checked);
+        container.classList.toggle('sbs-mode', toggle.checked);
+    };
 }
 
 function initLoopToggle(menu) {

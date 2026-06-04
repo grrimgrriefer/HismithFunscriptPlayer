@@ -133,6 +133,7 @@ h1 {
 
 #video-wrapper {
     overflow: hidden;
+    position: relative;
 }
 
 #video-player,
@@ -169,6 +170,36 @@ h1 {
     width: 100%;
     height: 100%;
     object-fit: fill;
+}
+
+#video-error-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    color: #ff4d4d;
+    text-align: center;
+    padding: 20px;
+}
+
+#video-error-overlay.hidden {
+    display: none;
+}
+
+.error-content h3 {
+    margin-top: 0;
+    color: #fff;
+}
+
+.error-content p {
+    margin-bottom: 0;
+    color: #bbb;
 }
 
 /* Generic button defaults */

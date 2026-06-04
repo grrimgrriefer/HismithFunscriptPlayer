@@ -99,6 +99,10 @@ function cancelCurrentAnimation() {
 }
 
 export async function playVideo(videoUrl, funscriptUrl) {
+    const errorOverlay = document.getElementById('video-error-overlay');
+    const errorText = document.getElementById('video-error-text');
+    if (errorOverlay) errorOverlay.classList.add('hidden');
+
     cancelCurrentAnimation();
     sendDeviceCommand(0, 0);
 
@@ -146,6 +150,21 @@ export async function playVideo(videoUrl, funscriptUrl) {
         exitFullscreen();
     };
 
+    videoElement.onerror = () => {
+        if (spinner) spinner.style.display = 'none';
+        if (errorOverlay && errorText) {
+            let msg = 'An unknown error occurred while loading the video.';
+
+            // 4 = MEDIA_ERR_SRC_NOT_SUPPORTED
+            if (videoElement.error && videoElement.error.code === 4) {
+                msg =
+                    'Unsupported video codec. This browser requires H.264/AVC. Please transcode the file on the backend.';
+            }
+            errorText.textContent = msg;
+            errorOverlay.classList.remove('hidden');
+        }
+    };
+
     // Reset variant
     setSelectedFunscriptVariant('original');
     const sel = document.getElementById('funscript-variant-select');
@@ -155,6 +174,26 @@ export async function playVideo(videoUrl, funscriptUrl) {
     createFunscriptDisplayBox();
 
     videoElement.onloadeddata = async () => {
+        if (spinner) spinner.style.display = 'none';
+        console.log(
+            `Video metadata loaded. Dimensions: ${videoElement.videoWidth}x${videoElement.videoHeight}`
+        );
+
+        // Audio plays but video is unsupported
+        if (
+            videoElement.videoWidth === 0 &&
+            videoUrl.toLowerCase().endsWith('.mp4')
+        ) {
+            console.error(
+                'Video width is 0. Possible codec incompatibility (HEVC/H.265).'
+            );
+            if (errorOverlay && errorText) {
+                errorText.textContent =
+                    'Warning: The video track is not visible, it likely uses an unsupported codec like HEVC/H.265.';
+                errorOverlay.classList.remove('hidden');
+            }
+        }
+
         await funscriptPromise;
         updateFunscriptDisplayBox(0);
         updateProgressBars(videoElement);

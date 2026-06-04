@@ -51,10 +51,22 @@ pub async fn handle_funscript(
 
     let funscript_path = build_funscript_path(&video_path, &base_path, variant);
 
-    let original = match read_funscript(&funscript_path).await {
+    let mut original_res = read_funscript(&funscript_path).await;
+
+    // Fallback: check parent directory if not found in current directory.
+    // Mainly for videos that have a 2D and a 3D SBS variant
+    if original_res.is_err() {
+        if let Some(parent_path) = build_parent_funscript_path(&video_path, &base_path, variant) {
+            if let Ok(data) = read_funscript(&parent_path).await {
+                original_res = Ok(data);
+            }
+        }
+    }
+
+    let original = match original_res {
         Ok(data) => data,
         Err(e) => {
-            info!("Funscript not found for {}: {}", video_path, e);
+            info!("Funscript not found for {} (tried primary and parent): {}", video_path, e);
             return HttpResponse::NotFound().json(FunscriptResponse {
                 original: None,
                 intensity: None,
@@ -77,11 +89,35 @@ pub async fn handle_funscript(
 }
 
 fn list_variants(base_path: &str, video_path: &str) -> Vec<String> {
-    let full_path = PathBuf::from(base_path).join(video_path);
-    let dir = full_path.parent().unwrap_or(Path::new(base_path));
-    let stem = full_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+    let v_path = Path::new(video_path);
+    let stem = v_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+    let mut variants = Vec::new();
 
-    let mut variants: Vec<String> = Vec::new();
+    let primary_dir = PathBuf::from(base_path)
+        .join(v_path)
+        .parent()
+        .unwrap_or(Path::new(base_path))
+        .to_path_buf();
+    variants.extend(collect_variants_from_disk(&primary_dir, stem));
+
+    if let Some(p) = v_path.parent() {
+        if !p.as_os_str().is_empty() {
+            let parent_dir = PathBuf::from(base_path)
+                .join(p)
+                .parent()
+                .unwrap_or(Path::new(base_path))
+                .to_path_buf();
+            variants.extend(collect_variants_from_disk(&parent_dir, stem));
+        }
+    }
+
+    variants.sort();
+    variants.dedup();
+    variants
+}
+
+fn collect_variants_from_disk(dir: &Path, stem: &str) -> Vec<String> {
+    let mut variants = Vec::new();
     let Ok(entries) = stdfs::read_dir(dir) else {
         return variants;
     };
@@ -100,9 +136,6 @@ fn list_variants(base_path: &str, video_path: &str) -> Vec<String> {
             variants.push(suffix.to_string());
         }
     }
-
-    variants.sort();
-    variants.dedup();
     variants
 }
 
@@ -112,6 +145,24 @@ fn build_funscript_path(video_path: &str, base_path: &str, variant: &str) -> Pat
         full_path.with_extension("funscript")
     } else {
         full_path.with_extension(format!("{}.funscript", variant))
+    }
+}
+
+fn build_parent_funscript_path(video_path: &str, base_path: &str, variant: &str) -> Option<PathBuf> {
+    let v_path = Path::new(video_path);
+
+    let parent_dir = v_path.parent()?;
+    let grandparent_dir = parent_dir.parent()?;
+    let file_name = v_path.file_name()?;
+
+    let base = PathBuf::from(base_path)
+        .join(grandparent_dir)
+        .join(file_name);
+
+    if variant.is_empty() || variant == "original" {
+        Some(base.with_extension("funscript"))
+    } else {
+        Some(base.with_extension(format!("{}.funscript", variant)))
     }
 }
 

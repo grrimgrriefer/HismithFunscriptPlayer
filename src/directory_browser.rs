@@ -22,13 +22,6 @@ pub struct FileNode {
     pub children: Option<Vec<FileNode>>,
 }
 
-fn is_funscripts_dir(path: &Path) -> bool {
-    path.file_name()
-        .and_then(|n| n.to_str())
-        .map(|n| n.eq_ignore_ascii_case("funscripts"))
-        .unwrap_or(false)
-}
-
 fn join_relative_path(parent: &str, name: &str) -> String {
     if parent.is_empty() {
         name.to_string()
@@ -79,15 +72,6 @@ pub fn build_directory_tree(path: &Path, relative_path: &str) -> io::Result<File
         is_dir: true,
         children: Some(children),
     })
-}
-
-fn is_video_file(path: &Path) -> bool {
-    matches!(
-        path.extension()
-            .and_then(|e| e.to_str())
-            .map(|e| e.to_ascii_lowercase()),
-        Some(ext) if matches!(ext.as_str(), "mp4" | "mkv" | "webm" | "mov")
-    )
 }
 
 pub fn get_all_files_with_size(base_path: &Path) -> io::Result<HashMap<PathBuf, u64>> {

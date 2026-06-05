@@ -215,7 +215,9 @@ function renderTree(node, parent, funscriptMap) {
             e.preventDefault();
             playVideo(
                 `/site/video/${node.path}`,
-                `/site/funscripts/${node.path.replace(/\.[^/.]+$/, '.funscript')}`
+                `/site/funscripts/${node.path.replace(/\.[^/.]+$/, '.funscript')}`,
+                node.path,
+                false
             );
         };
         row.appendChild(link);

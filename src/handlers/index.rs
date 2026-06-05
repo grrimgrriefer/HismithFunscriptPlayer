@@ -52,7 +52,6 @@ pub async fn get_directory_tree() -> impl Responder {
 
     let (mut funscript_cache, funscript_cache_error) = load_funscript_cache().await;
 
-    // Apply parent-directory fallback logic to the cache map, for 3D SBS video variants of 2D videos
     if let Some(cache_obj) = funscript_cache.as_object_mut() {
         apply_cache_fallbacks(cache_obj, &video_base);
     }
@@ -115,7 +114,6 @@ fn apply_cache_fallbacks(cache: &mut serde_json::Map<String, serde_json::Value>,
 
         let video_stem_str = rel_video.with_extension("").to_string_lossy().to_string();
 
-        // Only look for fallbacks if the video doesn't already have metadata (direct or variant)
         let has_metadata = cache.keys().any(|k| k.starts_with(&video_stem_str));
         if has_metadata {
             continue;

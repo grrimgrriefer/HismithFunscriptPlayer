@@ -192,6 +192,57 @@ h1 {
     display: none;
 }
 
+#next-video-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1100;
+    animation: overlayFadeIn 3s ease forwards;
+}
+
+@keyframes overlayFadeIn {
+    from {
+        background: rgba(0, 0, 0, 0);
+    }
+    to {
+        background: rgba(0, 0, 0, 0.85);
+    }
+}
+
+#next-video-overlay.hidden {
+    display: none;
+    animation: none;
+}
+
+.overlay-card {
+    background: #2d2d2d;
+    padding: 24px;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    max-width: 400px;
+    width: 90%;
+    color: #fff;
+}
+
+#next-timer {
+    font-size: 1.1em;
+    margin: 15px 0;
+    color: #ffd54f;
+}
+
+.overlay-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
 .error-content h3 {
     margin-top: 0;
     color: #fff;

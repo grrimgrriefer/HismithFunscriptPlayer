@@ -6,7 +6,8 @@ import {
     getCurrentVideoMaxIntensity,
     getVibrateMode,
     getCurrentBeatValue,
-    setSelectedFunscriptVariant
+    setSelectedFunscriptVariant,
+    getFunscriptDuration
 } from './funscript_handler.js';
 import {
     createFunscriptDisplayBox,
@@ -26,6 +27,12 @@ let currentAnimationFrame = null;
 let cancelAnimationTimeout = null;
 let transitionStartTime = Date.now();
 let transitionTargetValue = 1;
+
+let globalTree = null;
+let globalFunscriptMap = null;
+let currentVideoRelativePath = null;
+let nextVideoTimer = null;
+let isOverlayVisible = false;
 
 function lerp(start, end, progress) {
     return start + (end - start) * progress;
@@ -68,6 +75,19 @@ function updateProgressBars(videoElement) {
         computeVibrateValue(currentTime, intensity, progress)
     );
 
+    const funscriptEnd = getFunscriptDuration();
+    const isVideoEnded = videoElement.ended;
+    const isFunscriptEnded = funscriptEnd > 0 && currentTime >= funscriptEnd;
+
+    if (!isOverlayVisible && !videoElement.paused && !videoElement.loop) {
+        if (isVideoEnded || isFunscriptEnded) {
+            if (isVideoEnded) {
+                videoElement.pause();
+            }
+            showNextVideoOverlay();
+        }
+    }
+
     currentAnimationFrame = requestAnimationFrame(() =>
         updateProgressBars(videoElement)
     );
@@ -98,7 +118,15 @@ function cancelCurrentAnimation() {
     }
 }
 
-export async function playVideo(videoUrl, funscriptUrl) {
+export async function playVideo(
+    videoUrl,
+    funscriptUrl,
+    relativePath,
+    autoplay = false
+) {
+    currentVideoRelativePath = relativePath;
+    hideNextVideoOverlay();
+
     const errorOverlay = document.getElementById('video-error-overlay');
     const errorText = document.getElementById('video-error-text');
     if (errorOverlay) errorOverlay.classList.add('hidden');
@@ -199,9 +227,120 @@ export async function playVideo(videoUrl, funscriptUrl) {
         updateProgressBars(videoElement);
         refreshVariantsForCurrentVideo();
         spinner.style.display = 'none';
+
+        if (autoplay) {
+            videoElement
+                .play()
+                .catch((e) => console.warn('Autoplay blocked:', e));
+        }
     };
 
     document.getElementById('directory-container').classList.add('hidden');
     document.getElementById('video-container').classList.remove('hidden');
     document.getElementById('settings-button').style.display = 'block';
+}
+
+export function setPlaybackData(tree, map) {
+    globalTree = tree;
+    globalFunscriptMap = map;
+}
+
+function getVideosInSameFolder(path) {
+    if (!globalTree || !path) return [];
+    const parts = path.split('/');
+    parts.pop();
+    let current = globalTree;
+    for (const part of parts) {
+        if (!part) continue;
+        const found = current.children?.find(
+            (c) => c.is_dir && c.name === part
+        );
+        if (!found) return [];
+        current = found;
+    }
+    return (current.children || []).filter((c) => !c.is_dir);
+}
+
+function findRandomVideo(minDiff, maxDiff) {
+    const siblings = getVideosInSameFolder(currentVideoRelativePath);
+    const currentPeak = getCurrentVideoMaxIntensity();
+    const candidates = siblings.filter((v) => {
+        if (v.path === currentVideoRelativePath) return false;
+        const normPath = v.path.replace(/\.[^/.]+$/, '.funscript');
+        const stats = globalFunscriptMap[normPath];
+        if (!stats) return false;
+        const peak =
+            stats.peak_intensity || stats.peak || stats.peakIntensity || 0;
+        const diff = peak - currentPeak;
+        return diff >= minDiff && diff <= maxDiff;
+    });
+    return candidates.length > 0
+        ? candidates[Math.floor(Math.random() * candidates.length)]
+        : null;
+}
+
+function startNextVideo(videoNode) {
+    if (!videoNode) {
+        alert('No similar video found in the specified intensity range.');
+        return;
+    }
+    hideNextVideoOverlay();
+    playVideo(
+        `/site/video/${videoNode.path}`,
+        `/site/funscripts/${videoNode.path.replace(/\.[^/.]+$/, '.funscript')}`,
+        videoNode.path,
+        true
+    );
+}
+
+function showNextVideoOverlay() {
+    if (isOverlayVisible) return;
+    isOverlayVisible = true;
+
+    if (nextVideoTimer) clearTimeout(nextVideoTimer);
+
+    const overlay = document.getElementById('next-video-overlay');
+    const timerEl = document.getElementById('next-timer');
+    if (!overlay) return;
+
+    overlay.classList.remove('hidden');
+    exitFullscreen();
+
+    let timeLeft = 6;
+    const updateTimer = () => {
+        if (!isOverlayVisible) return;
+        timerEl.textContent = `Starting random video in ${timeLeft}s...`;
+        if (timeLeft <= 0) {
+            startNextVideo(findRandomVideo(-5, 5));
+            return;
+        }
+        timeLeft -= 1;
+        nextVideoTimer = setTimeout(updateTimer, 1000);
+    };
+    updateTimer();
+
+    document.getElementById('next-higher-btn').onclick = () => {
+        clearTimeout(nextVideoTimer);
+        startNextVideo(findRandomVideo(5, 15));
+    };
+    document.getElementById('next-lower-btn').onclick = () => {
+        clearTimeout(nextVideoTimer);
+        startNextVideo(findRandomVideo(-15, -5));
+    };
+    document.getElementById('next-replay-btn').onclick = () => {
+        clearTimeout(nextVideoTimer);
+        const video = document.querySelector('#video-player video');
+        if (video) {
+            video.currentTime = 0;
+            video.play();
+        }
+        hideNextVideoOverlay();
+    };
+    document.getElementById('next-cancel-btn').onclick = hideNextVideoOverlay;
+}
+
+function hideNextVideoOverlay() {
+    isOverlayVisible = false;
+    clearTimeout(nextVideoTimer);
+    document.getElementById('next-video-overlay')?.classList.add('hidden');
 }

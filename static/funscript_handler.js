@@ -114,6 +114,11 @@ export function getCurrentVideoRawMaxIntensity() {
     return currentVideoRawMaxIntensity;
 }
 
+export function getFunscriptDuration() {
+    if (intensityActions.length === 0) return 0;
+    return intensityActions[intensityActions.length - 1].at;
+}
+
 export function getCurrentBeatValue(currentTime) {
     // Find the most recent falling edge (100 -> 0)
     let lastBeatTime = null;

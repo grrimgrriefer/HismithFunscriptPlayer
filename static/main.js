@@ -3,6 +3,7 @@
 import { initDirectoryTree } from './directory_tree.js';
 import { initWebSocket } from './socket.js';
 import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js';
+import { setPlaybackData } from './video_player.js';
 
 function initializeUI() {
     createSettingsMenu();
@@ -57,6 +58,7 @@ async function main() {
         const treeData = payload.tree || payload;
         const funscriptMap = payload.funscripts || {};
 
+        setPlaybackData(treeData, funscriptMap);
         renderCacheError(payload, treeContainer);
         initDirectoryTree(treeData, treeContainer, funscriptMap);
     } catch (error) {

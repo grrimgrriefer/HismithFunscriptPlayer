@@ -33,6 +33,7 @@ let globalFunscriptMap = null;
 let currentVideoRelativePath = null;
 let nextVideoTimer = null;
 let isOverlayVisible = false;
+const playedVideos = new Set();
 
 function lerp(start, end, progress) {
     return start + (end - start) * progress;
@@ -79,7 +80,7 @@ function updateProgressBars(videoElement) {
     const isVideoEnded = videoElement.ended;
     const isFunscriptEnded = funscriptEnd > 0 && currentTime >= funscriptEnd;
 
-    if (!isOverlayVisible && !videoElement.paused && !videoElement.loop) {
+    if (!isOverlayVisible && !videoElement.loop) {
         if (isVideoEnded || isFunscriptEnded) {
             if (isVideoEnded) {
                 videoElement.pause();
@@ -125,6 +126,7 @@ export async function playVideo(
     autoplay = false
 ) {
     currentVideoRelativePath = relativePath;
+    playedVideos.add(relativePath);
     hideNextVideoOverlay();
 
     const errorOverlay = document.getElementById('video-error-overlay');
@@ -264,8 +266,10 @@ function getVideosInSameFolder(path) {
 function findRandomVideo(minDiff, maxDiff) {
     const siblings = getVideosInSameFolder(currentVideoRelativePath);
     const currentPeak = getCurrentVideoMaxIntensity();
-    const candidates = siblings.filter((v) => {
-        if (v.path === currentVideoRelativePath) return false;
+
+    let candidates = siblings.filter((v) => {
+        if (v.path === currentVideoRelativePath || playedVideos.has(v.path))
+            return false;
         const normPath = v.path.replace(/\.[^/.]+$/, '.funscript');
         const stats = globalFunscriptMap[normPath];
         if (!stats) return false;
@@ -274,6 +278,20 @@ function findRandomVideo(minDiff, maxDiff) {
         const diff = peak - currentPeak;
         return diff >= minDiff && diff <= maxDiff;
     });
+
+    if (candidates.length === 0) {
+        candidates = siblings.filter((v) => {
+            if (v.path === currentVideoRelativePath) return false;
+            const normPath = v.path.replace(/\.[^/.]+$/, '.funscript');
+            const stats = globalFunscriptMap[normPath];
+            if (!stats) return false;
+            const peak =
+                stats.peak_intensity || stats.peak || stats.peakIntensity || 0;
+            const diff = peak - currentPeak;
+            return diff >= minDiff && diff <= maxDiff;
+        });
+    }
+
     return candidates.length > 0
         ? candidates[Math.floor(Math.random() * candidates.length)]
         : null;
@@ -301,17 +319,99 @@ function showNextVideoOverlay() {
 
     const overlay = document.getElementById('next-video-overlay');
     const timerEl = document.getElementById('next-timer');
+    const higherBtn = document.getElementById('next-higher-btn');
+    const lowerBtn = document.getElementById('next-lower-btn');
     if (!overlay) return;
 
     overlay.classList.remove('hidden');
     exitFullscreen();
 
+    const getStatsDelta = (v) => {
+        if (!v) return { peak: 0, avg: 0 };
+        const normPath = v.path.replace(/\.[^/.]+$/, '.funscript');
+        const stats = globalFunscriptMap[normPath];
+        const peak = stats
+            ? stats.peak_intensity || stats.peak || stats.peakIntensity || 0
+            : 0;
+        const avg = stats
+            ? stats.average_intensity ||
+              stats.avg ||
+              stats.average ||
+              stats.averageIntensity ||
+              0
+            : 0;
+
+        const currentNorm = currentVideoRelativePath.replace(
+            /\.[^/.]+$/,
+            '.funscript'
+        );
+        const cStats = globalFunscriptMap[currentNorm] || {};
+        const cPeak = getCurrentVideoMaxIntensity();
+        const cAvg =
+            cStats.average_intensity ||
+            cStats.avg ||
+            cStats.average ||
+            cStats.averageIntensity ||
+            0;
+
+        return { peak: peak - cPeak, avg: avg - cAvg };
+    };
+
+    const getColor = (d) => {
+        if (d > 5) return '#ff4444'; // Red
+        if (d > 0) return '#ffbb33'; // Orange
+        if (d < -5) return '#00C851'; // Green
+        if (d < 0) return '#99cc00'; // Light Green
+        return '#ffffff';
+    };
+
+    const formatBtn = (btn, candidate, label) => {
+        if (!candidate) {
+            btn.textContent = `No ${label.toLowerCase()} found`;
+            btn.disabled = true;
+            btn.style.color = '';
+            return;
+        }
+        const delta = getStatsDelta(candidate);
+        const pSign = delta.peak > 0 ? '+' : '';
+        const aSign = delta.avg > 0 ? '+' : '';
+
+        btn.innerHTML =
+            `${label} <span style="color:${getColor(delta.peak)}; font-weight:bold;">` +
+            `${pSign}${delta.peak.toFixed(1)}</span> ` +
+            `<span style="color:${getColor(delta.avg)}; font-size:0.85em; opacity:0.9;">` +
+            `(${aSign}${delta.avg.toFixed(1)} avg)</span>`;
+
+        btn.disabled = false;
+        btn.onclick = () => startNextVideo(candidate);
+    };
+
+    const candidates = {
+        higher: findRandomVideo(5, 15),
+        similar: findRandomVideo(-5, 5),
+        lower: findRandomVideo(-15, -5)
+    };
+
+    formatBtn(higherBtn, candidates.higher, 'Higher Intensity');
+    formatBtn(lowerBtn, candidates.lower, 'Lower Intensity');
+
     let timeLeft = 6;
     const updateTimer = () => {
         if (!isOverlayVisible) return;
-        timerEl.textContent = `Starting random video in ${timeLeft}s...`;
+
+        const delta = getStatsDelta(candidates.similar);
+        const pSign = delta.peak >= 0 ? '+' : '';
+        const aSign = delta.avg >= 0 ? '+' : '';
+
+        const deltaHtml = candidates.similar
+            ? ` <span style="color:${getColor(delta.peak)}">${pSign}${delta.peak.toFixed(1)}</span>` +
+              ` <small style="color:${getColor(delta.avg)}">(${aSign}${delta.avg.toFixed(1)} avg)</small>`
+            : '';
+
+        timerEl.innerHTML = `Starting random video${deltaHtml} in ${timeLeft}s...`;
+
         if (timeLeft <= 0) {
-            startNextVideo(findRandomVideo(-5, 5));
+            startNextVideo(candidates.similar);
             return;
         }
         timeLeft -= 1;
@@ -319,16 +419,7 @@ function showNextVideoOverlay() {
     };
     updateTimer();
 
-    document.getElementById('next-higher-btn').onclick = () => {
-        clearTimeout(nextVideoTimer);
-        startNextVideo(findRandomVideo(5, 15));
-    };
-    document.getElementById('next-lower-btn').onclick = () => {
-        clearTimeout(nextVideoTimer);
-        startNextVideo(findRandomVideo(-15, -5));
-    };
     document.getElementById('next-replay-btn').onclick = () => {
-        clearTimeout(nextVideoTimer);
         const video = document.querySelector('#video-player video');
         if (video) {
             video.currentTime = 0;

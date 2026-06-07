@@ -1,92 +1,20 @@
 // static/directory_tree.js
 
 import { playVideo } from './video_player.js';
-
-// ── Color Utilities ────────────────────────────────────────────────────
-
-function mixHue(h1, h2, t) {
-    const d = ((((h2 - h1) % 360) + 540) % 360) - 180;
-    return (h1 + d * t + 360) % 360;
-}
-
-function hueDistance(a, b) {
-    const d = Math.abs(a - b) % 360;
-    return d > 180 ? 360 - d : d;
-}
-
-function intensityToColor(v) {
-    const val = Math.max(0, Math.min(100, Number(v) || 0));
-
-    let hue;
-    if (val <= 20) hue = 120;
-    else if (val <= 40) hue = mixHue(120, 0, (val - 20) / 20);
-    else if (val <= 60) hue = mixHue(0, 330, (val - 40) / 20);
-    else if (val <= 80) hue = mixHue(330, 180, (val - 60) / 20);
-    else hue = 180;
-
-    const redBoost =
-        hueDistance(hue, 0) <= 60 ? (1 - hueDistance(hue, 0) / 60) * 12 : 0;
-
-    const blueBoost =
-        hueDistance(hue, 240) <= 40 ? (1 - hueDistance(hue, 240) / 40) * 18 : 0;
-
-    const lightness = Math.min(90, 50 + redBoost + blueBoost);
-
-    return `hsl(${hue.toFixed(1)}, 100%, ${lightness.toFixed(1)}%)`;
-}
+import {
+    toFunscriptPath,
+    getFunscriptStats,
+    intensityToColor
+} from './utils.js';
 
 // ── Data Helpers ───────────────────────────────────────────────────────
 
-const STAT_KEYS_AVG = [
-    'average_intensity',
-    'avg',
-    'average',
-    'averageIntensity'
-];
-const STAT_KEYS_PEAK = [
-    'peak_intensity',
-    'max_intensity',
-    'maximum_intensity',
-    'peak',
-    'max',
-    'maximum',
-    'peakIntensity'
-];
-
-function getNumberFromEntry(entry, keys) {
-    if (!entry) return NaN;
-    for (const k of keys) {
-        if (Object.prototype.hasOwnProperty.call(entry, k)) {
-            const n = Number(entry[k]);
-            if (isFinite(n)) return n;
-        }
-    }
-    return NaN;
-}
-
 function collectVariantStats(filePath, funscriptMap) {
-    const baseNorm = filePath.replace(/\.[^/.]+$/, '').replace(/^\/+/, '');
-    const stats = [];
-
-    for (const [key, entry] of Object.entries(funscriptMap)) {
-        const keyNorm = key.replace(/^\/+/, '');
-        if (!keyNorm.endsWith('.funscript')) continue;
-        if (
-            keyNorm !== `${baseNorm}.funscript` &&
-            !keyNorm.startsWith(`${baseNorm}.`)
-        )
-            continue;
-
-        const avg = getNumberFromEntry(entry, STAT_KEYS_AVG);
-        const peak = getNumberFromEntry(entry, STAT_KEYS_PEAK);
-        if (isFinite(avg) || isFinite(peak)) {
-            stats.push({
-                avg: isFinite(avg) ? avg : NaN,
-                peak: isFinite(peak) ? peak : NaN
-            });
-        }
-    }
-    return stats;
+    const baseNorm = toFunscriptPath(filePath).replace('.funscript', '');
+    return Object.entries(funscriptMap)
+        .filter(([key]) => key.startsWith(baseNorm))
+        .map(([, entry]) => getFunscriptStats(entry))
+        .filter((s) => isFinite(s.avg) || isFinite(s.peak));
 }
 
 // ── Sorting ────────────────────────────────────────────────────────────
@@ -215,7 +143,7 @@ function renderTree(node, parent, funscriptMap) {
             e.preventDefault();
             playVideo(
                 `/site/video/${node.path}`,
-                `/site/funscripts/${node.path.replace(/\.[^/.]+$/, '.funscript')}`,
+                `/site/funscripts/${toFunscriptPath(node.path)}`,
                 node.path,
                 false
             );

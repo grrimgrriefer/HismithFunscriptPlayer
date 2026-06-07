@@ -16,6 +16,12 @@ import {
 import { sendDeviceCommand } from './socket.js';
 import { getCalibrationMultiplier } from './calibration.js';
 import { refreshVariantsForCurrentVideo } from './settings_menu.js';
+import {
+    lerp,
+    relativeIntensityToColor,
+    toFunscriptPath,
+    getFunscriptStats
+} from './utils.js';
 
 const urlParams = new URLSearchParams(window.location.search);
 const DISABLE_FULLSCREEN = ['1', 'true', 'yes'].includes(
@@ -34,10 +40,6 @@ let currentVideoRelativePath = null;
 let nextVideoTimer = null;
 let isOverlayVisible = false;
 const playedVideos = new Set();
-
-function lerp(start, end, progress) {
-    return start + (end - start) * progress;
-}
 
 function computeOscillateValue(intensity, progress) {
     if (intensity === undefined) return 0;
@@ -270,11 +272,10 @@ function findRandomVideo(minDiff, maxDiff) {
     let candidates = siblings.filter((v) => {
         if (v.path === currentVideoRelativePath || playedVideos.has(v.path))
             return false;
-        const normPath = v.path.replace(/\.[^/.]+$/, '.funscript');
-        const stats = globalFunscriptMap[normPath];
+        const normPath = toFunscriptPath(v.path);
+        const stats = getFunscriptStats(globalFunscriptMap[normPath]);
         if (!stats) return false;
-        const peak =
-            stats.peak_intensity || stats.peak || stats.peakIntensity || 0;
+        const peak = stats.peak;
         const diff = peak - currentPeak;
         return diff >= minDiff && diff <= maxDiff;
     });
@@ -282,11 +283,10 @@ function findRandomVideo(minDiff, maxDiff) {
     if (candidates.length === 0) {
         candidates = siblings.filter((v) => {
             if (v.path === currentVideoRelativePath) return false;
-            const normPath = v.path.replace(/\.[^/.]+$/, '.funscript');
-            const stats = globalFunscriptMap[normPath];
+            const normPath = toFunscriptPath(v.path);
+            const stats = getFunscriptStats(globalFunscriptMap[normPath]);
             if (!stats) return false;
-            const peak =
-                stats.peak_intensity || stats.peak || stats.peakIntensity || 0;
+            const peak = stats.peak;
             const diff = peak - currentPeak;
             return diff >= minDiff && diff <= maxDiff;
         });
@@ -305,7 +305,7 @@ function startNextVideo(videoNode) {
     hideNextVideoOverlay();
     playVideo(
         `/site/video/${videoNode.path}`,
-        `/site/funscripts/${videoNode.path.replace(/\.[^/.]+$/, '.funscript')}`,
+        `/site/funscripts/${toFunscriptPath(videoNode.path)}`,
         videoNode.path,
         true
     );
@@ -314,74 +314,42 @@ function startNextVideo(videoNode) {
 function showNextVideoOverlay() {
     if (isOverlayVisible) return;
     isOverlayVisible = true;
-
     if (nextVideoTimer) clearTimeout(nextVideoTimer);
 
     const overlay = document.getElementById('next-video-overlay');
     const timerEl = document.getElementById('next-timer');
-    const higherBtn = document.getElementById('next-higher-btn');
-    const lowerBtn = document.getElementById('next-lower-btn');
     if (!overlay) return;
 
     overlay.classList.remove('hidden');
     exitFullscreen();
 
-    const getStatsDelta = (v) => {
+    const getStats = (v) => {
         if (!v) return { peak: 0, avg: 0 };
-        const normPath = v.path.replace(/\.[^/.]+$/, '.funscript');
-        const stats = globalFunscriptMap[normPath];
-        const peak = stats
-            ? stats.peak_intensity || stats.peak || stats.peakIntensity || 0
-            : 0;
-        const avg = stats
-            ? stats.average_intensity ||
-              stats.avg ||
-              stats.average ||
-              stats.averageIntensity ||
-              0
-            : 0;
+        return getFunscriptStats(globalFunscriptMap[toFunscriptPath(v.path)]);
+    };
 
-        const currentNorm = currentVideoRelativePath.replace(
-            /\.[^/.]+$/,
-            '.funscript'
+    const currentStats = getStats({ path: currentVideoRelativePath });
+    const getStatHtml = (candidate) => {
+        if (!candidate) return '';
+        const stats = getStats(candidate);
+        const dPeak = stats.peak - getCurrentVideoMaxIntensity();
+        const dAvg = stats.avg - currentStats.avg;
+        const peakColor = relativeIntensityToColor(dPeak);
+
+        return (
+            `<span style="color:${peakColor}">${dPeak > 0 ? '+' : ''}${dPeak.toFixed(1)}</span> ` +
+            `<span style="opacity:0.8; font-size:0.8em;">(${dAvg > 0 ? '+' : ''}${dAvg.toFixed(1)} avg)</span>`
         );
-        const cStats = globalFunscriptMap[currentNorm] || {};
-        const cPeak = getCurrentVideoMaxIntensity();
-        const cAvg =
-            cStats.average_intensity ||
-            cStats.avg ||
-            cStats.average ||
-            cStats.averageIntensity ||
-            0;
-
-        return { peak: peak - cPeak, avg: avg - cAvg };
     };
 
-    const getColor = (d) => {
-        if (d > 5) return '#ff4444'; // Red
-        if (d > 0) return '#ffbb33'; // Orange
-        if (d < -5) return '#00C851'; // Green
-        if (d < 0) return '#99cc00'; // Light Green
-        return '#ffffff';
-    };
-
-    const formatBtn = (btn, candidate, label) => {
+    const formatBtn = (id, candidate, label) => {
+        const btn = document.getElementById(id);
         if (!candidate) {
             btn.textContent = `No ${label.toLowerCase()} found`;
             btn.disabled = true;
-            btn.style.color = '';
             return;
         }
-        const delta = getStatsDelta(candidate);
-        const pSign = delta.peak > 0 ? '+' : '';
-        const aSign = delta.avg > 0 ? '+' : '';
-
-        btn.innerHTML =
-            `${label} <span style="color:${getColor(delta.peak)}; font-weight:bold;">` +
-            `${pSign}${delta.peak.toFixed(1)}</span> ` +
-            `<span style="color:${getColor(delta.avg)}; font-size:0.85em; opacity:0.9;">` +
-            `(${aSign}${delta.avg.toFixed(1)} avg)</span>`;
-
+        btn.innerHTML = `${label} ${getStatHtml(candidate)}`;
         btn.disabled = false;
         btn.onclick = () => startNextVideo(candidate);
     };
@@ -392,29 +360,19 @@ function showNextVideoOverlay() {
         lower: findRandomVideo(-15, -5)
     };
 
-    formatBtn(higherBtn, candidates.higher, 'Higher Intensity');
-    formatBtn(lowerBtn, candidates.lower, 'Lower Intensity');
+    formatBtn('next-higher-btn', candidates.higher, 'Higher');
+    formatBtn('next-lower-btn', candidates.lower, 'Lower');
 
     let timeLeft = 6;
+    const similarStatsHtml = candidates.similar
+        ? `<br><small>Next: ${getStatHtml(candidates.similar)}</small>`
+        : '';
+
     const updateTimer = () => {
         if (!isOverlayVisible) return;
-
-        const delta = getStatsDelta(candidates.similar);
-        const pSign = delta.peak >= 0 ? '+' : '';
-        const aSign = delta.avg >= 0 ? '+' : '';
-
-        const deltaHtml = candidates.similar
-            ? ` <span style="color:${getColor(delta.peak)}">${pSign}${delta.peak.toFixed(1)}</span>` +
-              ` <small style="color:${getColor(delta.avg)}">(${aSign}${delta.avg.toFixed(1)} avg)</small>`
-            : '';
-
-        timerEl.innerHTML = `Starting random video${deltaHtml} in ${timeLeft}s...`;
-
-        if (timeLeft <= 0) {
-            startNextVideo(candidates.similar);
-            return;
-        }
-        timeLeft -= 1;
+        timerEl.innerHTML = `Starting random video in ${timeLeft}s...${similarStatsHtml}`;
+        if (timeLeft <= 0) return startNextVideo(candidates.similar);
+        timeLeft--;
         nextVideoTimer = setTimeout(updateTimer, 1000);
     };
     updateTimer();

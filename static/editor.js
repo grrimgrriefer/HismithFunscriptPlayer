@@ -1,5 +1,7 @@
 // static/editor.js
 
+import { toFunscriptPath, isTextInput } from './utils.js';
+
 // ── Constants ──────────────────────────────────────────────────────────
 
 const VIEW_WINDOW_MS = 10000;
@@ -111,7 +113,7 @@ function generateFunscriptActions(timestamps) {
 
 async function loadFunscript() {
     state.currentVariant = variantInput?.value.trim() ?? '';
-    const baseUrl = `/site/funscripts/${state.videoPath.replace(/\.[^/.]+$/, '.funscript')}`;
+    const baseUrl = `/site/funscripts/${toFunscriptPath(state.videoPath)}`;
 
     // Variant list
     const listData = await fetchJson(`${baseUrl}?list=1`);
@@ -393,11 +395,6 @@ function resizeCanvas() {
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
     draw();
-}
-
-function isTextInput(target) {
-    const tag = target?.tagName?.toUpperCase() ?? '';
-    return tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable;
 }
 
 function bind() {

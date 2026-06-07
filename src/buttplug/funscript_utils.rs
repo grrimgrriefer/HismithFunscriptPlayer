@@ -289,7 +289,7 @@ pub fn actions_to_intensity_curve(actions: &[Action], step_ms: u64, window_ms: u
     output
 }
 
-/// Returns `true` when every action position is either 0 or 100 (binary funscript).
+/// Only funscripts that contain pos values of either 0 or 100 are allowed.
 fn is_binary_script(actions: &[Action]) -> bool {
     actions.iter().all(|a| {
         let p = a.pos.round() as i64;

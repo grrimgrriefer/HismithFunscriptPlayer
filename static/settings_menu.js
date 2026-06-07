@@ -9,6 +9,7 @@ import {
     getSelectedFunscriptVariant,
     getVibrateMode
 } from './funscript_handler.js';
+import { toFunscriptPath } from './utils.js';
 
 let initialized = false;
 
@@ -57,7 +58,7 @@ export async function refreshVariantsForCurrentVideo() {
     const videoPath = getCurrentVideoPath();
     if (!videoPath) return;
 
-    const listUrl = `/site/funscripts/${videoPath.replace(/\.[^/.]+$/, '.funscript')}?list=1`;
+    const listUrl = `/site/funscripts/${toFunscriptPath(videoPath)}?list=1`;
 
     try {
         const resp = await fetch(listUrl);
@@ -115,7 +116,7 @@ function getCurrentVideoPath() {
 function getBaseFunscriptUrl() {
     const videoPath = getCurrentVideoPath();
     if (!videoPath) return null;
-    return `/site/funscripts/${videoPath.replace(/\.[^/.]+$/, '.funscript')}`;
+    return `/site/funscripts/${toFunscriptPath(videoPath)}`;
 }
 
 // ── Initialization ─────────────────────────────────────────────────────

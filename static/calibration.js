@@ -1,6 +1,7 @@
 // static/calibration.js
 
 import { initWebSocket, sendDeviceCommand } from './socket.js';
+import { clamp, smoothstep } from './utils.js';
 
 // ── Constants ──────────────────────────────────────────────────────────
 const PRESETS = [10, 20, 30, 40, 50];
@@ -43,9 +44,7 @@ const ramp = {
 const els = {};
 
 // ── Utilities ──────────────────────────────────────────────────────────
-const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const round2 = (v) => Math.round(v * 100) / 100;
-const smoothstep = (t) => t * t * (3 - 2 * t);
 const getMultiplier = (preset) => multipliers[preset] ?? 1.0;
 
 function intensityToNormalized(preset, multiplier) {

@@ -29,17 +29,18 @@ const DISABLE_FULLSCREEN = ['1', 'true', 'yes'].includes(
 );
 const TRANSITION_DURATION = 1000;
 
-let currentAnimationFrame = null;
-let cancelAnimationTimeout = null;
-let transitionStartTime = Date.now();
-let transitionTargetValue = 1;
-
-let globalTree = null;
-let globalFunscriptMap = null;
-let currentVideoRelativePath = null;
-let nextVideoTimer = null;
-let isOverlayVisible = false;
-const playedVideos = new Set();
+const state = {
+    currentAnimationFrame: null,
+    cancelAnimationTimeout: null,
+    transitionStartTime: Date.now(),
+    transitionTargetValue: 1,
+    globalTree: null,
+    globalFunscriptMap: null,
+    currentVideoRelativePath: null,
+    nextVideoTimer: null,
+    isOverlayVisible: false,
+    playedVideos: new Set()
+};
 
 function computeOscillateValue(intensity, progress) {
     if (intensity === undefined) return 0;
@@ -68,9 +69,9 @@ function updateProgressBars(videoElement) {
     const intensity = getCurrentIntensity(currentTime);
     updateFunscriptDisplayBox(currentTime);
 
-    const elapsed = Date.now() - transitionStartTime;
+    const elapsed = Date.now() - state.transitionStartTime;
     const progress = Math.abs(
-        transitionTargetValue - Math.min(elapsed / TRANSITION_DURATION, 1)
+        state.transitionTargetValue - Math.min(elapsed / TRANSITION_DURATION, 1)
     );
 
     sendDeviceCommand(
@@ -79,45 +80,35 @@ function updateProgressBars(videoElement) {
     );
 
     const funscriptEnd = getFunscriptDuration();
-    const isVideoEnded = videoElement.ended;
-    const isFunscriptEnded = funscriptEnd > 0 && currentTime >= funscriptEnd;
-
-    if (!isOverlayVisible && !videoElement.loop) {
-        if (isVideoEnded || isFunscriptEnded) {
-            if (isVideoEnded) {
-                videoElement.pause();
-            }
+    if (!state.isOverlayVisible && !videoElement.loop) {
+        if (
+            videoElement.ended ||
+            (funscriptEnd > 0 && currentTime >= funscriptEnd)
+        ) {
+            if (videoElement.ended) videoElement.pause();
             showNextVideoOverlay();
         }
     }
 
-    currentAnimationFrame = requestAnimationFrame(() =>
+    state.currentAnimationFrame = requestAnimationFrame(() =>
         updateProgressBars(videoElement)
     );
 }
 
 function enterFullscreen() {
-    if (DISABLE_FULLSCREEN) return;
-    try {
-        document.documentElement.requestFullscreen();
-    } catch (e) {
-        console.error('Error requesting fullscreen:', e);
-    }
+    if (!DISABLE_FULLSCREEN)
+        document.documentElement.requestFullscreen()?.catch(() => {});
 }
 
 function exitFullscreen() {
-    if (DISABLE_FULLSCREEN || !document.fullscreenElement) return;
-    try {
-        document.exitFullscreen();
-    } catch (e) {
-        console.error('Error exiting fullscreen:', e);
-    }
+    if (!DISABLE_FULLSCREEN && document.fullscreenElement)
+        document.exitFullscreen()?.catch(() => {});
 }
 
 function cancelCurrentAnimation() {
-    if (currentAnimationFrame) {
-        cancelAnimationFrame(currentAnimationFrame);
-        currentAnimationFrame = null;
+    if (state.currentAnimationFrame) {
+        cancelAnimationFrame(state.currentAnimationFrame);
+        state.currentAnimationFrame = null;
     }
 }
 
@@ -127,8 +118,8 @@ export async function playVideo(
     relativePath,
     autoplay = false
 ) {
-    currentVideoRelativePath = relativePath;
-    playedVideos.add(relativePath);
+    state.currentVideoRelativePath = relativePath;
+    state.playedVideos.add(relativePath);
     hideNextVideoOverlay();
 
     const errorOverlay = document.getElementById('video-error-overlay');
@@ -159,26 +150,26 @@ export async function playVideo(
     spinner.style.display = 'block';
 
     videoElement.onplay = () => {
-        if (cancelAnimationTimeout) {
-            clearTimeout(cancelAnimationTimeout);
-            cancelAnimationTimeout = null;
+        if (state.cancelAnimationTimeout) {
+            clearTimeout(state.cancelAnimationTimeout);
+            state.cancelAnimationTimeout = null;
         }
         cancelCurrentAnimation();
-        transitionStartTime = Date.now();
-        transitionTargetValue = 0;
-        currentAnimationFrame = requestAnimationFrame(() =>
+        state.transitionStartTime = Date.now();
+        state.transitionTargetValue = 0;
+        state.currentAnimationFrame = requestAnimationFrame(() =>
             updateProgressBars(videoElement)
         );
         enterFullscreen();
     };
 
     videoElement.onpause = () => {
-        cancelAnimationTimeout = setTimeout(
+        state.cancelAnimationTimeout = setTimeout(
             cancelCurrentAnimation,
             TRANSITION_DURATION + 100
         );
-        transitionStartTime = Date.now();
-        transitionTargetValue = 1;
+        state.transitionStartTime = Date.now();
+        state.transitionTargetValue = 1;
         exitFullscreen();
     };
 
@@ -245,15 +236,15 @@ export async function playVideo(
 }
 
 export function setPlaybackData(tree, map) {
-    globalTree = tree;
-    globalFunscriptMap = map;
+    state.globalTree = tree;
+    state.globalFunscriptMap = map;
 }
 
 function getVideosInSameFolder(path) {
-    if (!globalTree || !path) return [];
+    if (!state.globalTree || !path) return [];
     const parts = path.split('/');
     parts.pop();
-    let current = globalTree;
+    let current = state.globalTree;
     for (const part of parts) {
         if (!part) continue;
         const found = current.children?.find(
@@ -266,14 +257,17 @@ function getVideosInSameFolder(path) {
 }
 
 function findRandomVideo(minDiff, maxDiff) {
-    const siblings = getVideosInSameFolder(currentVideoRelativePath);
+    const siblings = getVideosInSameFolder(state.currentVideoRelativePath);
     const currentPeak = getCurrentVideoMaxIntensity();
 
     let candidates = siblings.filter((v) => {
-        if (v.path === currentVideoRelativePath || playedVideos.has(v.path))
+        if (
+            v.path === state.currentVideoRelativePath ||
+            state.playedVideos.has(v.path)
+        )
             return false;
         const normPath = toFunscriptPath(v.path);
-        const stats = getFunscriptStats(globalFunscriptMap[normPath]);
+        const stats = getFunscriptStats(state.globalFunscriptMap[normPath]);
         if (!stats) return false;
         const peak = stats.peak;
         const diff = peak - currentPeak;
@@ -282,9 +276,9 @@ function findRandomVideo(minDiff, maxDiff) {
 
     if (candidates.length === 0) {
         candidates = siblings.filter((v) => {
-            if (v.path === currentVideoRelativePath) return false;
+            if (v.path === state.currentVideoRelativePath) return false;
             const normPath = toFunscriptPath(v.path);
-            const stats = getFunscriptStats(globalFunscriptMap[normPath]);
+            const stats = getFunscriptStats(state.globalFunscriptMap[normPath]);
             if (!stats) return false;
             const peak = stats.peak;
             const diff = peak - currentPeak;
@@ -312,9 +306,9 @@ function startNextVideo(videoNode) {
 }
 
 function showNextVideoOverlay() {
-    if (isOverlayVisible) return;
-    isOverlayVisible = true;
-    if (nextVideoTimer) clearTimeout(nextVideoTimer);
+    if (state.isOverlayVisible) return;
+    state.isOverlayVisible = true;
+    if (state.nextVideoTimer) clearTimeout(state.nextVideoTimer);
 
     const overlay = document.getElementById('next-video-overlay');
     const timerEl = document.getElementById('next-timer');
@@ -325,10 +319,12 @@ function showNextVideoOverlay() {
 
     const getStats = (v) => {
         if (!v) return { peak: 0, avg: 0 };
-        return getFunscriptStats(globalFunscriptMap[toFunscriptPath(v.path)]);
+        return getFunscriptStats(
+            state.globalFunscriptMap[toFunscriptPath(v.path)]
+        );
     };
 
-    const currentStats = getStats({ path: currentVideoRelativePath });
+    const currentStats = getStats({ path: state.currentVideoRelativePath });
     const getStatHtml = (candidate) => {
         if (!candidate) return '';
         const stats = getStats(candidate);
@@ -369,11 +365,11 @@ function showNextVideoOverlay() {
         : '';
 
     const updateTimer = () => {
-        if (!isOverlayVisible) return;
+        if (!state.isOverlayVisible) return;
         timerEl.innerHTML = `Starting random video in ${timeLeft}s...${similarStatsHtml}`;
         if (timeLeft <= 0) return startNextVideo(candidates.similar);
         timeLeft--;
-        nextVideoTimer = setTimeout(updateTimer, 1000);
+        state.nextVideoTimer = setTimeout(updateTimer, 1000);
     };
     updateTimer();
 
@@ -389,7 +385,7 @@ function showNextVideoOverlay() {
 }
 
 function hideNextVideoOverlay() {
-    isOverlayVisible = false;
-    clearTimeout(nextVideoTimer);
+    state.isOverlayVisible = false;
+    clearTimeout(state.nextVideoTimer);
     document.getElementById('next-video-overlay')?.classList.add('hidden');
 }

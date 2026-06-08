@@ -9,6 +9,7 @@ let currentVideoRawMaxIntensity = 0;
 let absoluteMax = 60;
 let vibrateMode = 'Rate';
 let selectedVariant = 'original';
+let lastBeatAt = null;
 
 export async function loadFunscript(funscriptUrl) {
     funscriptActions = [];
@@ -50,40 +51,18 @@ export function getCurrentIntensity(currentTime) {
 }
 
 export function getCurrentIntensityUnclamped(currentTime) {
-    if (intensityActions.length === 0) {
-        return 0;
-    }
+    if (intensityActions.length === 0) return 0;
 
-    // Find the two closest intensity actions
-    let previousAction = null;
-    let nextAction = null;
+    const idx = intensityActions.findIndex((a) => a.at > currentTime);
 
-    for (let i = 0; i < intensityActions.length; i++) {
-        if (intensityActions[i].at <= currentTime) {
-            previousAction = intensityActions[i];
-        } else {
-            nextAction = intensityActions[i];
-            break;
-        }
-    }
+    if (idx === 0) return intensityActions[0].pos;
+    if (idx === -1) return intensityActions[intensityActions.length - 1].pos;
 
-    // If there's no next action, return the last action's intensity
-    if (!nextAction) {
-        return previousAction.pos;
-    }
+    const prev = intensityActions[idx - 1];
+    const next = intensityActions[idx];
+    const t = (currentTime - prev.at) / (next.at - prev.at);
 
-    // If there's no previous action, return the first action's intensity
-    if (!previousAction) {
-        return nextAction.pos;
-    }
-
-    // Perform linear interpolation between the two intensity actions
-    const t =
-        (currentTime - previousAction.at) / (nextAction.at - previousAction.at);
-    const interpolatedIntensity =
-        previousAction.pos + t * (nextAction.pos - previousAction.pos);
-
-    return interpolatedIntensity;
+    return prev.pos + t * (next.pos - prev.pos);
 }
 
 export function getCurrentVideoMaxIntensity() {
@@ -120,42 +99,34 @@ export function getFunscriptDuration() {
 }
 
 export function getCurrentBeatValue(currentTime) {
-    // Find the most recent falling edge (100 -> 0)
     let lastBeatTime = null;
     let nextBeatTime = null;
 
     for (let i = 1; i < funscriptActions.length; i++) {
         const prev = funscriptActions[i - 1];
         const curr = funscriptActions[i];
-        if (prev.pos === 100 && curr.pos === 0 && curr.at <= currentTime) {
-            lastBeatTime = curr.at;
-        } else if (
-            prev.pos === 100 &&
-            curr.pos === 0 &&
-            curr.at > currentTime
-        ) {
-            nextBeatTime = curr.at;
-            break;
+        if (prev.pos === 100 && curr.pos === 0) {
+            if (curr.at <= currentTime) lastBeatTime = curr.at;
+            else {
+                nextBeatTime = curr.at;
+                break;
+            }
         }
     }
 
+    if (lastBeatTime === null) return 0;
+
     let vibrateValue = 0;
-    if (lastBeatTime !== null) {
-        if (window._lastBeatTime !== lastBeatTime) {
-            vibrateValue = 1.0; // Pulse on beat
-            window._lastBeatTime = lastBeatTime;
-        } else {
-            // Lerp down until next beat or to zero, with a ramp-like falloff (fast drop, slow tail)
-            let nextAt = nextBeatTime ? nextBeatTime : currentTime + 500;
-            let t = Math.max(
-                0,
-                Math.min(
-                    1,
-                    (currentTime - lastBeatTime) / (nextAt - lastBeatTime)
-                )
-            );
-            vibrateValue = 1.0 - Math.sqrt(t); // Ramp-like falloff
-        }
+    if (lastBeatAt !== lastBeatTime) {
+        vibrateValue = 1.0;
+        lastBeatAt = lastBeatTime;
+    } else {
+        const nextAt = nextBeatTime || currentTime + 500;
+        const t = Math.max(
+            0,
+            Math.min(1, (currentTime - lastBeatTime) / (nextAt - lastBeatTime))
+        );
+        vibrateValue = 1.0 - Math.sqrt(t);
     }
     return vibrateValue;
 }

@@ -30,8 +30,6 @@ function renderCacheError(payload, treeContainer) {
         if (!errEl) {
             errEl = document.createElement('div');
             errEl.id = 'funscript-cache-error';
-            errEl.style.cssText =
-                'color:#fff;background:#8b0000;padding:8px;border-radius:4px;margin:8px;font-weight:600;';
             container.insertBefore(errEl, treeContainer);
         }
         errEl.textContent = payload.funscript_cache_error;

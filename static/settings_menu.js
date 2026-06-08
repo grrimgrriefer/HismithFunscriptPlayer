@@ -291,19 +291,7 @@ function buildOverlay(cardHtml) {
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '✕';
     closeBtn.title = 'Close';
-    closeBtn.className = 'btn btn-sm';
-    Object.assign(closeBtn.style, {
-        position: 'absolute',
-        top: '-12px',
-        right: '-12px',
-        padding: '6px 10px',
-        borderRadius: '50%',
-        border: 'none',
-        background: 'rgb(70,70,70)',
-        color: 'white',
-        cursor: 'pointer',
-        fontSize: '16px'
-    });
+    closeBtn.className = 'btn btn-sm overlay-close-btn';
 
     inner.appendChild(closeBtn);
     overlay.appendChild(inner);

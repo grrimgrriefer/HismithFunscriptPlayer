@@ -192,6 +192,15 @@ h1 {
     display: none;
 }
 
+#funscript-cache-error {
+    color: #fff;
+    background: #8b0000;
+    padding: 8px;
+    border-radius: 4px;
+    margin: 8px;
+    font-weight: 600;
+}
+
 #next-video-overlay {
     position: absolute;
     top: 0;
@@ -229,6 +238,19 @@ h1 {
     max-width: 400px;
     width: 90%;
     color: #fff;
+}
+
+.overlay-close-btn {
+    position: absolute;
+    top: -12px;
+    right: -12px;
+    padding: 6px 10px;
+    border-radius: 50%;
+    border: none;
+    background: rgb(70, 70, 70);
+    color: white;
+    cursor: pointer;
+    font-size: 16px;
 }
 
 #next-timer {
@@ -431,6 +453,10 @@ button#toggle-directory {
     box-sizing: border-box;
 }
 
+#sbs-toggle-input {
+    width: auto;
+}
+
 /* visually indicate disabled numeric inputs */
 .settings-input:disabled,
 .settings-input[disabled] {
@@ -446,6 +472,16 @@ button#toggle-directory {
     display: none;
     gap: 6px;
     align-items: center;
+}
+
+.variant-input-field {
+    width: 100%;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #555;
+    background: #222;
+    color: #fff;
+    margin-bottom: 10px;
 }
 
 /* Calibration overlay and spinner styles */

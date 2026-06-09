@@ -7,7 +7,9 @@ import {
     loadFunscript,
     setSelectedFunscriptVariant,
     getSelectedFunscriptVariant,
-    getVibrateMode
+    getVibrateMode,
+    setSelectedSpeed,
+    getSelectedSpeed
 } from './funscript_handler.js';
 import { toFunscriptPath } from './utils.js';
 
@@ -134,6 +136,7 @@ function ensureInit() {
     initCalibrationButton(menu);
     initHardLimit(menu);
     initVibrateMode(menu);
+    initSpeedMode(menu);
     initEditorButton(menu);
 }
 
@@ -244,6 +247,18 @@ function initEditorButton(menu) {
             `/site/editor?video=${encodeURIComponent(videoPath)}`,
             '_blank'
         );
+    });
+}
+
+function initSpeedMode(menu) {
+    const select = menu.querySelector('#speed-mode-select');
+    if (!select) return;
+
+    select.value = getSelectedSpeed() || 'normal';
+    select.addEventListener('change', () => {
+        setSelectedSpeed(select.value);
+        const baseUrl = getBaseFunscriptUrl();
+        if (baseUrl) loadFunscript(baseUrl);
     });
 }
 

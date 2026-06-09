@@ -9,6 +9,7 @@ let currentVideoRawMaxIntensity = 0;
 let absoluteMax = 60;
 let vibrateMode = 'Rate';
 let selectedVariant = 'original';
+let selectedSpeed = 'normal';
 let lastBeatAt = null;
 
 export async function loadFunscript(funscriptUrl) {
@@ -16,13 +17,11 @@ export async function loadFunscript(funscriptUrl) {
     intensityActions = [];
     currentVideoRawMaxIntensity = 0;
     let fetchUrl = funscriptUrl;
-    if (!fetchUrl.includes('variant=')) {
-        fetchUrl +=
-            (fetchUrl.includes('?') ? '&' : '?') +
-            `variant=${encodeURIComponent(selectedVariant)}`;
-    }
+    const url = new URL(fetchUrl, window.location.origin);
+    url.searchParams.set('variant', selectedVariant);
+    url.searchParams.set('speed', selectedSpeed);
     try {
-        const response = await fetch(fetchUrl);
+        const response = await fetch(url.toString());
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         if (data && data.original && Array.isArray(data.original.actions)) {
@@ -137,4 +136,12 @@ export function setSelectedFunscriptVariant(v) {
 
 export function getSelectedFunscriptVariant() {
     return selectedVariant;
+}
+
+export function setSelectedSpeed(speed) {
+    selectedSpeed = speed;
+}
+
+export function getSelectedSpeed() {
+    return selectedSpeed;
 }

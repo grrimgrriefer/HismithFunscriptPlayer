@@ -63,7 +63,7 @@ pub async fn handle_funscript(
         }
     }
 
-    let original = match original_res {
+    let mut original = match original_res {
         Ok(data) => data,
         Err(e) => {
             info!("Funscript not found for {} (tried primary and parent): {}", video_path, e);
@@ -73,6 +73,13 @@ pub async fn handle_funscript(
             });
         }
     };
+
+    let speed = query.get("speed").map(|s| s.as_str()).unwrap_or("normal");
+    if speed == "halftime" {
+        original.actions = funscript_utils::half_time_actions(&original.actions);
+    } else if speed == "doubletime" {
+        original.actions = funscript_utils::double_time_actions(&original.actions);
+    }
 
     let intensity = match generate_intensity(&original) {
         Ok(data) => Some(data),

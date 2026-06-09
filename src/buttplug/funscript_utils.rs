@@ -296,3 +296,76 @@ fn is_binary_script(actions: &[Action]) -> bool {
         p == 0 || p == 100
     })
 }
+
+pub fn double_time_actions(actions: &[Action]) -> Vec<Action> {
+    if actions.len() < 2 {
+        return actions.to_vec();
+    }
+
+    let mut result = Vec::with_capacity(actions.len() * 2);
+
+    // bisect every interval, effectively doubling the action count locally.
+    for i in 0..actions.len() - 1 {
+        let a = &actions[i];
+        let b = &actions[i + 1];
+        let start_pos_idx = i & !1;
+        let mid_pos_idx = i | 1;
+
+        // Original interval
+        result.push(Action {
+            at: a.at,
+            pos: actions[start_pos_idx].pos,
+        });
+
+        // Inserted intermediate thrust
+        result.push(Action {
+            at: a.at + b.at.saturating_sub(a.at) / 2,
+            pos: actions[mid_pos_idx].pos,
+        });
+    }
+
+    let last_idx = actions.len() - 1;
+    result.push(Action {
+        at: actions[last_idx].at,
+        pos: actions[last_idx & !1].pos,
+    });
+
+    merge_same_position_runs(&mut result, 2);
+
+    result
+}
+
+pub fn half_time_actions(actions: &[Action]) -> Vec<Action> {
+    if actions.len() < 2 {
+        return actions.to_vec();
+    }
+
+    let mut result = Vec::with_capacity(actions.len() / 2 + 2);
+    let mut pos_idx = 0;
+
+    // Take every 2nd timestamp, but assign them the sequential positions.
+    // This halves the frequency but keeps the beats perfectly anchored to the video.
+    for i in (0..actions.len()).step_by(2) {
+        if pos_idx < actions.len() {
+            result.push(Action {
+                at: actions[i].at,
+                pos: actions[pos_idx].pos,
+            });
+            pos_idx += 1;
+        }
+    }
+
+    let end_time = actions.last().unwrap().at;
+    if let Some(last) = result.last().cloned() {
+        if last.at < end_time {
+            result.push(Action {
+                at: end_time,
+                pos: last.pos,
+            });
+        }
+    }
+
+    merge_same_position_runs(&mut result, 2);
+
+    result
+}

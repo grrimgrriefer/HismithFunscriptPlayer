@@ -15,7 +15,10 @@ import {
 } from './funscript_display_graphs.js';
 import { sendDeviceCommand } from './socket.js';
 import { getCalibrationMultiplier } from './calibration.js';
-import { refreshVariantsForCurrentVideo } from './settings_menu.js';
+import {
+    refreshVariantsForCurrentVideo,
+    updateIntensityDisplay
+} from './settings_menu.js';
 import {
     lerp,
     relativeIntensityToColor,
@@ -218,6 +221,7 @@ export async function playVideo(
         }
 
         await funscriptPromise;
+        updateIntensityDisplay();
         updateFunscriptDisplayBox(0);
         updateProgressBars(videoElement);
         refreshVariantsForCurrentVideo();

@@ -9,9 +9,10 @@ import {
     getSelectedFunscriptVariant,
     getVibrateMode,
     setSelectedSpeed,
-    getSelectedSpeed
+    getSelectedSpeed,
+    getLastIntensityStats
 } from './funscript_handler.js';
-import { toFunscriptPath } from './utils.js';
+import { toFunscriptPath, intensityToColor } from './utils.js';
 
 let initialized = false;
 
@@ -33,6 +34,7 @@ export function toggleSettingsMenu() {
         return;
     }
 
+    updateIntensityDisplay();
     document.body.style.overflow = 'hidden';
 
     const cleanup = () => {
@@ -101,6 +103,21 @@ export async function refreshVariantsForCurrentVideo() {
         setSelectedFunscriptVariant(select.value);
     } catch (err) {
         console.error('Failed to refresh funscript variants', err);
+    }
+}
+
+export function updateIntensityDisplay() {
+    const stats = getLastIntensityStats();
+    const peakEl = document.getElementById('settings-peak-val');
+    const avgEl = document.getElementById('settings-avg-val');
+
+    if (peakEl) {
+        peakEl.textContent = Math.round(stats.peak);
+        peakEl.style.color = intensityToColor(stats.peak);
+    }
+    if (avgEl) {
+        avgEl.textContent = Math.round(stats.avg);
+        avgEl.style.color = intensityToColor(stats.avg);
     }
 }
 
@@ -181,10 +198,13 @@ function initVariantSelect(menu) {
 
         select.value = getSelectedFunscriptVariant() || 'original';
 
-        select.addEventListener('change', () => {
+        select.addEventListener('change', async () => {
             setSelectedFunscriptVariant(select.value);
             const baseUrl = getBaseFunscriptUrl();
-            if (baseUrl) loadFunscript(baseUrl);
+            if (baseUrl) {
+                await loadFunscript(baseUrl);
+                updateIntensityDisplay();
+            }
         });
     }
 
@@ -255,10 +275,13 @@ function initSpeedMode(menu) {
     if (!select) return;
 
     select.value = getSelectedSpeed() || 'normal';
-    select.addEventListener('change', () => {
+    select.addEventListener('change', async () => {
         setSelectedSpeed(select.value);
         const baseUrl = getBaseFunscriptUrl();
-        if (baseUrl) loadFunscript(baseUrl);
+        if (baseUrl) {
+            await loadFunscript(baseUrl);
+            updateIntensityDisplay();
+        }
     });
 }
 

@@ -22,6 +22,8 @@ use tokio::fs;
 pub struct FunscriptResponse {
     pub original: Option<FunscriptData>,
     pub intensity: Option<FunscriptData>,
+    pub peak: f64,
+    pub average: f64,
 }
 
 pub async fn handle_funscript(
@@ -70,6 +72,8 @@ pub async fn handle_funscript(
             return HttpResponse::NotFound().json(FunscriptResponse {
                 original: None,
                 intensity: None,
+                peak: f64::NAN,
+                average: f64::NAN
             });
         }
     };
@@ -89,9 +93,16 @@ pub async fn handle_funscript(
         }
     };
 
+    let (average, peak) = intensity
+        .as_ref()
+        .map(|i| funscript_utils::calculate_intensity_stats(&i.actions))
+        .unwrap_or((0.0, 0.0));
+
     HttpResponse::Ok().json(FunscriptResponse {
         original: Some(original),
         intensity,
+        peak,
+        average,
     })
 }
 

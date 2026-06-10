@@ -11,6 +11,8 @@ let vibrateMode = 'Rate';
 let selectedVariant = 'original';
 let selectedSpeed = 'normal';
 let lastBeatAt = null;
+let lastPeak = 0;
+let lastAvg = 0;
 
 export async function loadFunscript(funscriptUrl) {
     funscriptActions = [];
@@ -38,11 +40,19 @@ export async function loadFunscript(funscriptUrl) {
         } else {
             intensityActions = [];
         }
+        lastPeak = data?.peak || 0;
+        lastAvg = data?.average || 0;
     } catch (error) {
         console.error('Failed to load funscript:', error);
         funscriptActions = [];
         intensityActions = [];
+        lastPeak = 0;
+        lastAvg = 0;
     }
+}
+
+export function getLastIntensityStats() {
+    return { peak: lastPeak, avg: lastAvg };
 }
 
 export function getCurrentIntensity(currentTime) {

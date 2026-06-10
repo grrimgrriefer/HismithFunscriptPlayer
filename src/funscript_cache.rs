@@ -7,7 +7,7 @@
 //! (.funscript_cache.json) beside the funscript base and maps relative file paths
 //! to computed entries (sha256, average/peak intensity, sample counts, timestamp).
 
-use crate::buttplug::funscript_utils::{Action, FunscriptData, actions_to_intensity_curve};
+use crate::buttplug::funscript_utils::{FunscriptData, actions_to_intensity_curve, calculate_intensity_stats, };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -55,38 +55,6 @@ fn sha256_hex(bytes: &[u8]) -> String {
     hex::encode(hasher.finalize())
 }
 
-fn intensity_stats(samples: &[Action]) -> (f64, f64) {
-    if samples.is_empty() {
-        return (0.0, 0.0);
-    }
-
-    let peak = samples.iter().map(|a| a.pos).fold(0.0, f64::max);
-
-    if samples.len() == 1 {
-        return (samples[0].pos, peak);
-    }
-
-    let mut weighted_sum = 0.0;
-    let mut total_dt = 0.0;
-
-    for pair in samples.windows(2) {
-        let dt = (pair[1].at as f64 - pair[0].at as f64).max(0.0);
-        if dt == 0.0 {
-            continue;
-        }
-        let avg_pos = (pair[0].pos + pair[1].pos) / 2.0;
-        weighted_sum += avg_pos * dt;
-        total_dt += dt;
-    }
-
-    if total_dt > 0.0 {
-        (weighted_sum / total_dt, peak)
-    } else {
-        let mean = samples.iter().map(|a| a.pos).sum::<f64>() / samples.len() as f64;
-        (mean, peak)
-    }
-}
-
 fn build_entry(content: &str, sha256: String) -> Result<FunscriptCacheEntry, String> {
     let data: FunscriptData = serde_json::from_str(content)
         .map_err(|e| format!("Failed to parse funscript json: {}", e))?;
@@ -103,7 +71,7 @@ fn build_entry(content: &str, sha256: String) -> Result<FunscriptCacheEntry, Str
 
     let mut actions = data.actions.clone();
     let intensity = actions_to_intensity_curve(&mut actions, 100, 500);
-    let (average_intensity, peak_intensity) = intensity_stats(&intensity);
+    let (average_intensity, peak_intensity) = calculate_intensity_stats(&intensity);
 
     Ok(FunscriptCacheEntry {
         sha256,

@@ -88,6 +88,38 @@ pub fn get_bpm_intensity_mapping() -> Vec<BpmIntensityPoint> {
         .collect()
 }
 
+pub fn calculate_intensity_stats(samples: &[Action]) -> (f64, f64) {
+    if samples.is_empty() {
+        return (0.0, 0.0);
+    }
+
+    let peak = samples.iter().map(|a| a.pos).fold(0.0, f64::max);
+
+    if samples.len() == 1 {
+        return (samples[0].pos, peak);
+    }
+
+    let mut weighted_sum = 0.0;
+    let mut total_dt = 0.0;
+
+    for pair in samples.windows(2) {
+        let dt = (pair[1].at as f64 - pair[0].at as f64).max(0.0);
+        if dt == 0.0 {
+            continue;
+        }
+        let avg_pos = (pair[0].pos + pair[1].pos) / 2.0;
+        weighted_sum += avg_pos * dt;
+        total_dt += dt;
+    }
+
+    if total_dt > 0.0 {
+        (weighted_sum / total_dt, peak)
+    } else {
+        let mean = samples.iter().map(|a| a.pos).sum::<f64>() / samples.len() as f64;
+        (mean, peak)
+    }
+}
+
 /// Linearly interpolate position between two actions at a given time.
 fn lerp_position(before: Option<&Action>, after: Option<&Action>, time: u64) -> f64 {
     match (before, after) {

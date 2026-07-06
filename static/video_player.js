@@ -260,16 +260,15 @@ function getVideosInSameFolder(path) {
     return (current.children || []).filter((c) => !c.is_dir);
 }
 
-function findRandomVideo(minDiff, maxDiff) {
+function findRandomVideo(currentPeak, minDiff, maxDiff) {
     const siblings = getVideosInSameFolder(state.currentVideoRelativePath);
-    const currentPeak = getCurrentVideoMaxIntensity();
-
     let candidates = siblings.filter((v) => {
         if (
             v.path === state.currentVideoRelativePath ||
             state.playedVideos.has(v.path)
-        )
+        ) {
             return false;
+        }
         const normPath = toFunscriptPath(v.path);
         const stats = getFunscriptStats(state.globalFunscriptMap[normPath]);
         if (!stats) return false;
@@ -280,7 +279,12 @@ function findRandomVideo(minDiff, maxDiff) {
 
     if (candidates.length === 0) {
         candidates = siblings.filter((v) => {
-            if (v.path === state.currentVideoRelativePath) return false;
+            if (
+                v.path === state.currentVideoRelativePath ||
+                state.playedVideos.has(v.path)
+            ) {
+                return false;
+            }
             const normPath = toFunscriptPath(v.path);
             const stats = getFunscriptStats(state.globalFunscriptMap[normPath]);
             if (!stats) return false;
@@ -295,12 +299,15 @@ function findRandomVideo(minDiff, maxDiff) {
         : null;
 }
 
-function findClosestVideo() {
+function findClosestVideo(currentPeak) {
     const siblings = getVideosInSameFolder(state.currentVideoRelativePath);
-    const currentPeak = getCurrentVideoMaxIntensity();
 
     const candidates = siblings
-        .filter((v) => v.path !== state.currentVideoRelativePath)
+        .filter(
+            (v) =>
+                v.path !== state.currentVideoRelativePath &&
+                !state.playedVideos.has(v.path)
+        )
         .map((v) => {
             const normPath = toFunscriptPath(v.path);
             const stats = getFunscriptStats(state.globalFunscriptMap[normPath]);
@@ -349,10 +356,12 @@ function showNextVideoOverlay() {
     };
 
     const currentStats = getStats({ path: state.currentVideoRelativePath });
+    const currentPeak = currentStats ? currentStats.peak : 0;
+
     const getStatHtml = (candidate) => {
         if (!candidate) return '';
         const stats = getStats(candidate);
-        const dPeak = stats.peak - getCurrentVideoMaxIntensity();
+        const dPeak = stats.peak - currentPeak;
         const dAvg = stats.avg - currentStats.avg;
         const peakColor = relativeIntensityToColor(dPeak);
 
@@ -375,16 +384,16 @@ function showNextVideoOverlay() {
     };
 
     const candidates = {
-        higher: findRandomVideo(5, 15),
-        similar: findRandomVideo(-5, 5),
-        lower: findRandomVideo(-15, -5)
+        higher: findRandomVideo(currentPeak, 5, 15),
+        similar: findRandomVideo(currentPeak, -5, 5),
+        lower: findRandomVideo(currentPeak, -15, -5)
     };
 
-    formatBtn('next-higher-btn', candidates.higher, 'Higher');
-    formatBtn('next-lower-btn', candidates.lower, 'Lower');
+    formatBtn('next-higher-btn', candidates.higher, 'Significantly Higher');
+    formatBtn('next-lower-btn', candidates.lower, 'Significantly Lower');
 
     const fallbackVideo = !candidates.similar
-        ? findClosestVideo()
+        ? findClosestVideo(currentPeak)
         : candidates.similar;
     const similarStatsHtml = fallbackVideo
         ? `<br><small>Next: ${getStatHtml(fallbackVideo)}</small>`

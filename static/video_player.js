@@ -295,6 +295,26 @@ function findRandomVideo(minDiff, maxDiff) {
         : null;
 }
 
+function findClosestVideo() {
+    const siblings = getVideosInSameFolder(state.currentVideoRelativePath);
+    const currentPeak = getCurrentVideoMaxIntensity();
+
+    const candidates = siblings
+        .filter((v) => v.path !== state.currentVideoRelativePath)
+        .map((v) => {
+            const normPath = toFunscriptPath(v.path);
+            const stats = getFunscriptStats(state.globalFunscriptMap[normPath]);
+            if (!stats) return null;
+            return { node: v, diff: Math.abs(stats.peak - currentPeak) };
+        })
+        .filter(Boolean);
+
+    if (candidates.length === 0) return null;
+
+    candidates.sort((a, b) => a.diff - b.diff);
+    return candidates[0].node;
+}
+
 function startNextVideo(videoNode) {
     if (!videoNode) {
         alert('No similar video found in the specified intensity range.');
@@ -363,15 +383,18 @@ function showNextVideoOverlay() {
     formatBtn('next-higher-btn', candidates.higher, 'Higher');
     formatBtn('next-lower-btn', candidates.lower, 'Lower');
 
-    let timeLeft = 6;
-    const similarStatsHtml = candidates.similar
-        ? `<br><small>Next: ${getStatHtml(candidates.similar)}</small>`
+    const fallbackVideo = !candidates.similar
+        ? findClosestVideo()
+        : candidates.similar;
+    const similarStatsHtml = fallbackVideo
+        ? `<br><small>Next: ${getStatHtml(fallbackVideo)}</small>`
         : '';
 
+    let timeLeft = 6;
     const updateTimer = () => {
         if (!state.isOverlayVisible) return;
         timerEl.innerHTML = `Starting random video in ${timeLeft}s...${similarStatsHtml}`;
-        if (timeLeft <= 0) return startNextVideo(candidates.similar);
+        if (timeLeft <= 0) return startNextVideo(fallbackVideo);
         timeLeft--;
         state.nextVideoTimer = setTimeout(updateTimer, 1000);
     };

@@ -17,7 +17,8 @@ import { sendDeviceCommand } from './socket.js';
 import { getCalibrationMultiplier } from './calibration.js';
 import {
     refreshVariantsForCurrentVideo,
-    updateIntensityDisplay
+    updateIntensityDisplay,
+    setSBSMode
 } from './settings_menu.js';
 import {
     lerp,
@@ -204,6 +205,13 @@ export async function playVideo(
         console.log(
             `Video metadata loaded. Dimensions: ${videoElement.videoWidth}x${videoElement.videoHeight}`
         );
+
+        // autotrigger SBS for 32:9 ratios
+        if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
+            const ratio = videoElement.videoWidth / videoElement.videoHeight;
+            const is32to9 = Math.abs(ratio - 32 / 9) < 0.1;
+            setSBSMode(is32to9);
+        }
 
         // Audio plays but video is unsupported
         if (

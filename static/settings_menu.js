@@ -121,6 +121,16 @@ export function updateIntensityDisplay() {
     }
 }
 
+export function setSBSMode(enabled) {
+    const toggle = document.getElementById('sbs-toggle');
+    const container = document.getElementById('video-container');
+    if (toggle && container) {
+        toggle.checked = enabled;
+        localStorage.setItem('sbsMode', enabled);
+        container.classList.toggle('sbs-mode', enabled);
+    }
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────
 
 function getCurrentVideoPath() {

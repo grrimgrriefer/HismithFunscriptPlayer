@@ -81,6 +81,8 @@ pub async fn handle_funscript(
     let speed = query.get("speed").map(|s| s.as_str()).unwrap_or("normal");
     if speed == "halftime" {
         original.actions = funscript_utils::half_time_actions(&original.actions);
+    } else if speed == "quartertime" {
+        original.actions = funscript_utils::quarter_time_actions(&original.actions);
     } else if speed == "doubletime" {
         original.actions = funscript_utils::double_time_actions(&original.actions);
     }

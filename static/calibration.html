@@ -2,16 +2,19 @@
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Calibration</title>
     <link rel="stylesheet" href="/site/static/styles.css">
 </head>
+
 <body>
     <div class="card">
         <h2>Calibration</h2>
-        <p class="small">Select a preset intensity, then adjust the multiplier so the on-screen spinner matches the real device. Confirm to store the multiplier in-memory.</p>
+        <p class="small">Select a preset intensity, then adjust the multiplier so the on-screen spinner matches the real
+            device. Confirm to store the multiplier in-memory.</p>
 
         <div class="preset-row" id="preset-buttons"></div>
 
@@ -19,6 +22,11 @@
             <label class="small" for="profile-select">Profile:</label>
             <select id="profile-select" style="flex:1; max-width:220px;"></select>
             <input id="profile-name" type="text" placeholder="New name..." style="width:140px; margin-left:6px;" />
+        </div>
+
+        <div class="row" style="align-items:center; gap:8px; margin-bottom:12px;">
+            <input id="tap-mode-checkbox" type="checkbox" />
+            <label for="tap-mode-checkbox" class="small">Enable Tap Mode (Tap spinner to auto-calibrate)</label>
         </div>
 
         <div id="spinner-wrap">
@@ -58,6 +66,8 @@
             <div>Selected preset: <span id="selected-preset">—</span></div>
             <div>Target spins/sec: <span id="target-spin">—</span></div>
             <div>Sent intensity (normalized): <span id="sent-intensity">—</span></div>
+            <div id="tap-info-row" style="display:none; margin-top:4px;">Measured BPM: <span id="measured-bpm">—</span>
+            </div>
         </div>
 
         <div id="mapping-list" class="small"></div>
@@ -69,4 +79,5 @@
         document.addEventListener('DOMContentLoaded', setup);
     </script>
 </body>
+
 </html>

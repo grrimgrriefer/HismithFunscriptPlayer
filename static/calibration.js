@@ -28,7 +28,9 @@ const state = {
     lastSentIntensity: null,
     lastSendTime: 0,
     bpmIntensityMapping: [],
-    audioCtx: null
+    audioCtx: null,
+    tapTimes: [],
+    tapMode: false
 };
 
 const ramp = {
@@ -70,7 +72,10 @@ const ELEMENT_IDS = {
     mappingList: 'mapping-list',
     profileSelect: 'profile-select',
     profileName: 'profile-name',
-    resetBtn: 'reset-button'
+    resetBtn: 'reset-button',
+    tapModeCheckbox: 'tap-mode-checkbox',
+    tapInfoRow: 'tap-info-row',
+    measuredBpm: 'measured-bpm'
 };
 
 function initElements() {
@@ -207,6 +212,9 @@ function refreshDisplays() {
 
 // ── Preset / Multiplier Logic ──────────────────────────────────────────
 function selectPreset(preset, btn) {
+    state.tapTimes = [];
+    if (els.measuredBpm) els.measuredBpm.textContent = '—';
+
     const previousPreset = state.selectedPreset;
     state.selectedPreset = preset;
 
@@ -262,6 +270,42 @@ function setMultiplier(value, doRamp = true) {
 function adjustMultiplier(delta) {
     if (!state.selectedPreset) return;
     setMultiplier(getMultiplier(state.selectedPreset) + delta);
+}
+
+function handleSpinnerTap() {
+    resetSpinner(true);
+
+    if (!state.tapMode) return;
+
+    const now = performance.now();
+
+    // Clear taps older than 3 seconds to keep calculation fresh/responsive
+    state.tapTimes = state.tapTimes.filter((t) => now - t < 3000);
+    state.tapTimes.push(now);
+
+    if (state.tapTimes.length < 2) {
+        els.measuredBpm.textContent = '—';
+        return;
+    }
+
+    // Calculate moving average BPM from tap intervals
+    const intervals = [];
+    for (let i = 1; i < state.tapTimes.length; i++) {
+        intervals.push(state.tapTimes[i] - state.tapTimes[i - 1]);
+    }
+    const avgIntervalMs =
+        intervals.reduce((sum, val) => sum + val, 0) / intervals.length;
+    const tappedBpm = 60000 / avgIntervalMs;
+
+    els.measuredBpm.textContent = tappedBpm.toFixed(1);
+
+    if (state.selectedPreset) {
+        const targetBpm = getBpmForIntensity(state.selectedPreset);
+        if (targetBpm > 0) {
+            const newMultiplier = targetBpm / tappedBpm;
+            setMultiplier(newMultiplier);
+        }
+    }
 }
 
 // ── Audio ──────────────────────────────────────────────────────────────
@@ -562,6 +606,9 @@ function resetMultipliers() {
         if (i === 0) multipliers[p] = 1.0;
         else delete multipliers[p];
     }
+    state.tapTimes = [];
+    if (els.measuredBpm) els.measuredBpm.textContent = '—';
+
     state.selectedPreset = null;
     buildPresetButtons();
     updateMultiplierDisplay(1.0);
@@ -757,12 +804,18 @@ export function setup() {
     els.startBtn.addEventListener('click', startCalibration);
     els.stopBtn.addEventListener('click', stopCalibration);
     els.resetBtn.addEventListener('click', () => resetSpinner(true));
-    els.spinner.addEventListener('click', () => resetSpinner(true));
+    els.spinner.addEventListener('click', handleSpinnerTap);
     els.spinner.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            resetSpinner(true);
+            handleSpinnerTap();
         }
+    });
+    els.tapModeCheckbox.addEventListener('change', (e) => {
+        state.tapMode = e.target.checked;
+        state.tapTimes = [];
+        els.tapInfoRow.style.display = state.tapMode ? 'block' : 'none';
+        els.measuredBpm.textContent = '—';
     });
 
     // Initial state

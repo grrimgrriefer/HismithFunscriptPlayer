@@ -14,7 +14,7 @@ import {
     updateFunscriptDisplayBox
 } from './funscript_display_graphs.js';
 import { sendDeviceCommand } from './socket.js';
-import { getCalibrationMultiplier } from './calibration.js';
+import { getCalibratedIntensity } from './calibration.js';
 import {
     refreshVariantsForCurrentVideo,
     updateIntensityDisplay,
@@ -48,18 +48,17 @@ const state = {
 
 function computeOscillateValue(intensity, progress) {
     if (intensity === undefined) return 0;
-    return (
-        lerp(0, intensity * getCalibrationMultiplier(intensity), progress) / 100
-    );
+    return lerp(0, getCalibratedIntensity(intensity), progress) / 100;
 }
 
 function computeVibrateValue(currentTime, intensity, progress) {
     if (getVibrateMode() === 'Rate') {
         if (intensity === undefined) return 0;
+        const calibratedIntensity = getCalibratedIntensity(intensity);
         return (
             lerp(
                 0,
-                (intensity / 100) * getCurrentVideoMaxIntensity(),
+                (calibratedIntensity / 100) * getCurrentVideoMaxIntensity(),
                 progress
             ) / 100
         );

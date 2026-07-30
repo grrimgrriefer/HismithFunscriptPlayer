@@ -13,20 +13,15 @@
 <body>
     <div class="card">
         <h2>Calibration</h2>
-        <p class="small">Select a preset intensity, then adjust the multiplier so the on-screen spinner matches the real
-            device. Confirm to store the multiplier in-memory.</p>
+        <p class="small">Select a preset intensity, click Start, and tap along with the physical device (by tapping the
+            spinner or using spacebar). Save each calibration point to build your profile.</p>
 
         <div class="preset-row" id="preset-buttons"></div>
 
-        <div class="row" style="align-items:center; gap:8px; margin-bottom:8px;">
+        <div class="row" style="align-items:center; gap:8px; margin-bottom:12px;">
             <label class="small" for="profile-select">Profile:</label>
             <select id="profile-select" style="flex:1; max-width:220px;"></select>
             <input id="profile-name" type="text" placeholder="New name..." style="width:140px; margin-left:6px;" />
-        </div>
-
-        <div class="row" style="align-items:center; gap:8px; margin-bottom:12px;">
-            <input id="tap-mode-checkbox" type="checkbox" />
-            <label for="tap-mode-checkbox" class="small">Enable Tap Mode (Tap spinner to auto-calibrate)</label>
         </div>
 
         <div id="spinner-wrap">
@@ -39,35 +34,30 @@
                 <div class="tick" style="transform: translate(-50%,-50%) rotate(300deg) translateY(-52px);"></div>
             </div>
 
-            <div id="calibration-spinner" aria-hidden="true" tabindex="0" role="button" title="Click to reset rotation to 0" style="cursor:pointer;">
+            <div id="calibration-spinner" aria-hidden="true" tabindex="0" role="button"
+                title="Click to reset rotation to 0" style="cursor:pointer;">
                 <div id="calibration-rotor" aria-hidden="true"></div>
             </div>
         </div>
 
         <div class="controls">
-            <label class="muted">Multiplier: <span id="multiplier-value">1.00</span>x</label>
-
-            <div class="row" style="gap:6px; margin-top:8px;">
-                <button id="mult-dec-large" class="preset-btn">-0.10</button>
-                <button id="mult-dec-small" class="preset-btn">-0.01</button>
-                <input id="multiplier-input" type="number" step="0.01" min="0.50" max="3.00" value="1.00" style="width:80px; text-align:center;" />
-                <button id="mult-inc-small" class="preset-btn">+0.01</button>
-                <button id="mult-inc-large" class="preset-btn">+0.10</button>
+            <div class="row" style="align-items:center; gap:12px; margin-bottom:12px;">
+                <span class="muted">Measured BPM:</span>
+                <strong id="measured-bpm" style="font-size:1.6em; color:#ffd54f;">—</strong>
+                <button id="save-point-btn" class="preset-btn" style="background:#0078d7;" disabled>Save Point</button>
             </div>
 
             <div class="row" style="margin-top:10px;">
                 <button id="start-button" class="preset-btn">Start</button>
                 <button id="stop-button" class="preset-btn">Stop</button>
-                <button id="reset-button" class="preset-btn">Reset</button>
+                <button id="reset-button" class="preset-btn">Reset Taps</button>
             </div>
         </div>
 
-        <div id="info" class="small">
-            <div>Selected preset: <span id="selected-preset">—</span></div>
-            <div>Target spins/sec: <span id="target-spin">—</span></div>
-            <div>Sent intensity (normalized): <span id="sent-intensity">—</span></div>
-            <div id="tap-info-row" style="display:none; margin-top:4px;">Measured BPM: <span id="measured-bpm">—</span>
-            </div>
+        <div id="info" class="small" style="margin-top:15px;">
+            <div>Selected preset: <span id="selected-preset">—</span>% intensity</div>
+            <div>Sent intensity: <span id="sent-intensity">—</span></div>
+            <div>Theoretical BPM: <span id="theoretical-bpm">—</span></div>
         </div>
 
         <div id="mapping-list" class="small"></div>

@@ -1,6 +1,6 @@
 // static/funscript_handler.js
 
-import { getCalibrationMultiplier } from './calibration.js';
+import { getInverseCalibratedIntensity } from './calibration.js';
 
 export let funscriptActions = [];
 export let intensityActions = [];
@@ -95,7 +95,7 @@ export function getAbsoluteMaximum() {
 }
 
 export function getAbsoluteMaximumInverseCalibrated() {
-    return absoluteMax / getCalibrationMultiplier(absoluteMax);
+    return getInverseCalibratedIntensity(absoluteMax);
 }
 
 export function getCurrentVideoRawMaxIntensity() {

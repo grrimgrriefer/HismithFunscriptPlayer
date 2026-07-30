@@ -5,26 +5,26 @@
 //! This module serves the calibration UI page and exposes API endpoints for
 //! managing device calibration profiles. Profiles are stored as a JSON file
 //! (.calibration_profiles.json) under FUNSCRIPT_SHARE_PATH and map named
-//! profiles to per-range intensity multipliers. Also provides the BPM-to-intensity
-//! lookup table used by the frontend calibration interface.
+//! profiles to per-range intensity actual measured BPMs.
+
 
 use actix_files::NamedFile;
 use actix_web::{Error, HttpResponse, Responder, web};
 use log::{error, info};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, env, io::ErrorKind, path::PathBuf};
 use tokio::fs;
 
-type ProfileMultipliers = HashMap<String, f64>;
-pub type CalibrationProfiles = HashMap<String, ProfileMultipliers>;
+type ProfileBpms = HashMap<String, f64>;
+pub type CalibrationProfiles = HashMap<String, ProfileBpms>;
 
 const CALIBRATION_FILE_NAME: &str = ".calibration_profiles.json";
 const CALIBRATION_PAGE_PATH: &str = "./static/calibration.html";
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct SaveProfilePayload {
     pub name: String,
-    pub multipliers: ProfileMultipliers,
+    pub bpms: ProfileBpms,
 }
 
 fn profile_store_path() -> PathBuf {
@@ -97,7 +97,7 @@ pub async fn save_profile(payload: web::Json<SaveProfilePayload>) -> impl Respon
         }
     };
 
-    profiles.insert(profile_name.to_string(), payload.multipliers.clone());
+    profiles.insert(profile_name.to_string(), payload.bpms.clone());
 
     match write_profiles_file(&profiles).await {
         Ok(()) => {

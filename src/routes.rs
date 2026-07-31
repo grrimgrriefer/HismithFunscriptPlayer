@@ -9,7 +9,7 @@
 //!   with a Cache-Control: no-cache header applied.
 
 use crate::{
-    handlers::{calibration, editor, funscript, index, video},
+    handlers::{calibration, editor, funscript, index, thumbnail, video},
     intiface_socket,
 };
 use actix_files::Files;
@@ -32,6 +32,7 @@ pub fn setup_routes(cfg: &mut web::ServiceConfig) {
                 .route("/calibration", web::get().to(calibration::handle_calibration_page))
                 .route("/video/{filename:.*}", web::get().to(video::handle_video))
                 .route("/funscripts/{filename:.*}", web::get().to(funscript::handle_funscript))
+                .route("/thumbnails/{filename:.*}", web::get().to(thumbnail::handle_thumbnail))
                 .service(
                     web::scope("/static")
                         .wrap(DefaultHeaders::new().add(("Cache-Control", "no-cache")))

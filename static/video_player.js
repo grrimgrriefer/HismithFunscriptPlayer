@@ -385,7 +385,21 @@ function showNextVideoOverlay() {
             btn.disabled = true;
             return;
         }
-        btn.innerHTML = `${label} ${getStatHtml(candidate)}`;
+
+        const thumbUrl = `/site/thumbnails/${candidate.path}.jpg`;
+
+        btn.style.height = 'auto';
+        btn.style.padding = '10px';
+        btn.innerHTML = `
+            <div style="display:flex; align-items:center; gap:12px; text-align:left;">
+                <img src="${thumbUrl}" 
+                    style="width:100px; height:56px; object-fit:cover; border-radius:4px; background:#111; flex-shrink:0;">
+                <div>
+                    <div style="font-weight:bold; font-size:0.9em;">${label}</div>
+                    <div style="font-size:0.85em;">${getStatHtml(candidate)}</div>
+                </div>
+            </div>
+        `;
         btn.disabled = false;
         btn.onclick = () => startNextVideo(candidate);
     };

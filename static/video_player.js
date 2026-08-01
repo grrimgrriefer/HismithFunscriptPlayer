@@ -365,18 +365,24 @@ function showNextVideoOverlay() {
     const currentStats = getStats({ path: state.currentVideoRelativePath });
     const currentPeak = currentStats ? currentStats.peak : 0;
 
-    const getStatHtml = (candidate) => {
-        if (!candidate) return '';
-        const stats = getStats(candidate);
-        const dPeak = stats.peak - currentPeak;
+    function getStatHtml(candidate, currentStats) {
+        if (!candidate || !currentStats) return '';
+
+        const stats = getFunscriptStats(
+            state.globalFunscriptMap[toFunscriptPath(candidate.path)]
+        );
+        const dPeak = stats.peak - currentStats.peak;
         const dAvg = stats.avg - currentStats.avg;
-        const peakColor = relativeIntensityToColor(dPeak);
+
+        const peakPrefix = dPeak > 0 ? '+' : '';
+        const avgPrefix = dAvg > 0 ? '+' : '';
+        const peakColor = dPeak > 0 ? '#ff5252' : '#69f0ae';
 
         return (
-            `<span style="color:${peakColor}">${dPeak > 0 ? '+' : ''}${dPeak.toFixed(1)}</span> ` +
-            `<span style="opacity:0.8; font-size:0.8em;">(${dAvg > 0 ? '+' : ''}${dAvg.toFixed(1)} avg)</span>`
+            `<span style="color:${peakColor}">${peakPrefix}${dPeak.toFixed(1)} Peak</span><br>` +
+            `<span style="opacity:0.8">${avgPrefix}${dAvg.toFixed(1)} Avg</span>`
         );
-    };
+    }
 
     const formatBtn = (id, candidate) => {
         const btn = document.getElementById(id);
@@ -385,14 +391,15 @@ function showNextVideoOverlay() {
 
         if (!candidate) {
             btn.disabled = true;
-            thumbImg.src = '';
-            statsEl.textContent = 'None available';
+            statsEl.textContent = 'N/A';
+            if (thumbImg) thumbImg.style.display = 'none';
             return;
         }
 
         btn.disabled = false;
+        thumbImg.style.display = 'block';
         thumbImg.src = `/site/thumbnails/${candidate.path}.jpg`;
-        statsEl.innerHTML = getStatHtml(candidate); // reuse your existing getStatHtml logic
+        statsEl.innerHTML = getStatHtml(candidate, currentStats);
         btn.onclick = () => startNextVideo(candidate);
     };
 
@@ -407,17 +414,6 @@ function showNextVideoOverlay() {
     formatBtn('next-higher-btn', candidates.higher);
     formatBtn('next-similar-btn', candidates.similar);
     formatBtn('next-lower-btn', candidates.lower);
-
-    let timeLeft = 6;
-    const updateTimer = () => {
-        if (!state.isOverlayVisible) return;
-        timerEl.innerHTML = `Starting random video in ${timeLeft}s...${similarStatsHtml}`;
-        if (timeLeft <= 0) return startNextVideo(fallbackVideo);
-        timeLeft--;
-        state.nextVideoTimer = setTimeout(updateTimer, 1000);
-    };
-    updateTimer();
-
     document.getElementById('next-replay-btn').onclick = () => {
         const video = document.querySelector('#video-player video');
         if (video) {
@@ -427,6 +423,21 @@ function showNextVideoOverlay() {
         hideNextVideoOverlay();
     };
     document.getElementById('next-cancel-btn').onclick = hideNextVideoOverlay;
+
+    let timeLeft = 6;
+    const updateTimer = () => {
+        if (!state.isOverlayVisible) return;
+        timerEl.innerHTML = `Starting random video in ${timeLeft}s...`;
+        if (timeLeft <= 0) {
+            if (fallbackVideo) return startNextVideo(fallbackVideo);
+            else return hideNextVideoOverlay();
+        }
+
+        timeLeft--;
+        state.nextVideoTimer = setTimeout(updateTimer, 1000);
+    };
+
+    updateTimer();
 }
 
 function hideNextVideoOverlay() {

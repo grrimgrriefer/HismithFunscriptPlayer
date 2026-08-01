@@ -44,7 +44,7 @@ pub async fn handle_thumbnail(
             "-ss", "00:00:05",
             "-i", video_full_path.to_str().unwrap(),
             "-vframes", "1",
-            "-vf", "scale=-1:400,crop=225:400", 
+            "-vf", "scale=-1:400", 
             thumb_full_path.to_str().unwrap(),
             "-y",
         ])

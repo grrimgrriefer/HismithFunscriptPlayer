@@ -27,14 +27,39 @@
                     </div>
                 </div>
                 <div id="next-video-overlay" class="hidden">
-                    <div class="overlay-card">
+                    <div class="overlay-card wide">
                         <h3>Up Next</h3>
                         <div id="next-timer">Starting random video in 6s...</div>
-                        <div class="overlay-buttons">
-                            <button id="next-lower-btn" class="btn">Lower Intensity</button>
-                            <button id="next-higher-btn" class="btn">Higher Intensity</button>
-                            <button id="next-replay-btn" class="btn">Replay current video</button>
-                            <button id="next-cancel-btn" class="btn">Cancel</button>
+
+                        <div class="next-options-row">
+                            <button id="next-lower-btn" class="next-card lower">
+                                <img class="next-thumb" src="" alt="">
+                                <div class="next-info">
+                                    <span class="next-label">Lower</span>
+                                    <span class="next-stats"></span>
+                                </div>
+                            </button>
+
+                            <button id="next-similar-btn" class="next-card similar">
+                                <img class="next-thumb" src="" alt="">
+                                <div class="next-info">
+                                    <span class="next-label">Similar</span>
+                                    <span class="next-stats"></span>
+                                </div>
+                            </button>
+
+                            <button id="next-higher-btn" class="next-card higher">
+                                <img class="next-thumb" src="" alt="">
+                                <div class="next-info">
+                                    <span class="next-label">Higher</span>
+                                    <span class="next-stats"></span>
+                                </div>
+                            </button>
+                        </div>
+
+                        <div class="overlay-footer">
+                            <button id="next-replay-btn" class="btn btn-sm">Replay Current</button>
+                            <button id="next-cancel-btn" class="btn btn-sm">Cancel</button>
                         </div>
                     </div>
                 </div>
@@ -67,7 +92,8 @@
             <label class="settings-label" style="margin-top:8px;">Max Intensity Limit:</label>
             <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
                 <button id="hard-limit-lock-button" class="btn btn-sm">Unlock</button>
-                <input id="hard-limit-input" class="settings-input" type="number" min="0" max="100" value="60" disabled />
+                <input id="hard-limit-input" class="settings-input" type="number" min="0" max="100" value="60"
+                    disabled />
             </div>
 
             <label class="settings-label">Vibrate Mode:</label>
@@ -84,8 +110,9 @@
                 <option value="doubletime">Double-time (2.0x)</option>
             </select>
 
-            <div id="settings-intensity-info" class="form-group" style="margin-top:12px; font-size:0.9em; border-top:1px solid #444; padding-top:8px; color:#bbb;">
-                Intensity: <span id="settings-peak-val" style="font-weight:bold;">--</span> peak, 
+            <div id="settings-intensity-info" class="form-group"
+                style="margin-top:12px; font-size:0.9em; border-top:1px solid #444; padding-top:8px; color:#bbb;">
+                Intensity: <span id="settings-peak-val" style="font-weight:bold;">--</span> peak,
                 <span id="settings-avg-val" style="font-weight:bold;">--</span> avg
             </div>
 

@@ -378,47 +378,35 @@ function showNextVideoOverlay() {
         );
     };
 
-    const formatBtn = (id, candidate, label) => {
+    const formatBtn = (id, candidate) => {
         const btn = document.getElementById(id);
+        const thumbImg = btn.querySelector('.next-thumb');
+        const statsEl = btn.querySelector('.next-stats');
+
         if (!candidate) {
-            btn.textContent = `No ${label.toLowerCase()} found`;
             btn.disabled = true;
+            thumbImg.src = '';
+            statsEl.textContent = 'None available';
             return;
         }
 
-        const thumbUrl = `/site/thumbnails/${candidate.path}.jpg`;
-
-        btn.style.height = 'auto';
-        btn.style.padding = '10px';
-        btn.innerHTML = `
-            <div style="display:flex; align-items:center; gap:12px; text-align:left;">
-                <img src="${thumbUrl}" 
-                    style="width:100px; height:56px; object-fit:cover; border-radius:4px; background:#111; flex-shrink:0;">
-                <div>
-                    <div style="font-weight:bold; font-size:0.9em;">${label}</div>
-                    <div style="font-size:0.85em;">${getStatHtml(candidate)}</div>
-                </div>
-            </div>
-        `;
         btn.disabled = false;
+        thumbImg.src = `/site/thumbnails/${candidate.path}.jpg`;
+        statsEl.innerHTML = getStatHtml(candidate); // reuse your existing getStatHtml logic
         btn.onclick = () => startNextVideo(candidate);
     };
 
     const candidates = {
         higher: findRandomVideo(currentPeak, 5, 15),
-        similar: findRandomVideo(currentPeak, -5, 5),
+        similar:
+            findRandomVideo(currentPeak, -5, 5) ||
+            findClosestVideo(currentPeak),
         lower: findRandomVideo(currentPeak, -15, -5)
     };
 
-    formatBtn('next-higher-btn', candidates.higher, 'Significantly Higher');
-    formatBtn('next-lower-btn', candidates.lower, 'Significantly Lower');
-
-    const fallbackVideo = !candidates.similar
-        ? findClosestVideo(currentPeak)
-        : candidates.similar;
-    const similarStatsHtml = fallbackVideo
-        ? `<br><small>Next: ${getStatHtml(fallbackVideo)}</small>`
-        : '';
+    formatBtn('next-higher-btn', candidates.higher);
+    formatBtn('next-similar-btn', candidates.similar);
+    formatBtn('next-lower-btn', candidates.lower);
 
     let timeLeft = 6;
     const updateTimer = () => {

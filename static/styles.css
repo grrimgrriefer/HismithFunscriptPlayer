@@ -241,8 +241,9 @@ h1 {
 }
 
 .overlay-card.wide {
-    max-width: 800px;
+    max-width: 900px;
     width: 95%;
+    padding: 24px 30px;
 }
 
 .overlay-close-btn {
@@ -266,16 +267,17 @@ h1 {
 
 .next-options-row {
     display: flex;
-    gap: 20px;
-    justify-content: center;
+    gap: 15px;
+    justify-content: space-between;
     align-items: center;
     margin: 30px 0;
     min-height: 400px;
+    width: 100%;
 }
 
 .next-card {
     position: relative;
-    width: 200px;
+    width: 250px;
     height: 350px;
     border-radius: 16px;
     overflow: hidden;
@@ -283,9 +285,11 @@ h1 {
     border: 4px solid #444;
     transition:
         width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-        transform 0.3s;
+        transform 0.3s,
+        border-color 0.3s;
     background: #000;
     flex-shrink: 0;
+    padding: 0;
 }
 
 .next-card:hover:not(:disabled) {
@@ -317,7 +321,6 @@ h1 {
     width: 100%;
     padding: 20px 10px;
     background: linear-gradient(transparent, rgba(0, 0, 0, 0.95) 40%);
-
     text-align: center;
 }
 

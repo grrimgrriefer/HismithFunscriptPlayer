@@ -414,6 +414,9 @@ function showNextVideoOverlay() {
     formatBtn('next-higher-btn', candidates.higher);
     formatBtn('next-similar-btn', candidates.similar);
     formatBtn('next-lower-btn', candidates.lower);
+
+    const fallbackVideo =
+        candidates.similar || candidates.higher || candidates.lower;
     document.getElementById('next-replay-btn').onclick = () => {
         const video = document.querySelector('#video-player video');
         if (video) {

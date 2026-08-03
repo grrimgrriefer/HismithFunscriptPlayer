@@ -1,6 +1,6 @@
 // static/directory_tree.js
 
-import { playVideo } from './video_player.js';
+import { playVideo, showFolderStartOverlay } from './video_player.js';
 import {
     toFunscriptPath,
     getFunscriptStats,
@@ -55,7 +55,12 @@ function toggleFolder(id) {
         if (ul.id !== id) ul.classList.add('hidden');
     }
 
+    const wasHidden = element.classList.contains('hidden');
     element.classList.toggle('hidden');
+
+    if (wasHidden) {
+        showFolderStartOverlay(id);
+    }
 }
 
 function buildIntensityBadge(stats) {

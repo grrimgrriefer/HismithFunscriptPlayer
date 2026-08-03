@@ -355,6 +355,18 @@ function showNextVideoOverlay() {
     overlay.classList.remove('hidden');
     exitFullscreen();
 
+    const labelLower = document.querySelector('#next-lower-btn .next-label');
+    const labelSimilar = document.querySelector(
+        '#next-similar-btn .next-label'
+    );
+    const labelHigher = document.querySelector('#next-higher-btn .next-label');
+    if (labelLower) labelLower.textContent = 'Lower';
+    if (labelSimilar) labelSimilar.textContent = 'Similar';
+    if (labelHigher) labelHigher.textContent = 'Higher';
+
+    const replayBtn = document.getElementById('next-replay-btn');
+    if (replayBtn) replayBtn.style.display = 'inline-block';
+
     const getStats = (v) => {
         if (!v) return { peak: 0, avg: 0 };
         return getFunscriptStats(
@@ -367,17 +379,14 @@ function showNextVideoOverlay() {
 
     function getStatHtml(candidate, currentStats) {
         if (!candidate || !currentStats) return '';
-
         const stats = getFunscriptStats(
             state.globalFunscriptMap[toFunscriptPath(candidate.path)]
         );
         const dPeak = stats.peak - currentStats.peak;
         const dAvg = stats.avg - currentStats.avg;
-
         const peakPrefix = dPeak > 0 ? '+' : '';
         const avgPrefix = dAvg > 0 ? '+' : '';
         const peakColor = dPeak > 0 ? '#ff5252' : '#69f0ae';
-
         return (
             `<span style="color:${peakColor}">${peakPrefix}${dPeak.toFixed(1)} Peak</span><br>` +
             `<span style="opacity:0.8">${avgPrefix}${dAvg.toFixed(1)} Avg</span>`
@@ -388,14 +397,12 @@ function showNextVideoOverlay() {
         const btn = document.getElementById(id);
         const thumbImg = btn.querySelector('.next-thumb');
         const statsEl = btn.querySelector('.next-stats');
-
         if (!candidate) {
             btn.disabled = true;
             statsEl.textContent = 'N/A';
             if (thumbImg) thumbImg.style.display = 'none';
             return;
         }
-
         btn.disabled = false;
         thumbImg.style.display = 'block';
         thumbImg.src = `/site/thumbnails/${candidate.path}.jpg`;
@@ -435,11 +442,9 @@ function showNextVideoOverlay() {
             if (fallbackVideo) return startNextVideo(fallbackVideo);
             else return hideNextVideoOverlay();
         }
-
         timeLeft--;
         state.nextVideoTimer = setTimeout(updateTimer, 1000);
     };
-
     updateTimer();
 }
 
@@ -447,4 +452,138 @@ function hideNextVideoOverlay() {
     state.isOverlayVisible = false;
     clearTimeout(state.nextVideoTimer);
     document.getElementById('next-video-overlay')?.classList.add('hidden');
+}
+
+// ── Folder Start Selection Helpers ─────────────────────────────────────
+function findFolderNode(currentNode, folderPath) {
+    if (!currentNode) return null;
+    if (currentNode.path === folderPath && currentNode.is_dir) {
+        return currentNode;
+    }
+    if (currentNode.children) {
+        for (const child of currentNode.children) {
+            const found = findFolderNode(child, folderPath);
+            if (found) return found;
+        }
+    }
+    return null;
+}
+
+function findClosestVideoToIntensity(
+    videos,
+    targetIntensity,
+    excludeSet = new Set()
+) {
+    let bestVideo = null;
+    let minDiff = Infinity;
+
+    for (const v of videos) {
+        if (excludeSet.has(v.path)) continue;
+        const normPath = toFunscriptPath(v.path);
+        const stats = getFunscriptStats(state.globalFunscriptMap?.[normPath]);
+        if (!stats) continue;
+        const diff = Math.abs(stats.peak - targetIntensity);
+        if (diff < minDiff) {
+            minDiff = diff;
+            bestVideo = v;
+        }
+    }
+    return bestVideo;
+}
+
+function selectStartCandidates(videos) {
+    const excludeSet = new Set();
+    const low = findClosestVideoToIntensity(videos, 20, excludeSet);
+    if (low) excludeSet.add(low.path);
+
+    const med = findClosestVideoToIntensity(videos, 35, excludeSet);
+    if (med) excludeSet.add(med.path);
+
+    const high = findClosestVideoToIntensity(videos, 50, excludeSet);
+    if (high) excludeSet.add(high.path);
+
+    return { low, med, high };
+}
+
+export function showFolderStartOverlay(folderPath) {
+    const folderNode = findFolderNode(state.globalTree, folderPath);
+    if (!folderNode) return;
+
+    const videos = (folderNode.children || []).filter((c) => !c.is_dir);
+    if (videos.length === 0) return;
+
+    const candidates = selectStartCandidates(videos);
+
+    if (!candidates.low && !candidates.med && !candidates.high) {
+        return;
+    }
+
+    state.isOverlayVisible = true;
+    if (state.nextVideoTimer) clearTimeout(state.nextVideoTimer);
+
+    const overlay = document.getElementById('next-video-overlay');
+    const timerEl = document.getElementById('next-timer');
+    if (!overlay) return;
+
+    overlay.classList.remove('hidden');
+    document.getElementById('video-container').classList.remove('hidden');
+    document.getElementById('settings-button').style.display = 'none';
+
+    exitFullscreen();
+
+    const labelLower = document.querySelector('#next-lower-btn .next-label');
+    const labelSimilar = document.querySelector(
+        '#next-similar-btn .next-label'
+    );
+    const labelHigher = document.querySelector('#next-higher-btn .next-label');
+    if (labelLower) labelLower.textContent = 'Low (~20)';
+    if (labelSimilar) labelSimilar.textContent = 'Medium (~35)';
+    if (labelHigher) labelHigher.textContent = 'High (~50)';
+
+    function getAbsoluteStatHtml(candidate) {
+        if (!candidate) return '';
+        const stats = getFunscriptStats(
+            state.globalFunscriptMap[toFunscriptPath(candidate.path)]
+        );
+        return (
+            `<span style="color:#69f0ae">${stats.peak.toFixed(1)} Peak</span><br>` +
+            `<span style="opacity:0.8">${stats.avg.toFixed(1)} Avg</span>`
+        );
+    }
+
+    const formatBtn = (id, candidate) => {
+        const btn = document.getElementById(id);
+        const thumbImg = btn.querySelector('.next-thumb');
+        const statsEl = btn.querySelector('.next-stats');
+        if (!candidate) {
+            btn.disabled = true;
+            statsEl.textContent = 'N/A';
+            if (thumbImg) thumbImg.style.display = 'none';
+            return;
+        }
+        btn.disabled = false;
+        if (thumbImg) {
+            thumbImg.style.display = 'block';
+            thumbImg.src = `/site/thumbnails/${candidate.path}.jpg`;
+        }
+        statsEl.innerHTML = getAbsoluteStatHtml(candidate);
+        btn.onclick = () => startNextVideo(candidate);
+    };
+
+    formatBtn('next-lower-btn', candidates.low);
+    formatBtn('next-similar-btn', candidates.med);
+    formatBtn('next-higher-btn', candidates.high);
+
+    const replayBtn = document.getElementById('next-replay-btn');
+    if (replayBtn) replayBtn.style.display = 'none';
+
+    document.getElementById('next-cancel-btn').onclick = () => {
+        hideNextVideoOverlay();
+        const activeVideo = document.querySelector('#video-player video');
+        if (!activeVideo || !activeVideo.src) {
+            document.getElementById('video-container').classList.add('hidden');
+        }
+    };
+
+    timerEl.innerHTML = 'Select a starting intensity to begin...';
 }

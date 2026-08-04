@@ -277,23 +277,23 @@ h1 {
 
 .next-card {
     position: relative;
-    width: 250px;
+    flex: 1;
     height: 350px;
     border-radius: 16px;
     overflow: hidden;
     cursor: pointer;
     border: 4px solid #444;
     transition:
-        width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        flex 0.4s cubic-bezier(0.4, 0, 0.2, 1),
         transform 0.3s,
         border-color 0.3s;
     background: #000;
-    flex-shrink: 0;
+
     padding: 0;
 }
 
 .next-card:hover:not(:disabled) {
-    width: 450px;
+    flex: 2.5;
     transform: translateY(-10px);
     z-index: 10;
 }
@@ -909,4 +909,84 @@ input[type='range'] {
 .modal-button-delete {
     background-color: #888;
     color: #fff;
+}
+
+/* ── Mobile stuff ─────────────────────────────────── */
+@media (max-width: 768px) {
+    #directory-container {
+        width: 100% !important;
+        box-shadow: none;
+    }
+
+    #editor-container {
+        flex-direction: column !important;
+    }
+    #video-section {
+        flex: none !important;
+        height: 45vh !important;
+    }
+    #controls-section {
+        flex: 1 !important;
+        padding: 15px !important;
+    }
+    #editor-video {
+        height: 70% !important;
+    }
+    #editor-canvas {
+        height: 30% !important;
+    }
+
+    .next-options-row {
+        flex-direction: column !important;
+        min-height: auto !important;
+        gap: 12px !important;
+        margin: 15px 0 !important;
+    }
+    .next-card {
+        width: 100% !important;
+        height: 85px !important;
+        flex: none !important;
+    }
+    .next-card:hover:not(:disabled) {
+        flex: none !important;
+        transform: none !important;
+    }
+    .next-info {
+        padding: 10px 15px !important;
+        background: rgba(0, 0, 0, 0.8) !important;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        height: 100%;
+        box-sizing: border-box;
+    }
+    .next-thumb {
+        position: absolute;
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover;
+    }
+    .next-label {
+        font-size: 1.1em !important;
+        margin-bottom: 0 !important;
+        z-index: 2;
+    }
+    .next-stats {
+        margin-top: 0 !important;
+        font-size: 0.9em !important;
+        z-index: 2;
+    }
+    .overlay-card.wide {
+        padding: 15px !important;
+        width: 95% !important;
+    }
+
+    .calibration-overlay {
+        align-items: flex-start !important;
+        overflow-y: auto !important;
+    }
+    .card {
+        box-sizing: border-box;
+        padding: 15px !important;
+    }
 }

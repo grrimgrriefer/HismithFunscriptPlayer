@@ -355,92 +355,47 @@ function showNextVideoOverlay() {
     overlay.classList.remove('hidden');
     exitFullscreen();
 
-    const labelLower = document.querySelector('#next-lower-btn .next-label');
-    const labelSimilar = document.querySelector(
-        '#next-similar-btn .next-label'
-    );
-    const labelHigher = document.querySelector('#next-higher-btn .next-label');
-    if (labelLower) labelLower.textContent = 'Lower';
-    if (labelSimilar) labelSimilar.textContent = 'Similar';
-    if (labelHigher) labelHigher.textContent = 'Higher';
-
-    const replayBtn = document.getElementById('next-replay-btn');
-    if (replayBtn) replayBtn.style.display = 'inline-block';
-
-    const getStats = (v) => {
-        if (!v) return { peak: 0, avg: 0 };
-        return getFunscriptStats(
-            state.globalFunscriptMap[toFunscriptPath(v.path)]
-        );
-    };
-
     const currentStats = getStats({ path: state.currentVideoRelativePath });
-    const currentPeak = currentStats ? currentStats.peak : 0;
-
-    function getStatHtml(candidate, currentStats) {
-        if (!candidate || !currentStats) return '';
-        const stats = getFunscriptStats(
-            state.globalFunscriptMap[toFunscriptPath(candidate.path)]
-        );
-        const dPeak = stats.peak - currentStats.peak;
-        const dAvg = stats.avg - currentStats.avg;
-        const peakPrefix = dPeak > 0 ? '+' : '';
-        const avgPrefix = dAvg > 0 ? '+' : '';
-        const peakColor = dPeak > 0 ? '#ff5252' : '#69f0ae';
-        return (
-            `<span style="color:${peakColor}">${peakPrefix}${dPeak.toFixed(1)} Peak</span><br>` +
-            `<span style="opacity:0.8">${avgPrefix}${dAvg.toFixed(1)} Avg</span>`
-        );
-    }
-
-    const formatBtn = (id, candidate) => {
-        const btn = document.getElementById(id);
-        const thumbImg = btn.querySelector('.next-thumb');
-        const statsEl = btn.querySelector('.next-stats');
-        if (!candidate) {
-            btn.disabled = true;
-            statsEl.textContent = 'N/A';
-            if (thumbImg) thumbImg.style.display = 'none';
-            return;
-        }
-        btn.disabled = false;
-        thumbImg.style.display = 'block';
-        thumbImg.src = `/site/thumbnails/${candidate.path}.jpg`;
-        statsEl.innerHTML = getStatHtml(candidate, currentStats);
-        btn.onclick = () => startNextVideo(candidate);
-    };
 
     const candidates = {
-        higher: findRandomVideo(currentPeak, 5, 15),
+        higher: findRandomVideo(currentStats.peak, 5, 15),
         similar:
-            findRandomVideo(currentPeak, -5, 5) ||
-            findClosestVideo(currentPeak),
-        lower: findRandomVideo(currentPeak, -15, -5)
+            findRandomVideo(currentStats.peak, -5, 5) ||
+            findClosestVideo(currentStats.peak),
+        lower: findRandomVideo(currentStats.peak, -15, -5)
     };
 
-    formatBtn('next-higher-btn', candidates.higher);
-    formatBtn('next-similar-btn', candidates.similar);
-    formatBtn('next-lower-btn', candidates.lower);
+    updateOverlayButtons(
+        candidates,
+        ['Lower', 'Similar', 'Higher'],
+        'relative'
+    );
+
+    const replayBtn = document.getElementById('next-replay-btn');
+    if (replayBtn) {
+        replayBtn.style.display = 'inline-block';
+        replayBtn.onclick = () => {
+            const video = document.querySelector('#video-player video');
+            if (video) {
+                video.currentTime = 0;
+                video.play();
+            }
+            hideNextVideoOverlay();
+        };
+    }
+
+    document.getElementById('next-cancel-btn').onclick = hideNextVideoOverlay;
 
     const fallbackVideo =
         candidates.similar || candidates.higher || candidates.lower;
-    document.getElementById('next-replay-btn').onclick = () => {
-        const video = document.querySelector('#video-player video');
-        if (video) {
-            video.currentTime = 0;
-            video.play();
-        }
-        hideNextVideoOverlay();
-    };
-    document.getElementById('next-cancel-btn').onclick = hideNextVideoOverlay;
-
     let timeLeft = 6;
     const updateTimer = () => {
         if (!state.isOverlayVisible) return;
         timerEl.innerHTML = `Starting random video in ${timeLeft}s...`;
         if (timeLeft <= 0) {
-            if (fallbackVideo) return startNextVideo(fallbackVideo);
-            else return hideNextVideoOverlay();
+            if (fallbackVideo) startNextVideo(fallbackVideo);
+            else hideNextVideoOverlay();
+            return;
         }
         timeLeft--;
         state.nextVideoTimer = setTimeout(updateTimer, 1000);
@@ -513,16 +468,11 @@ export function showFolderStartOverlay(folderPath) {
     if (videos.length === 0) return;
 
     const candidates = selectStartCandidates(videos);
-
-    if (!candidates.low && !candidates.med && !candidates.high) {
-        return;
-    }
+    if (!candidates.low && !candidates.med && !candidates.high) return;
 
     state.isOverlayVisible = true;
-    if (state.nextVideoTimer) clearTimeout(state.nextVideoTimer);
-
     const overlay = document.getElementById('next-video-overlay');
-    const timerEl = document.getElementById('next-timer');
+
     if (!overlay) return;
 
     overlay.classList.remove('hidden');
@@ -531,25 +481,66 @@ export function showFolderStartOverlay(folderPath) {
 
     exitFullscreen();
 
-    const labelLower = document.querySelector('#next-lower-btn .next-label');
-    const labelSimilar = document.querySelector(
-        '#next-similar-btn .next-label'
+    updateOverlayButtons(
+        {
+            lower: candidates.low,
+            similar: candidates.med,
+            higher: candidates.high
+        },
+        ['Low (~20)', 'Medium (~35)', 'High (~50)'],
+        'absolute'
     );
-    const labelHigher = document.querySelector('#next-higher-btn .next-label');
-    if (labelLower) labelLower.textContent = 'Low (~20)';
-    if (labelSimilar) labelSimilar.textContent = 'Medium (~35)';
-    if (labelHigher) labelHigher.textContent = 'High (~50)';
 
-    function getAbsoluteStatHtml(candidate) {
-        if (!candidate) return '';
-        const stats = getFunscriptStats(
-            state.globalFunscriptMap[toFunscriptPath(candidate.path)]
-        );
+    document.getElementById('next-timer').innerHTML =
+        'Select a starting intensity to begin...';
+    document.getElementById('next-replay-btn').style.display = 'none';
+    document.getElementById('next-cancel-btn').onclick = () => {
+        hideNextVideoOverlay();
+        const activeVideo = document.querySelector('#video-player video');
+        if (!activeVideo?.src)
+            document.getElementById('video-container').classList.add('hidden');
+    };
+}
+
+// --- Shared Overlay Helpers ---
+
+function getStats(v) {
+    if (!v) return { peak: 0, avg: 0 };
+    return getFunscriptStats(state.globalFunscriptMap[toFunscriptPath(v.path)]);
+}
+
+function getStatHtml(candidate, currentStats, mode = 'relative') {
+    if (!candidate) return '';
+    const stats = getStats(candidate);
+    if (mode === 'absolute') {
         return (
             `<span style="color:#69f0ae">${stats.peak.toFixed(1)} Peak</span><br>` +
             `<span style="opacity:0.8">${stats.avg.toFixed(1)} Avg</span>`
         );
     }
+    const dPeak = stats.peak - currentStats.peak;
+    const dAvg = stats.avg - currentStats.avg;
+    const peakPrefix = dPeak > 0 ? '+' : '';
+    const avgPrefix = dAvg > 0 ? '+' : '';
+    const peakColor = dPeak > 0 ? '#ff5252' : '#69f0ae';
+    return (
+        `<span style="color:${peakColor}">${peakPrefix}${dPeak.toFixed(1)} Peak</span><br>` +
+        `<span style="opacity:0.8">${avgPrefix}${dAvg.toFixed(1)} Avg</span>`
+    );
+}
+
+function updateOverlayButtons(candidates, labels, statMode = 'relative') {
+    document.querySelector('#next-lower-btn .next-label').textContent =
+        labels[0];
+    document.querySelector('#next-similar-btn .next-label').textContent =
+        labels[1];
+    document.querySelector('#next-higher-btn .next-label').textContent =
+        labels[2];
+
+    const currentStats =
+        statMode === 'relative'
+            ? getStats({ path: state.currentVideoRelativePath })
+            : null;
 
     const formatBtn = (id, candidate) => {
         const btn = document.getElementById(id);
@@ -566,24 +557,11 @@ export function showFolderStartOverlay(folderPath) {
             thumbImg.style.display = 'block';
             thumbImg.src = `/site/thumbnails/${candidate.path}.jpg`;
         }
-        statsEl.innerHTML = getAbsoluteStatHtml(candidate);
+        statsEl.innerHTML = getStatHtml(candidate, currentStats, statMode);
         btn.onclick = () => startNextVideo(candidate);
     };
 
-    formatBtn('next-lower-btn', candidates.low);
-    formatBtn('next-similar-btn', candidates.med);
-    formatBtn('next-higher-btn', candidates.high);
-
-    const replayBtn = document.getElementById('next-replay-btn');
-    if (replayBtn) replayBtn.style.display = 'none';
-
-    document.getElementById('next-cancel-btn').onclick = () => {
-        hideNextVideoOverlay();
-        const activeVideo = document.querySelector('#video-player video');
-        if (!activeVideo || !activeVideo.src) {
-            document.getElementById('video-container').classList.add('hidden');
-        }
-    };
-
-    timerEl.innerHTML = 'Select a starting intensity to begin...';
+    formatBtn('next-lower-btn', candidates.lower);
+    formatBtn('next-similar-btn', candidates.similar);
+    formatBtn('next-higher-btn', candidates.higher);
 }

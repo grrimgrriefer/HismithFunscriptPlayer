@@ -48,7 +48,8 @@ export function createFunscriptDisplayBox() {
 }
 
 function resizeCanvas(canvas) {
-    canvas.width = window.innerWidth / 2;
+    const widthRatio = window.innerWidth < 768 ? 0.9 : 0.5;
+    canvas.width = window.innerWidth * widthRatio;
     canvas.height = Math.min(
         window.innerHeight * CANVAS_HEIGHT_RATIO,
         MAX_CANVAS_HEIGHT

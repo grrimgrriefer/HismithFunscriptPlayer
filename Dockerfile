@@ -1,5 +1,5 @@
 # ---- Build Stage ----
-FROM rust:latest as builder
+FROM rust:1-slim-bookworm as builder
 
 WORKDIR /app
 
@@ -30,7 +30,7 @@ FROM debian:bookworm-slim
 WORKDIR /app
 
 # Install runtime dependencies (for rusqlite and others)
-RUN apt-get update && apt-get install -y libsqlite3-0 ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libsqlite3-0 ca-certificates ffmpeg && rm -rf /var/lib/apt/lists/*
 
 # Create a non-privileged user and group
 RUN groupadd -g 10001 appuser && \

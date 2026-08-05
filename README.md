@@ -89,7 +89,7 @@ Videos with scripts display color-coded badges indicating intensity in the forma
 - **Folder Start Recommendations**  
 Toggling a folder containing videos automatically presents a quick-selection of three suggested videos. With varied intensity: **Low (~20)**, **Medium (~35)**, or **High (~50)**. A specific video can also be chosen from the sidebar directly ofc.
 
-<img src="./documentation/directory-files.jpg" style="width:30%; height:auto;">
+<img src="./documentation/directory-files.jpg" width="50%">
 
 ---
 
@@ -104,8 +104,12 @@ Indicates your configured **Max Intensity Limit**. Only visible when the current
 - **Red Playhead Line:**  
 Current playback timestamp.
 
-<img src="./documentation/intensity-curves.jpg" style="width:30%; height:auto;">
-<img src="./documentation/intensity-curves-clamped.jpg" style="width:30%; height:auto;">
+<table>
+  <tr>
+    <td><img src="./documentation/intensity-curves.jpg"></td>
+    <td><img src="./documentation/intensity-curves-clamped.jpg"></td>
+  </tr>
+</table>
 
 ---
 
@@ -124,8 +128,12 @@ Click **Settings** in the top-right corner to open the player options panel
 | **Intensity Info** | Displays exact calculated **Peak** and **Average** intensity metrics for the currently active script. Takes selected script variants and **Speed Modulation** multipliers into account. |
 | **Open Editor** | Opens the current video and script in the custom Funscript Editor in a new tab. |
 
-<img src="./documentation/settings.jpg" style="width:30%; height:auto;">
-<img src="./documentation/intensity-display-settings.jpg" style="width:30%; height:auto;">
+<table>
+  <tr>
+    <td><img src="./documentation/settings.jpg"></td>
+    <td><img src="./documentation/intensity-display-settings.jpg"></td>
+  </tr>
+</table>
 
 ---
 
@@ -140,8 +148,12 @@ When a video ends (or when the script actions finish), an automated **Up Next** 
   - **Cancel:** Closes the overlay to remain on the completed video.
 - Each button shows a thumbnail (`/site/thumbnails/...`), filename, and intensity diff relative to the current video (e.g., `+8.5 Peak / +2.1 Avg`).
 
-<img src="./documentation/start-selection-hover.jpg" style="width:30%; height:auto;">
-<img src="./documentation/next-up.jpg" style="width:30%; height:auto;">
+<table>
+  <tr>
+    <td><img src="./documentation/start-selection-hover.jpg"></td>
+    <td><img src="./documentation/next-up.jpg"></td>
+  </tr>
+</table>
 
 ---
 
@@ -165,8 +177,12 @@ Enter a custom variant name (e.g., `chill`, `hard`, `bumpy`, `knotted`, etc.) be
 - **Save Funscript**  
 Generates retraction points (`pos: 0`) and writes the `.funscript` file to disk under `FUNSCRIPT_SHARE_PATH`.
 
-<img src="./documentation/funscript-editor.jpg" style="width:30%; height:auto;">
-<img src="./documentation/funscript-variants.jpg" style="width:30%; height:auto;">
+<table>
+  <tr>
+    <td><img src="./documentation/funscript-editor.jpg"></td>
+    <td><img src="./documentation/funscript-variants.jpg"></td>
+  </tr>
+</table>
 
 ---
 
@@ -183,8 +199,12 @@ Motor responsiveness and mechanical resistance differ across physical hardware (
 6. Repeat for remaining intensity presets.
 7. Calibration profiles can be named and saved to disk (`.calibration_profiles.json`) to persist across sessions.
 
-<img src="./documentation/calibration-bpm-ticker.jpg" style="width:30%; height:auto;">
-<img src="./documentation/calibration-done.jpg" style="width:30%; height:auto;">
+<table>
+  <tr>
+    <td><img src="./documentation/calibration-bpm-ticker.jpg"></td>
+    <td><img src="./documentation/calibration-done.jpg"></td>
+  </tr>
+</table>
 
 _(device used for baselines is my HISMITH without any attachment)_
 

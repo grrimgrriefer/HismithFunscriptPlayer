@@ -79,12 +79,12 @@ pub async fn handle_funscript(
     };
 
     let speed = query.get("speed").map(|s| s.as_str()).unwrap_or("normal");
-    if speed == "halftime" {
-        original.actions = funscript_utils::half_time_actions(&original.actions);
-    } else if speed == "quartertime" {
-        original.actions = funscript_utils::quarter_time_actions(&original.actions);
-    } else if speed == "doubletime" {
-        original.actions = funscript_utils::double_time_actions(&original.actions);
+    if speed == "halfbeat" {
+        original.actions = funscript_utils::half_beat_actions(&original.actions);
+    } else if speed == "quarterbeat" {
+        original.actions = funscript_utils::quarter_beat_actions(&original.actions);
+    } else if speed == "doublebeat" {
+        original.actions = funscript_utils::double_beat_actions(&original.actions);
     }
 
     let intensity = match generate_intensity(&original) {

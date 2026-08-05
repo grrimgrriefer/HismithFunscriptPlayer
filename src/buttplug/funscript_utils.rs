@@ -329,7 +329,7 @@ fn is_binary_script(actions: &[Action]) -> bool {
     })
 }
 
-pub fn double_time_actions(actions: &[Action]) -> Vec<Action> {
+pub fn double_beat_actions(actions: &[Action]) -> Vec<Action> {
     if actions.len() < 2 {
         return actions.to_vec();
     }
@@ -367,7 +367,7 @@ pub fn double_time_actions(actions: &[Action]) -> Vec<Action> {
     result
 }
 
-pub fn half_time_actions(actions: &[Action]) -> Vec<Action> {
+pub fn half_beat_actions(actions: &[Action]) -> Vec<Action> {
     if actions.len() < 2 {
         return actions.to_vec();
     }
@@ -402,7 +402,7 @@ pub fn half_time_actions(actions: &[Action]) -> Vec<Action> {
     result
 }
 
-pub fn quarter_time_actions(actions: &[Action]) -> Vec<Action> {
+pub fn quarter_beat_actions(actions: &[Action]) -> Vec<Action> {
     if actions.len() < 2 {
         return actions.to_vec();
     }

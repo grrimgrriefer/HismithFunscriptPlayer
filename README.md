@@ -1,168 +1,267 @@
-# Interactive Video Player
+# Interactive Funscript Video Player
 
 [![CodeQL](https://github.com/grrimgrriefer/HismithFunscriptPlayer/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/grrimgrriefer/HismithFunscriptPlayer/actions/workflows/github-code-scanning/codeql)
 [![Dependabot Updates](https://github.com/grrimgrriefer/HismithFunscriptPlayer/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/grrimgrriefer/HismithFunscriptPlayer/actions/workflows/dependabot/dependabot-updates)
 
-A web-based video player (Rust + Actix + plain JS) that synchronizes video playback with oscillating (and vibrating) hardware devices.
+A web-based video player (built with Rust, Actix-web, and plain JavaScript) that synchronizes video playback with oscillating (e.g., Hismith) and vibrating (e.g., Wildolo) hardware devices via [Intiface / Buttplug.io](https://intiface.com/).
 
-## Features
+---
 
-- Video playback with funscript synchronization.
-- Real-time intensity visualization.
-- Multi-step calibration, to synch with attachments with various amounts of 'friction'.
-- Directory browser for video selection.
-- WebSocket-based device control for minimal latency.
-- Editor mode to create / modify funscripts directly from the browser.
+## Key Features
 
-> [!IMPORTANT]  
-> Note: The app expects funscript actions with pos values 0 or 100. Other values are not (currently) supported.
+- **Funscript Synchronization**  
+Continuous real-time intensity calculation from `.funscript` files.
+- **On-Screen Graph & HUD**  
+Real-time visualization of upcoming thrusts, intensity curve, beat markers, and active user-defined safety hardwarelimits.
+- **Side-by-Side (SBS) 3D Support**  
+SBS toggle and automatic activation for 32:9 aspect ratio videos.
+- **Smart Next-Video Overlay**  
+Automatic recommendations (Lower, Similar, Higher intensity) when a video or script ends, with preview thumbnail previews and intensity deltas (compared to the current video).
+- **Folder Start Recommendations**  
+Pre-select starting videos (Low ~20%, Medium ~35%, High ~50% intensity) when opening folders.
+- **Intensity Modulation**  
+Play scripts in normally (1x), half-beat (0.5x), quarter-beat (0.25x), or double-beat (2.0x) to allow easy variation and facilitate various toy-sizes.
+- **Script Variant Support**  
+Load custom alternate script variants (e.g., `.low.funscript`, `.hard.funscript`) for customized variations (i.e. custom pattern variations).
+- **Vibration Modes**  
+Choose between general intensity-scaled vibration (`Rate`) based on beats-per-minute, or pulse vibration with each beat indivually (`Beat`).
+- **In-Browser Funscript Editor**  
+Create or adjust funscripts directly in authoring tool using tap-along controls, multi-selection, dragging, etc. for interactive timeline editing.
+- **Machine Calibration**  
+Synchronize your hardware device to perfectly match the stroke speeds by calibrating it. This is to compensate for various friction levels, machine power, angles, etc.
 
-## Quick start
+---
 
-1. Run [Intiface Central](https://intiface.com/central/) on port `12345`
-2. Create a `.env` in the project root:
+## Setup & Quick Start
+
+### 1. Prerequisites
+- **Intiface Central / Engine:** 
+  - Install and run [Intiface Central](https://intiface.com/central/).
+  - Ensure the WebSocket server is active on the (default) port `12345` (`ws://127.0.0.1:12345/buttplug`).
+  - Connect compatible devices inside Intiface.
+
+### 2. Configuration (`.env`)
+Create a `.env` file in the project root:
 
 ```bash
-# base folder for video files served by the app
-VIDEO_SHARE_PATH="/absolute/path/to/videos" 
-# base folder for funscript files .funscript
-FUNSCRIPT_SHARE_PATH="/absolute/path/to/funscripts"
-# 0.0.0.0 when using docker, or your host LAN IP when running outside container
-HOST_IP=0.0.0.0 (docker) or your LAN IP
+VIDEO_SHARE_PATH="/path/to/videos" # Absolute path to your video library (read-only is fine)
+FUNSCRIPT_SHARE_PATH="/path/to/funscripts" # Absolute path to your funscript directory (write permissions)
+HOST_IP=0.0.0.0 # Network IP (use 0.0.0.0 for Docker. Use your LAN IP when not using Docker)
+SERVER_PORT=5441 # Server port (default is 5441. When using a different value, make sure to adjust the socket.js and Dockerfile)
 ```
 
-3. Build & run:
+### 3. Build & Run
 
+#### Cargo (Native)
 ```bash
-cargo run
+cargo run --release
 ```
 
-or when running in a docker container:
-
+#### Docker
 ```bash
-docker stop hismith-player || true && \
-docker rm -f hismith-player || true && \
 docker build -t hismith-player-site:v1 . && \
 docker run -d -p 5441:5441 \
-# make sure the user has read permissions to readonly volume and write permissions to funscript volume
- --user "$(id -u):$(id -g)" \
- --mount type=bind,source=/absolute/path/to/videos,target=/absolute/path/to/videos,readonly \
- --mount type=bind,source=/absolute/path/to/funscripts,target=/absolute/path/to/funscripts \
- --name hismith-player hismith-player-site:v1
+  -e HOST_IP=0.0.0.0 \
+  --user "$(id -u):$(id -g)" \ # uses current user by default, if you have custom read/write permissions (e.g. NAS) you can specify a custom user
+  --mount type=bind,source=/path/to/videos,target=/path/to/videos,readonly \ # read only video folder
+  --mount type=bind,source=/path/to/funscripts,target=/path/to/funscripts \ # writeable folder (funscripts, thumbnails, calibration settings, etc.)
+  --name hismith-player hismith-player-site:v1
 ```
 
-Open the client in your browser at http://HOST_IP:5441/site/
+Open your browser at `http://<HOST_IP>:5441/site/`
 
-4. Connect compatible devices to Intiface (only tested with HISMITH and Wildolo)  
-_The host device_manager will repeatedly try to connect to Intiface and to start scanning if devices are missing._
 
-## Project Structure
+---
 
-- `src/`
-  - `buttplug/`
-    - `device_manager.rs`  
-      
-      Manages Buttplug client, device discovery, scanning loop, and a periodic control loop that sends latest intensity values to oscillate/vibrate devices. Exposes initialize_intiface() for startup and synchronous helpers (e.g. oscillate_sync() and vibrate_sync()) that are invoked by the WebSocket actor.
-    - `funscript_utils.rs`  
-      
-      Core funscript data types and processing utilities. E.g. interpolation helpers, condensing identical positions, and calculating thrust intensity by converting discrete 0/100 actions into a continuous intensity curve used for device control/visualization.
-  - `handlers/`
-    - `calibration.rs`  
-      
-      Serves the calibration page HTML.
-    - `editor.rs`  
-      
-      Serves editor UI and implements POST `/api/funscripts` to save uploaded funscript JSON. Validates paths to prevent directory traversal and writes files under FUNSCRIPT_SHARE_PATH.
-    - `funscript.rs`  
-      
-      Loads a `.funscript` from FUNSCRIPT_SHARE_PATH, attempts to generate an intensity funscript (via funscript_utils), and returns JSON payload:  
-      { original: Option\<FunscriptData\>, intensity: Option\<FunscriptData\> }.
-    - `index.rs`  
-      
-      Serves the SPA index page and provides `/api/directory-tree` endpoint that returns the directory JSON (uses directory_browser).
-    - `video.rs`  
-      
-      Streams files from VIDEO_SHARE_PATH via actix_files::NamedFile. Configured to prioritized client performance.
-  - `directory_browser.rs`  
-    
-    Scans VIDEO_SHARE_PATH and builds JSON tree used by the front-end directory UI. Provides `build_directory_tree` and `get_all_files_with_size`. Skips "funscripts" directories and filters by common video extensions.
-  - `intiface_socket.rs`  
-    
-    Actix WebSocket actor to receive JSON commands from the browser and forward them to the device manager. Expects JSON like { "o": <f64>, "v": <f64> } where values are normalized in the 0.0..1.0 range; the server clamps values before forwarding. Non-JSON or binary payloads produce structured JSON error replies.
-  - `lib.rs`  
-    
-    Exports modules and organizes the crate structure.
-  - `main.rs` 
-    
-    Program entrypoint: loads .env, initializes logging, spawns intiface/device initialization, configures and starts Actix HTTP server on HOST_IP:5441.
-  - `routes.rs`  
-    
-    Registers all HTTP endpoints and static file serving. Scope `/site` contains main UI and static assets; `/api` contains server APIs; `/ws` is the WebSocket.
+## User Guide & Interface Overview
 
-- `static/`
-  - `calibration.html / .js`  
-    
-    Calibration overlay UI and logic: allows mapping screen intensity presets to device multipliers and sends test commands via WebSocket.
-  - `directory_tree.js`  
-    
-    Renders the file tree UI and launches video playback when a file is selected.
-  - `editor.html / .js`  
-    
-    In-browser funscript editor: tap-based point creation, drag/selection editing, and saving on the host via API.
-  - `funscript_display_graphs.js`  
-    
-    Visualization for intensity curve & beat markers. (canvas-based)
-  - `funscript_handler.js`  
-    
-    Client-side funscript loader and utilities: maintains original/actions and intensity arrays, interpolation helpers, max/clamping behavior, vibrate modes.
-  - `index.html`  
-    
-    Main entry page.
-  - `main.js`  
-    
-    Initializes main UI, fetches directory tree, sets up WebSocket.
-  - `settings_menu.js`  
-    
-    Builds settings UI overlay: max intensity limit, vibrate mode, open editor, open calibration overlay.
-  - `socket.js`  
-    
-    WebSocket wrapper used by the front-end; connects to ws://\<host\>:5441/ws and sends { o, v } payloads.
-  - `styles.css`  
-    
-    UI Styling
-  - `video_player.js`  
-    
-    Core player logic: creates \<video\>, loads funscript, updates UI per frame, sends device commands based on current intensity.
+### URL Query Parameters
+- **`?no_fullscreen=1`** (or `true`/`yes`)  
+  Appended to the page URL (e.g. `http://<HOST_IP>:5441/site/?no_fullscreen=1`). Disables automatic browser fullscreen mode upon video playback start. Useful for windowed browsing, testing, or desktop setups.
 
-## API overview
+### Directory Browser (Left Sidebar)
+- **Toggle Directory Button**  
+Click the top-left button to show or hide the file explorer.
+- **Directory Hierarchy**  
+Reflects your `VIDEO_SHARE_PATH` layout (skipping subfolders named `funscripts`).
+- **Intensity Badges**  
+Videos with scripts display color-coded badges indicating intensity in the format `Peak (Avg)` (e.g., `45 (22)`). Colors blend (gentle to intense) from green, to yellow, red, purple, cyan.
+- **Folder Start Recommendations**  
+Toggling a folder containing videos automatically presents a quick-selection of three suggested videos. With varied intensity: **Low (~20)**, **Medium (~35)**, or **High (~50)**. A specific video can also be chosen from the sidebar directly ofc.
 
-- GET /site/  
-  UI index
-- GET /site/static/*  
-  Static assets (JS, CSS, HTML)
-- GET /site/video/{filename:.*}  
-  Streams a video file from VIDEO_SHARE_PATH
-- GET /site/funscripts/{filename:.*}  
-  Returns JSON: { original, intensity }
-- POST /api/funscripts  
-  Saves a funscript (used by editor). Body: { video_path: String, actions: [Action] }
-- GET /api/directory-tree  
-  Returns JSON file tree for VIDEO_SHARE_PATH
-- WebSocket ws://HOST_IP:5441/ws  
-  JSON control messages { o: 0..1, v: 0..1 } to control devices
+<img src="./documentation/directory-files.jpg" style="width:30%; height:auto;">
 
-## Funscript format
+---
 
-A funscript is JSON with:  
-- version, range, metadata
-- actions: [{ at: \<ms\>, pos: <0..100> }, ...]  
+### On-Screen Display (HUD Graph)
+When playing a video with a funscript attached, a real-time graph overlay appears at the bottom of the screen:
+- **Green Curve**  
+Continuous intensity curve calculated from the script.
+- **Circles (Beat Markers)**  
+Represent individual extended stroke hits (i.e. every `pos: 100`). The playhead flashes as it passes each circle.
+- **Horizontal White/Red Line**  
+Indicates your configured **Max Intensity Limit**. Only visible when the current video exceeds the limit, and will turn red only when it's actively clamping values to your custom hardware safety-limit.
+- **Red Playhead Line:**  
+Current playback timestamp.
 
-Conventions in this project:  
-- Editor and intensity generator expect discrete pos values of 0 (retracted) or 100 (thrust).
-- Intensity generator computes a continuous 0..100 intensity value sampled periodically.
+<img src="./documentation/intensity-curves.jpg" style="width:30%; height:auto;">
+<img src="./documentation/intensity-curves-clamped.jpg" style="width:30%; height:auto;">
 
-NOTE: External funscripts that have values between 0-100 must be normalized before importing.
+---
+
+### Settings Menu (Top-Right Button)
+Click **Settings** in the top-right corner to open the player options panel
+
+| Setting | Description |
+| :--- | :--- |
+| **SBS 3D Mode** | Changes the videoplayer settings for Side-by-Side 3D viewing in the Oculus Browser. (Automatically toggles on for 32:9 ratio videos). |
+| **Loop Toggle** | Toggles looping of the current video on or off. |
+| **Funscript Variant** | Visible when multiple `.funscript` variants exist for the current video (e.g., `original`, `low`, `hard`, `high`, `your custom name`). Click **Refresh** to rescan disk files. |
+| **Calibration** | Opens the hardware calibration overlay. |
+| **Max Intensity Limit** | Set a hard ceiling (0–100) for device commands (default: 60%). Click **Unlock** to specify a custom value. *Playback is automatically paused while unlocked, and starting playback will be refused until re-locked for safety.* |
+| **Vibrate Mode** | **`Rate`**: Vibration intensity is continuous based on the stroke intensity.<br>**`Beat`**: Vibrates in pulses, on each stroke hit and decays rapidly before the next stroke. |
+| **Intensity Modulation** | Skips beats or add extra beats to customize the intensity:<br>• `Quarter-beat (0.25x)`<br>• `Half-beat (0.5x)`<br>• `Normal (1.0x)`<br>• `Double-beat (2.0x)` |
+| **Intensity Info** | Displays exact calculated **Peak** and **Average** intensity metrics for the currently active script. Takes selected script variants and **Speed Modulation** multipliers into account. |
+| **Open Editor** | Opens the current video and script in the custom Funscript Editor in a new tab. |
+
+<img src="./documentation/settings.jpg" style="width:30%; height:auto;">
+<img src="./documentation/intensity-display-settings.jpg" style="width:30%; height:auto;">
+
+---
+
+### Up Next / Next Video Overlay
+When a video ends (or when the script actions finish), an automated **Up Next** overlay opens with a 6-second countdown timer.
+
+- **Options Provided:**
+  - **Lower:** Selects a video from the same folder with a -5 to -15 delta lower peak intensity.
+  - **Similar:** Selects a video with matching intensity (±5 delta peak intensity).
+  - **Higher:** Selects a video with +5 to +15 delta higher peak intensity.
+  - **Replay Current:** Restarts playback of the current video.
+  - **Cancel:** Closes the overlay to remain on the completed video.
+- Each button shows a thumbnail (`/site/thumbnails/...`), filename, and intensity diff relative to the current video (e.g., `+8.5 Peak / +2.1 Avg`).
+
+<img src="./documentation/start-selection-hover.jpg" style="width:30%; height:auto;">
+<img src="./documentation/next-up.jpg" style="width:30%; height:auto;">
+
+---
+
+## In-Browser Funscript Editor
+
+Access the editor via **Settings → Open Editor**.
+
+### Controls & Keyboard Shortcuts
+- **Tap Thrust (`Spacebar` or `Tap Thrust` button)**  
+Inserts a stroke extended point (`pos: 100`) at the current video playback timestamp.
+- **Select Taps**  
+Click and drag on the lower canvas timeline to highlight points.
+- **Move Taps**  
+Drag selected points left or right to shift timing.
+- **Delete (`Delete` / `Backspace` key or `Delete Selected` button)**  
+Removes all currently highlighted points.
+- **Undo (`Undo Last Tap` button)**  
+Removes the last placed tap.
+- **Variant Field**  
+Enter a custom variant name (e.g., `chill`, `hard`, `bumpy`, `knotted`, etc.) before saving to create a `.variant.funscript` file without overwriting `original`.
+- **Save Funscript**  
+Generates retraction points (`pos: 0`) and writes the `.funscript` file to disk under `FUNSCRIPT_SHARE_PATH`.
+
+<img src="./documentation/funscript-editor.jpg" style="width:30%; height:auto;">
+<img src="./documentation/funscript-variants.jpg" style="width:30%; height:auto;">
+
+---
+
+## Hardware Calibration
+
+Motor responsiveness and mechanical resistance differ across physical hardware (big/small toys, angle, logarithmic device power scaling). The Calibration tool maps screen intensities (10, 20, 30, 40, 50) to actual measured physical stroke rates (BPM).
+
+### Calibration Steps:
+1. Open **Settings → Calibration**.
+2. Select an intensity preset button (e.g., **30%**).
+3. Click **Start** to begin sending test movement commands to your physical device.
+4. Tap along with the device rhythm using the **Spacebar** or by clicking the visual **Spinner**.
+5. When a stable reading appears under **Measured BPM**, click **Save Point**.
+6. Repeat for remaining intensity presets.
+7. Calibration profiles can be named and saved to disk (`.calibration_profiles.json`) to persist across sessions.
+
+<img src="./documentation/calibration-bpm-ticker.jpg" style="width:30%; height:auto;">
+<img src="./documentation/calibration-done.jpg" style="width:30%; height:auto;">
+
+_(device used for baselines is my HISMITH without any attachment)_
+
+---
+
+## Important notes
+
+### 1. Funscript Format Requirements
+> [!IMPORTANT]
+> The automated intensity engine expects ONLY discrete position values of **`0`** (fully retracted) or **`100`** (fully extended). 
+> Smooth multi-point funscripts containing intermediate values (e.g., 30, 70) are **not supported** by the intensity generator and you'll have to modify them or generate new ones in the internal editor.
+
+### 2. Path Matching & Parent Directory Fallback
+- Video files and funscripts are matched by relative directory path and file stem:
+  - Video: `Category/VideoName.mp4`
+  - Base Funscript: `Category/VideoName.funscript`
+  - Variant Funscript: `Category/VideoName.hard.funscript`
+- **Parent Fallback:** If a video file in a subfolder (e.g., a 3D SBS variant) lacks a script in its own directory, the server automatically checks the parent directory for a matching script.
+
+---
+
+## Troubleshooting & Edge Cases
+
+### Unsupported Video Codecs (HEVC / H.265)
+- **Symptom:** Audio plays normally, but the video screen remains black or shows a red error overlay: *"Unsupported video codec. This browser requires H.264/AVC."*
+- Native web browser HTML5 video lacks built-in decoding support for HEVC (H.265).
+- **Solution:** Re-encode affected files to **H.264 (AVC)** video with **AAC** audio using `ffmpeg`:
+  ```bash
+  ffmpeg -i input_video.mp4 -c:v libx264 -c:a copy output_h264.mp4
+  ```
+
+### Server Permission Denied (Cache / Saving Errors)
+- **Symptom:** Red error banner appears in the file tree: *"Server cannot write to the funscripts directory; caching disabled..."*
+- The server process lacks write permissions to `FUNSCRIPT_SHARE_PATH`. Write access is required to generate intensity caches (`.funscript_cache.json`), thumbnails (`.thumbnails/`), calibration profiles (`.calibration_profiles.json`), and save funscripts.
+- **Solution:** Ensure the process or Docker container user owns or has write access to the funscript folder. (or specify a specific user that has the right permissions in the Docker run command)
+
+### Device Connection Failures
+- **Symptom:** Video plays smoothly, but connected devices do not move.
+- **Troubleshooting:**
+  1. Verify Intiface Central is running and connected to your hardware device.
+  2. Confirm Intiface WebSocket port is set to `12345` (`ws://127.0.0.1:12345/buttplug`).
+  3. Ensure your browser is not blocking local WebSocket traffic (`ws://HOST_IP:5441/ws`).
+  4. Check the cargo / docker logs for potential firewall issues when using different devices for client/server (e.g. VR headset)
+
+---
+
+## Project Structure Overview
+
+```text
+├── src/
+│   ├── main.rs                     # Entry point, env loading, Actix server setup
+│   ├── routes.rs                   # Endpoint routing (/site, /api, /ws)
+│   ├── intiface_socket.rs          # WebSocket actor receiving client device commands
+│   ├── directory_browser.rs        # Video directory tree scanner
+│   ├── funscript_cache.rs          # Funscript intensity hashing & caching
+│   ├── buttplug/
+│   │   ├── device_manager.rs       # Buttplug connection, scanning, & motor loop
+│   │   └── funscript_utils.rs      # Funscript parsing, interpolation, & intensity math
+│   └── handlers/
+│       ├── video.rs                # Video streaming handler (HTTP Range support)
+│       ├── funscript.rs            # Funscript loading & intensity curve generation
+│       ├── editor.rs               # Funscript editor page & save POST API
+│       ├── calibration.rs          # Calibration page & profile persistence API
+│       └── thumbnail.rs            # Dynamic video thumbnail generator (ffmpeg)
+├── static/                         # Web Client SPA (HTML, CSS, JS Modules)
+│   ├── index.html / main.js        # Main web interface entry
+│   ├── video_player.js             # Core playback loop, device control, & overlay state
+│   ├── funscript_handler.js        # Intensity calculation & speed modulation logic
+│   ├── funscript_display_graphs.js # Canvas HUD graph visualizer
+│   ├── settings_menu.js            # Settings overlay & options handlers
+│   ├── directory_tree.js           # File tree UI & intensity badge renderer
+│   ├── editor.html / editor.js     # Interactive funscript editor UI & logic
+│   └── calibration.html / .js      # Calibration modal & spinner logic
+└── automation/
+    └── check_durations.py          # Utility script to check video vs script duration deltas
+```
 
 ## License
 
-This project is licensed under the MIT License. See the LICENSE file for more details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.

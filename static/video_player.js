@@ -18,7 +18,8 @@ import { getCalibratedIntensity } from './calibration.js';
 import {
     refreshVariantsForCurrentVideo,
     updateIntensityDisplay,
-    setSBSMode
+    setSBSMode,
+    isHardLimitUnlocked
 } from './settings_menu.js';
 import {
     lerp,
@@ -153,6 +154,14 @@ export async function playVideo(
     spinner.style.display = 'block';
 
     videoElement.onplay = () => {
+        if (isHardLimitUnlocked()) {
+            videoElement.pause();
+            alert(
+                'Playback refused: Max Intensity Limit is currently unlocked. Please lock it, for your safety, in Settings before playing.'
+            );
+            return;
+        }
+
         if (state.cancelAnimationTimeout) {
             clearTimeout(state.cancelAnimationTimeout);
             state.cancelAnimationTimeout = null;

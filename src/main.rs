@@ -7,7 +7,7 @@
 //! - Intiface initialization via buttplug::device_manager::initialize()
 //!
 //! Configures Actix HTTP server with logging and permissive CORS. Bind address is
-//! controlled by HOST_IP and SERVER_PORT environment variables (defaults to 0.0.0.0:5441).
+//! controlled by HOST_IP and SERVER_PORT environment variables
 
 use actix_cors::Cors;
 use actix_web::{App, HttpServer, middleware::Logger};
@@ -15,8 +15,6 @@ use env_logger::Env;
 use hismith_player_site::{buttplug::device_manager, routes};
 use log::{error, info};
 use std::env;
-
-const SERVER_PORT: u16 = 5441;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -44,11 +42,11 @@ async fn main() -> std::io::Result<()> {
     });
 
     // LAN configuration
-    let host_ip = env::var("HOST_IP").unwrap_or_else(|_| "0.0.0.0".to_string());
+    let host_ip = env::var("HOST_IP").expect("HOST_IP environment variable must be set");
     let port = env::var("SERVER_PORT")
-        .ok()
-        .and_then(|s| s.parse::<u16>().ok())
-        .unwrap_or(SERVER_PORT);
+        .expect("SERVER_PORT environment variable must be set")
+        .parse::<u16>()
+        .expect("SERVER_PORT must be a valid port number (0-65535)");
 
     info!("Starting HTTP server on {}:{}...", host_ip, port);
     HttpServer::new(move || {

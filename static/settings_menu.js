@@ -131,6 +131,11 @@ export function setSBSMode(enabled) {
     }
 }
 
+export function isHardLimitUnlocked() {
+    const input = document.getElementById('hard-limit-input');
+    return input ? !input.disabled : false;
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────
 
 function getCurrentVideoPath() {
@@ -241,6 +246,16 @@ function initHardLimit(menu) {
         lockBtn.addEventListener('click', () => {
             input.disabled = !input.disabled;
             lockBtn.textContent = input.disabled ? 'Unlock' : 'Lock';
+
+            if (!input.disabled) {
+                const video = document.querySelector('#video-player video');
+                if (video && !video.paused) {
+                    video.pause();
+                    alert(
+                        'Playback paused because Max Intensity Limit was unlocked.'
+                    );
+                }
+            }
         });
     }
 

@@ -19,6 +19,9 @@
 use serde::{Deserialize, Serialize};
 use std::cmp::min;
 
+pub const INTENSITY_STEP_MS: u64 = 50;
+pub const INTENSITY_WINDOW_MS: u64 = 500;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Action {
     #[serde(rename = "at")]
@@ -259,7 +262,10 @@ fn window_intensity(actions: &[Action], win_start: u64, win_end: u64) -> f64 {
 ///
 /// Returns an empty `Vec` if the input is not a binary script (positions must
 /// be 0 or 100) or contains fewer than 2 actions.
-pub fn actions_to_intensity_curve(actions: &[Action], step_ms: u64, window_ms: u64) -> Vec<Action> {
+pub fn actions_to_intensity_curve(actions: &[Action]) -> Vec<Action> {
+    let step_ms = INTENSITY_STEP_MS;
+    let window_ms = INTENSITY_WINDOW_MS;
+    
     if actions.len() < 2 {
         return Vec::new();
     }

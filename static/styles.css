@@ -1,21 +1,67 @@
 /* static/styles.css */
 
-/* Keyframes */
+/* ── Design Tokens & CSS Variables ────────────────────────────────────── */
+:root {
+    --bg-dark: #1a1a1a;
+    --bg-primary: #252525;
+    --bg-secondary: #2d2d2d;
+    --bg-input: #3c3c3c;
+    --bg-hover: #646464;
+    --border-color: #555;
+    --border-light: #646464;
+    --text-primary: #dcdcdc;
+    --text-muted: #bbb;
+    --text-dim: #888;
+    --accent-blue: #0078d7;
+    --accent-green: #4caf50;
+    --accent-yellow: #ffd54f;
+    --accent-red: #f44336;
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Keyframes ────────────────────────────────────────────────────────── */
 @keyframes spin {
     0% {
         transform: rotate(0deg);
     }
-    to {
+    100% {
         transform: rotate(360deg);
     }
 }
 
-/* Base */
+@keyframes overlayFadeIn {
+    from {
+        background: rgba(0, 0, 0, 0);
+    }
+    to {
+        background: rgba(0, 0, 0, 0.85);
+    }
+}
+
+@keyframes spinner-flash {
+    0% {
+        filter: none;
+        transform: scale(1);
+    }
+    10% {
+        filter: drop-shadow(0 0 18px rgba(255, 255, 255, 0.95));
+        transform: scale(1.03);
+    }
+    100% {
+        filter: none;
+        transform: scale(1);
+    }
+}
+
+/* ── Base Styles ──────────────────────────────────────────────────────── */
 body,
 html {
     font-family: Arial, sans-serif;
-    background-color: #252525;
-    color: #dcdcdc;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
     margin: 0;
     padding: 0;
     width: 100%;
@@ -23,11 +69,291 @@ html {
     overflow: hidden;
 }
 
-/* Lists & folders */
+h1 {
+    color: #fff;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+a {
+    color: #90ee90;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+a:hover {
+    color: #32cd32;
+    text-decoration: underline;
+}
+
 ul {
     list-style-type: none;
     padding-left: 20px;
     margin: 0;
+}
+
+li {
+    margin: 5px 0;
+}
+
+/* ── Layout & General Utility Classes ─────────────────────────────────── */
+.hidden {
+    display: none !important;
+}
+
+.small {
+    font-size: 0.9em;
+    color: var(--text-muted);
+}
+
+.muted {
+    color: #aaa;
+    font-size: 0.9em;
+}
+
+.bold-val {
+    font-weight: bold;
+}
+
+.highlight-val {
+    font-weight: bold;
+    color: var(--accent-yellow);
+}
+
+.control-label {
+    display: block;
+    color: #ddd;
+    margin-bottom: 4px;
+}
+
+.row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.row-compact {
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.input-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.mt-sm {
+    margin-top: 8px;
+}
+.mt-md {
+    margin-top: 15px;
+}
+.mb-sm {
+    margin-bottom: 8px;
+}
+
+/* ── Universal Form Controls ──────────────────────────────────────────── */
+input[type='text'],
+input[type='number'],
+select,
+.settings-input,
+.settings-select,
+.variant-input-field,
+#video-search,
+.profile-select,
+.profile-name-input {
+    background: var(--bg-input);
+    border: 1px solid var(--border-light);
+    color: #fff;
+    border-radius: var(--radius-sm);
+    padding: 8px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.settings-select,
+.settings-input,
+.variant-input-field,
+#video-search {
+    width: 100%;
+}
+
+.profile-select {
+    flex: 1;
+    max-width: 220px;
+}
+
+.profile-name-input {
+    width: 140px;
+    margin-left: 6px;
+}
+
+#sbs-toggle-input {
+    width: auto;
+}
+
+.settings-input:disabled {
+    background: #999;
+    color: #bdbdbd;
+    opacity: 0.55;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* ── Universal Buttons ────────────────────────────────────────────────── */
+.btn,
+button,
+.preset-btn {
+    background-color: #464646;
+    color: #fff;
+    border: 0;
+    padding: 10px 20px;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: background-color 0.2s ease;
+}
+
+.btn:hover,
+button:hover,
+.preset-btn:hover {
+    background-color: var(--bg-hover);
+}
+
+.btn.btn-sm {
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 0.95em;
+}
+
+.preset-btn {
+    padding: 8px 12px;
+    border-radius: var(--radius-md);
+}
+
+.preset-btn.active {
+    background: var(--accent-blue);
+}
+
+.preset-btn.inactive {
+    opacity: 0.55;
+    background: #333;
+}
+
+.preset-btn.btn-save {
+    background: var(--accent-blue);
+}
+
+.player-button {
+    position: absolute;
+    top: 10px;
+    z-index: 1200;
+    display: none;
+}
+
+button#toggle-directory {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 3;
+}
+
+/* ── Container Cards, Modals, Overlays ────────────────────────────────── */
+.card,
+.overlay-card,
+.modal-content {
+    background: var(--bg-secondary);
+    padding: 20px;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    color: #ddd;
+    box-sizing: border-box;
+}
+
+.card {
+    width: 100%;
+}
+
+.overlay-card {
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+    color: #fff;
+}
+
+.overlay-card.wide {
+    max-width: 900px;
+    width: 95%;
+    padding: 24px 30px;
+}
+
+.overlay-close-btn {
+    position: absolute;
+    top: -12px;
+    right: -12px;
+    padding: 6px 10px;
+    border-radius: 50%;
+    border: none;
+    background: rgb(70, 70, 70);
+    color: white;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.modal {
+    display: block;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.6);
+}
+
+.modal-content {
+    margin: 15% auto;
+    width: 80%;
+    max-width: 500px;
+    border: 1px solid #888;
+}
+
+/* ── Directory Tree & Items ───────────────────────────────────────────── */
+#directory-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 30%;
+    height: 100%;
+    background-color: rgba(50, 50, 50, 0.9);
+    overflow-y: auto;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.5);
+    z-index: 2;
+}
+
+#directory-tree li {
+    padding: 5px;
+    border-radius: 3px;
+}
+
+#directory-tree li:nth-child(odd) {
+    background-color: rgba(80, 80, 80, 0.9);
+}
+
+#directory-tree li:nth-child(even) {
+    background-color: rgba(50, 50, 50, 0.9);
+}
+
+.folder {
+    cursor: pointer;
+    font-weight: 700;
+    color: #add8e6;
+    transition: color 0.2s ease;
+}
+
+.folder:hover {
+    color: #87cefa;
 }
 
 .file-row {
@@ -65,59 +391,7 @@ ul {
     text-align: center;
 }
 
-.folder,
-a {
-    transition: color 0.2s ease;
-}
-
-.folder {
-    cursor: pointer;
-    font-weight: 700;
-    color: #add8e6;
-}
-
-.folder:hover {
-    color: #87cefa;
-}
-
-a {
-    color: #90ee90;
-    text-decoration: none;
-}
-
-a:hover {
-    color: #32cd32;
-    text-decoration: underline;
-}
-
-.hidden {
-    display: none;
-}
-
-li {
-    margin: 5px 0;
-}
-
-h1 {
-    color: #fff;
-    text-align: center;
-    margin-bottom: 20px;
-}
-
-/* Directory */
-#directory-container {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 30%;
-    height: 100%;
-    background-color: rgba(50, 50, 50, 0.9);
-    overflow-y: auto;
-    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.5);
-    z-index: 2;
-}
-
-/* Video container */
+/* ── Video Player & Screen Layout ─────────────────────────────────────── */
 #video-container {
     position: fixed;
     top: 0;
@@ -131,53 +405,34 @@ h1 {
     background-color: #000;
 }
 
-#video-wrapper {
-    overflow: hidden;
-    position: relative;
-}
-
-#video-player,
-#video-wrapper {
+#video-wrapper,
+#video-player {
     width: 100%;
     height: 100%;
     display: flex;
     justify-content: center;
     align-items: center;
+    overflow: hidden;
+    position: relative;
 }
 
-#video-player video {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-}
-
-#video-player:-webkit-full-screen,
-#video-player:fullscreen {
-    width: 100vw;
-    height: 100vh;
-}
-
-#video-player:-webkit-full-screen video,
-#video-player:fullscreen video {
+#video-player video,
+#video-player:fullscreen video,
+#video-player:-webkit-full-screen video {
     width: 100%;
     height: 100%;
     object-fit: contain;
 }
 
 #video-container.sbs-mode #video-player video,
-#video-container.sbs-mode #video-player:-webkit-full-screen video,
-#video-container.sbs-mode #video-player:fullscreen video {
-    width: 100%;
-    height: 100%;
+#video-container.sbs-mode #video-player:fullscreen video,
+#video-container.sbs-mode #video-player:-webkit-full-screen video {
     object-fit: fill;
 }
 
 #video-error-overlay {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     background: rgba(0, 0, 0, 0.9);
     display: flex;
     align-items: center;
@@ -188,25 +443,9 @@ h1 {
     padding: 20px;
 }
 
-#video-error-overlay.hidden {
-    display: none;
-}
-
-#funscript-cache-error {
-    color: #fff;
-    background: #8b0000;
-    padding: 8px;
-    border-radius: 4px;
-    margin: 8px;
-    font-weight: 600;
-}
-
 #next-video-overlay {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     background: rgba(0, 0, 0, 0.85);
     display: flex;
     align-items: center;
@@ -215,54 +454,10 @@ h1 {
     animation: overlayFadeIn 3s ease forwards;
 }
 
-@keyframes overlayFadeIn {
-    from {
-        background: rgba(0, 0, 0, 0);
-    }
-    to {
-        background: rgba(0, 0, 0, 0.85);
-    }
-}
-
-#next-video-overlay.hidden {
-    display: none;
-    animation: none;
-}
-
-.overlay-card {
-    background: #2d2d2d;
-    padding: 24px;
-    border-radius: 12px;
-    text-align: center;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-    max-width: 400px;
-    width: 90%;
-    color: #fff;
-}
-
-.overlay-card.wide {
-    max-width: 900px;
-    width: 95%;
-    padding: 24px 30px;
-}
-
-.overlay-close-btn {
-    position: absolute;
-    top: -12px;
-    right: -12px;
-    padding: 6px 10px;
-    border-radius: 50%;
-    border: none;
-    background: rgb(70, 70, 70);
-    color: white;
-    cursor: pointer;
-    font-size: 16px;
-}
-
 #next-timer {
     font-size: 1.1em;
     margin: 15px 0;
-    color: #ffd54f;
+    color: var(--accent-yellow);
 }
 
 .next-options-row {
@@ -288,7 +483,6 @@ h1 {
         transform 0.3s,
         border-color 0.3s;
     background: #000;
-
     padding: 0;
 }
 
@@ -342,21 +536,19 @@ h1 {
 }
 
 .next-card.lower {
-    border-color: #4caf50;
+    border-color: var(--accent-green);
 }
 .next-card.lower:hover {
     box-shadow: 0 0 30px rgba(76, 175, 80, 0.4);
 }
-
 .next-card.similar {
     border-color: #2196f3;
 }
 .next-card.similar:hover {
     box-shadow: 0 0 30px rgba(33, 150, 243, 0.4);
 }
-
 .next-card.higher {
-    border-color: #f44336;
+    border-color: var(--accent-red);
 }
 .next-card.higher:hover {
     box-shadow: 0 0 30px rgba(244, 67, 54, 0.4);
@@ -369,77 +561,290 @@ h1 {
     margin-top: 10px;
 }
 
-.overlay-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.error-content h3 {
-    margin-top: 0;
-    color: #fff;
-}
-
-.error-content p {
-    margin-bottom: 0;
-    color: #bbb;
-}
-
-/* Generic button defaults */
-.btn,
-button {
-    background-color: #464646;
-    color: #fff;
-    border: 0;
-    padding: 10px 20px;
-    cursor: pointer;
-    border-radius: 5px;
-}
-
-.btn:hover,
-button:hover {
-    background-color: #646464;
-}
-
-/* smaller buttons */
-.btn.btn-sm {
-    padding: 6px 10px;
-    border-radius: 4px;
-    font-size: 0.95em;
-}
-
-/* Specific player buttons */
-.player-button {
+/* ── Settings Panel ───────────────────────────────────────────────────── */
+.settings-menu {
     position: absolute;
-    top: 10px;
-    z-index: 1200;
+    top: 60px;
+    right: 10px;
+    width: 300px;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    padding: 15px;
+    border-radius: 5px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    z-index: 10;
     display: none;
 }
 
-/* Toggle directory button */
-button#toggle-directory {
-    top: 10px;
-    left: 10px;
+.settings-menu.visible {
+    display: block;
 }
 
-/* funscript display box */
-#funscript-box,
-button#toggle-directory {
-    position: absolute;
+.settings-menu .form-group {
+    margin-bottom: 15px;
+}
+
+.settings-label {
+    display: block;
+    margin-bottom: 5px;
     color: #fff;
-    border-radius: 5px;
-    z-index: 3;
 }
 
+.variant-row {
+    display: none;
+    gap: 6px;
+    align-items: center;
+}
+
+#settings-intensity-info {
+    margin-top: 12px;
+    font-size: 0.9em;
+    border-top: 1px solid #444;
+    padding-top: 8px;
+    color: var(--text-muted);
+}
+
+/* ── Calibration Component & Spinner Ring ─────────────────────────────── */
+.calibration-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+}
+
+.calibration-inner {
+    position: relative;
+    max-width: 520px;
+    width: 100%;
+}
+
+.controls {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.preset-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+#spinner-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 12px 0;
+    height: 120px;
+}
+
+#calibration-spinner {
+    width: 80px;
+    height: 80px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+#calibration-rotor {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(90deg, #444, #666);
+    position: relative;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.6);
+    transform-origin: 50% 50%;
+}
+
+#calibration-rotor::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 6px;
+    width: 8px;
+    height: 28px;
+    background: var(--accent-yellow);
+    transform: translateX(-50%);
+    border-radius: 4px;
+}
+
+#calibration-spinner.spinner-flash {
+    animation: spinner-flash 220ms ease-out;
+}
+
+.spinner-ring {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 120px;
+    height: 120px;
+    pointer-events: none;
+}
+
+.spinner-ring .tick {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 6px;
+    height: 16px;
+    background: var(--accent-yellow);
+    border-radius: 3px;
+    opacity: 0.95;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    transform-origin: center center;
+}
+
+.spinner-ring .tick:nth-child(1) {
+    transform: translate(-50%, -50%) rotate(0deg) translateY(-52px);
+}
+.spinner-ring .tick:nth-child(2) {
+    transform: translate(-50%, -50%) rotate(60deg) translateY(-52px);
+}
+.spinner-ring .tick:nth-child(3) {
+    transform: translate(-50%, -50%) rotate(120deg) translateY(-52px);
+}
+.spinner-ring .tick:nth-child(4) {
+    transform: translate(-50%, -50%) rotate(180deg) translateY(-52px);
+}
+.spinner-ring .tick:nth-child(5) {
+    transform: translate(-50%, -50%) rotate(240deg) translateY(-52px);
+}
+.spinner-ring .tick:nth-child(6) {
+    transform: translate(-50%, -50%) rotate(300deg) translateY(-52px);
+}
+
+#measured-bpm {
+    font-size: 1.6em;
+    color: var(--accent-yellow);
+}
+
+#mapping-list {
+    margin-top: 10px;
+    font-family: monospace;
+    color: #fff;
+}
+
+#mapping-canvas {
+    width: 100%;
+    height: 120px;
+    display: block;
+    margin-top: 10px;
+}
+
+/* ── Editor Layout & Buttons ──────────────────────────────────────────── */
+#editor-container {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+#video-section {
+    flex: 3;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: #000;
+    position: relative;
+}
+
+#editor-video {
+    width: 100%;
+    height: 80%;
+    max-height: 80%;
+}
+
+#editor-canvas {
+    width: 100%;
+    height: 20%;
+    background-color: #1a1a1a;
+    cursor: crosshair;
+}
+
+#controls-section {
+    flex: 1;
+    padding: 20px;
+    background-color: #323232;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    overflow-y: auto;
+}
+
+#tap-button {
+    background-color: var(--accent-green);
+    color: white;
+}
+#undo-button,
+#delete-button {
+    background-color: var(--accent-red);
+    color: white;
+}
+#save-button {
+    background-color: #008cba;
+    color: white;
+}
+#save-button:disabled {
+    background-color: var(--border-color);
+    cursor: not-allowed;
+}
+
+#back-link {
+    background-color: var(--border-color);
+    color: white;
+    text-decoration: none;
+    display: inline-block;
+    padding: 12px;
+    border-radius: 5px;
+    text-align: center;
+}
+
+#intensity-display {
+    margin-top: 8px;
+    font-size: 0.9em;
+    color: var(--text-muted);
+}
+
+.editor-subnote {
+    font-size: 0.85em;
+    color: var(--text-dim);
+    margin-top: 2px;
+}
+
+/* ── Auxiliary Widgets ────────────────────────────────────────────────── */
 #funscript-box {
+    position: absolute;
     bottom: 10px;
     right: 10px;
     background-color: rgba(0, 0, 0, 0.7);
     padding: 10px;
     font-size: 16px;
+    color: #fff;
+    border-radius: 5px;
+    z-index: 3;
 }
 
-/* Loading spinner */
+#funscript-cache-error {
+    color: #fff;
+    background: #8b0000;
+    padding: 8px;
+    border-radius: 4px;
+    margin: 8px;
+    font-weight: 600;
+}
+
 #loading-spinner,
 .loading-spinner {
     position: absolute;
@@ -456,25 +861,10 @@ button#toggle-directory {
     display: none;
 }
 
-/* Search, results, metadata */
 .search-container {
     padding: 10px;
     background: rgba(40, 40, 40, 0.95);
     border-bottom: 1px solid #3c3c3c;
-}
-
-#video-search {
-    width: 100%;
-    padding: 8px;
-    background: #3c3c3c;
-    border: 1px solid #646464;
-    color: #fff;
-    border-radius: 4px;
-    font-size: 14px;
-}
-
-.search-results {
-    margin-top: 10px;
 }
 
 .search-result-item {
@@ -500,418 +890,7 @@ button#toggle-directory {
     display: inline-block;
 }
 
-.rating {
-    color: gold;
-}
-
-.intensity {
-    color: #64ff64;
-}
-
-.tags,
-.untracked-item a {
-    color: #87ceeb;
-}
-
-/* Settings panel centralized style */
-.settings-menu {
-    position: absolute;
-    top: 60px;
-    right: 10px;
-    width: 300px;
-    background-color: rgba(0, 0, 0, 0.8);
-    color: #fff;
-    padding: 15px;
-    border-radius: 5px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    z-index: 10;
-    display: none;
-}
-
-.settings-menu.visible {
-    display: block;
-}
-
-.settings-menu .form-group {
-    margin-bottom: 15px;
-}
-
-.settings-label {
-    display: none;
-    margin-bottom: 5px;
-    color: #fff;
-}
-
-.settings-select {
-    background: #3c3c3c;
-    border: 1px solid #646464;
-    color: #fff;
-    border-radius: 4px;
-    width: 100%;
-    padding: 8px;
-    margin-bottom: 6px;
-}
-
-.settings-input[type='number'],
-.settings-input {
-    background: #3c3c3c;
-    border: 1px solid #646464;
-    color: #fff;
-    border-radius: 4px;
-    width: 100%;
-    padding: 8px;
-    box-sizing: border-box;
-}
-
-#sbs-toggle-input {
-    width: auto;
-}
-
-/* visually indicate disabled numeric inputs */
-.settings-input:disabled,
-.settings-input[disabled] {
-    background: #999;
-    color: #bdbdbd;
-    opacity: 0.55;
-    cursor: not-allowed;
-    box-shadow: none;
-}
-
-/* Variant row */
-.variant-row {
-    display: none;
-    gap: 6px;
-    align-items: center;
-}
-
-.variant-input-field {
-    width: 100%;
-    padding: 8px;
-    border-radius: 4px;
-    border: 1px solid #555;
-    background: #222;
-    color: #fff;
-    margin-bottom: 10px;
-}
-
-/* Calibration overlay and spinner styles */
-.calibration-overlay {
-    position: fixed;
-    left: 0;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 9999;
-    padding: 20px;
-}
-
-.calibration-inner {
-    position: relative;
-    max-width: 520px;
-    width: 100%;
-}
-
-/* Card used by calibration and similar modals */
-.card {
-    width: 100%;
-    background: #2d2d2d;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-    color: #ddd;
-}
-
-/* Calibration-specific styles */
-.controls {
-    display: flex;
-    gap: 10px;
-    margin-top: 12px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.preset-row {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 12px;
-    flex-wrap: wrap;
-}
-
-.preset-btn {
-    padding: 8px 12px;
-    border-radius: 6px;
-    border: 0;
-    cursor: pointer;
-    color: #fff;
-    background: #464646;
-}
-.preset-btn.active {
-    background: #0078d7;
-}
-.preset-btn.inactive {
-    opacity: 0.55;
-    background: #333;
-}
-
-/* spinner / ring */
-#spinner-wrap {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 12px 0;
-    height: 120px;
-}
-#calibration-spinner {
-    width: 80px;
-    height: 80px;
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-#calibration-rotor {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background: linear-gradient(90deg, #444, #666);
-    position: relative;
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.6);
-    transform-origin: 50% 50%;
-}
-#calibration-rotor::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    top: 6px;
-    width: 8px;
-    height: 28px;
-    background: #ffd54f;
-    transform: translateX(-50%);
-    border-radius: 4px;
-}
-
-/* spinner flash (brief glow + slight scale when a full rotation completes) */
-@keyframes spinner-flash {
-    0% {
-        filter: none;
-        transform: scale(1);
-    }
-    10% {
-        filter: drop-shadow(0 0 18px rgba(255, 255, 255, 0.95));
-        transform: scale(1.03);
-    }
-    100% {
-        filter: none;
-        transform: scale(1);
-    }
-}
-
-#calibration-spinner.spinner-flash {
-    animation: spinner-flash 220ms ease-out;
-}
-
-/* Outer compass ring with ticks */
-.spinner-ring {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    width: 120px;
-    height: 120px;
-    pointer-events: none;
-}
-.spinner-ring .tick {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 6px;
-    height: 16px;
-    background: #ffd54f;
-    border-radius: 3px;
-    opacity: 0.95;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-    transform-origin: center center;
-}
-
-/* Small helper classes */
-.small {
-    font-size: 0.9em;
-    color: #bbb;
-}
-.row {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-input[type='range'] {
-    width: 260px;
-}
-.muted {
-    color: #aaa;
-    font-size: 0.9em;
-}
-#mapping-list {
-    margin-top: 10px;
-    font-family: monospace;
-    color: #fff;
-}
-
-/* Editor layout */
-#editor-container {
-    display: flex;
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
-}
-#video-section {
-    flex: 3;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    background-color: #000;
-    position: relative;
-}
-#editor-video {
-    width: 100%;
-    height: 80%;
-    max-height: 80%;
-}
-#editor-canvas {
-    width: 100%;
-    height: 20%;
-    background-color: #1a1a1a;
-    cursor: crosshair;
-}
-#controls-section {
-    flex: 1;
-    padding: 20px;
-    background-color: #323232;
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    overflow-y: auto;
-}
-
-/* Editor buttons specific visuals */
-#tap-button {
-    background-color: #4caf50;
-    color: white;
-}
-#undo-button,
-#delete-button {
-    background-color: #f44336;
-    color: white;
-}
-#save-button {
-    background-color: #008cba;
-    color: white;
-}
-#save-button:disabled {
-    background-color: #555;
-    cursor: not-allowed;
-}
-#back-link {
-    background-color: #555;
-    color: white;
-    text-decoration: none;
-    display: inline-block;
-    padding: 12px;
-    border-radius: 5px;
-    text-align: center;
-}
-
-/* Directory tree item striping */
-#directory-tree li:nth-child(odd) {
-    background-color: rgba(80, 80, 80, 0.9);
-}
-#directory-tree li:nth-child(even) {
-    background-color: rgba(50, 50, 50, 0.9);
-}
-
-#directory-tree li {
-    padding: 5px;
-    border-radius: 3px;
-}
-
-/* Metadata and modal tweaks */
-.metadata-form .form-group {
-    margin-bottom: 15px;
-}
-.metadata-form label {
-    display: block;
-    margin-bottom: 5px;
-}
-.readonly-text {
-    padding: 8px;
-    background: #323232;
-    border: 1px solid #505050;
-    border-radius: 4px;
-    color: #c8c8c8;
-}
-
-/* Modal fixes */
-.modal {
-    display: block;
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    overflow: auto;
-    background-color: rgba(0, 0, 0, 0.6);
-}
-.modal-content {
-    background-color: #2e2e2e;
-    color: #f1f1f1;
-    margin: 15% auto;
-    padding: 20px;
-    border: 1px solid #888;
-    width: 80%;
-    max-width: 500px;
-    border-radius: 8px;
-    box-shadow:
-        0 4px 8px 0 rgba(0, 0, 0, 0.2),
-        0 6px 20px 0 rgba(0, 0, 0, 0.19);
-}
-.close-button {
-    color: #aaa;
-    float: right;
-    font-size: 28px;
-    font-weight: 700;
-}
-.close-button:focus,
-.close-button:hover {
-    color: #fff;
-    text-decoration: none;
-    cursor: pointer;
-}
-
-/* small utilities */
-.ok-button {
-    background-color: #4caf50;
-    color: #fff;
-    padding: 10px 18px;
-    margin-top: 10px;
-    border: 0;
-    cursor: pointer;
-    border-radius: 5px;
-}
-.ok-button:hover {
-    background-color: #45a049;
-}
-.modal-button-delete {
-    background-color: #888;
-    color: #fff;
-}
-
-/* ── Mobile stuff ─────────────────────────────────── */
+/* ── Mobile Responsiveness ────────────────────────────────────────────── */
 @media (max-width: 768px) {
     #directory-container {
         width: 100% !important;
@@ -921,17 +900,21 @@ input[type='range'] {
     #editor-container {
         flex-direction: column !important;
     }
+
     #video-section {
         flex: none !important;
         height: 45vh !important;
     }
+
     #controls-section {
         flex: 1 !important;
         padding: 15px !important;
     }
+
     #editor-video {
         height: 70% !important;
     }
+
     #editor-canvas {
         height: 30% !important;
     }
@@ -942,15 +925,18 @@ input[type='range'] {
         gap: 12px !important;
         margin: 15px 0 !important;
     }
+
     .next-card {
         width: 100% !important;
         height: 85px !important;
         flex: none !important;
     }
+
     .next-card:hover:not(:disabled) {
         flex: none !important;
         transform: none !important;
     }
+
     .next-info {
         padding: 10px 15px !important;
         background: rgba(0, 0, 0, 0.8) !important;
@@ -960,22 +946,26 @@ input[type='range'] {
         height: 100%;
         box-sizing: border-box;
     }
+
     .next-thumb {
         position: absolute;
         width: 100% !important;
         height: 100% !important;
         object-fit: cover;
     }
+
     .next-label {
         font-size: 1.1em !important;
         margin-bottom: 0 !important;
         z-index: 2;
     }
+
     .next-stats {
         margin-top: 0 !important;
         font-size: 0.9em !important;
         z-index: 2;
     }
+
     .overlay-card.wide {
         padding: 15px !important;
         width: 95% !important;
@@ -985,8 +975,8 @@ input[type='range'] {
         align-items: flex-start !important;
         overflow-y: auto !important;
     }
+
     .card {
-        box-sizing: border-box;
         padding: 15px !important;
     }
 }

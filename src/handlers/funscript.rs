@@ -199,7 +199,7 @@ fn generate_intensity(original: &FunscriptData) -> Result<FunscriptData, String>
     }
 
     let mut actions = original.actions.clone();
-    let intensity_actions = funscript_utils::actions_to_intensity_curve(&mut actions, 50, 500);
+    let intensity_actions = funscript_utils::actions_to_intensity_curve(&actions);
 
     if intensity_actions.is_empty() {
         return Err(

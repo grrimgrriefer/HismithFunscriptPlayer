@@ -19,7 +19,7 @@
         <div id="controls-section">
             <h1>Funscript Editor</h1>
             <p>Play the video. Tap (Spacebar) for thrusts. Click/drag on the timeline to edit.</p>
-            <label style="color:#ddd;">Variant (optional)</label>
+            <label class="control-label">Variant (optional)</label>
             <input id="variant-input" list="variant-list" type="text" placeholder="e.g. low, high" class="variant-input-field" />
             <datalist id="variant-list"></datalist>
             <button id="tap-button" class="btn">Tap Thrust</button>
@@ -28,14 +28,15 @@
             <button id="save-button" class="btn">Save Funscript</button>
             <a href="/site/" id="back-link">Back to Player</a>
             <div id="action-counter">Taps: 0</div>
-            <div id="intensity-display" style="margin-top:8px; font-size:0.9em; color:#bbb;">
-            <div>
-                Intensity values: 
-                <span id="editor-peak-val" style="font-weight:bold; color:#ffd54f;">0</span> peak,
-                <span id="editor-avg-val" style="font-weight:bold; color:#ffd54f;">0</span> avg
-            </div>
-            <div style="font-size:0.85em; color:#888; margin-top:2px;">
-                Unsmoothed single-stroke peak (editor only): <span id="editor-instant-peak-val" style="font-weight:bold;">0</span>
+            <div id="intensity-display">
+                <div>
+                    Intensity values: 
+                    <span id="editor-peak-val" class="highlight-val">0</span> peak,
+                    <span id="editor-avg-val" class="highlight-val">0</span> avg
+                </div>
+                <div class="editor-subnote">
+                    Unsmoothed single-stroke peak (editor only): <span id="editor-instant-peak-val" class="bold-val">0</span>
+                </div>
             </div>
         </div>
     </div>

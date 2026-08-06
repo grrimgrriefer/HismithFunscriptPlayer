@@ -70,7 +70,7 @@
 
         <div id="settings-menu" class="settings-menu" aria-hidden="true">
             <div class="form-group">
-                <label class="settings-label" style="display:block;">SBS 3D Mode:</label>
+                <label class="settings-label">SBS 3D Mode:</label>
                 <input type="checkbox" id="sbs-toggle" id="sbs-toggle-input">
             </div>
             <div class="form-group">
@@ -85,12 +85,12 @@
                 <button id="refresh-variants-button" class="btn btn-sm">Refresh</button>
             </div>
 
-            <div class="form-group" style="margin-top:8px;">
+            <div class="form-group mt-sm">
                 <button id="calibration-button" class="btn btn-sm">Calibration</button>
             </div>
 
-            <label class="settings-label" style="margin-top:8px;">Max Intensity Limit:</label>
-            <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+            <label class="settings-label mt-sm">Max Intensity Limit:</label>
+            <div class="input-row mb-sm">
                 <button id="hard-limit-lock-button" class="btn btn-sm">Unlock</button>
                 <input id="hard-limit-input" class="settings-input" type="number" min="0" max="100" value="60"
                     disabled />
@@ -110,13 +110,12 @@
                 <option value="doublebeat">Double-beat (2.0x)</option>
             </select>
 
-            <div id="settings-intensity-info" class="form-group"
-                style="margin-top:12px; font-size:0.9em; border-top:1px solid #444; padding-top:8px; color:#bbb;">
-                Intensity: <span id="settings-peak-val" style="font-weight:bold;">--</span> peak,
-                <span id="settings-avg-val" style="font-weight:bold;">--</span> avg
+            <div id="settings-intensity-info" class="form-group">
+                Intensity: <span id="settings-peak-val" class="bold-val">--</span> peak,
+                <span id="settings-avg-val" class="bold-val">--</span> avg
             </div>
 
-            <div style="margin-top:10px;">
+            <div class="mt-sm">
                 <button id="open-editor-button" class="btn">Open Editor</button>
             </div>
         </div>

@@ -43,7 +43,7 @@ pub async fn calculate_draft_intensity(
         }));
     }
 
-    let intensity_curve = funscript_utils::actions_to_intensity_curve(&mut actions, 50, 500);
+    let intensity_curve = funscript_utils::actions_to_intensity_curve(&actions);
     let (average, peak) = funscript_utils::calculate_intensity_stats(&intensity_curve);
 
     HttpResponse::Ok().json(serde_json::json!({

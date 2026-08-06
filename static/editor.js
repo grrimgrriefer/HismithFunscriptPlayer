@@ -34,7 +34,8 @@ const state = {
     selecting: false,
     selectionStartX: 0,
     selectionEndX: 0,
-    dragOffsetMs: 0
+    dragOffsetMs: 0,
+    calcDebounceTimer: null
 };
 
 // ── Utilities ──────────────────────────────────────────────────────────
@@ -190,6 +191,28 @@ async function loadFunscript() {
 
 // ── UI Updates ─────────────────────────────────────────────────────────
 
+async function updateBackendIntensityStats(actions) {
+    try {
+        const res = await fetch('/api/funscripts/calculate-draft-intensity', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ actions })
+        });
+        if (!res.ok) return;
+        const stats = await res.json();
+
+        const peakEl = document.getElementById('editor-peak-val');
+        const avgEl = document.getElementById('editor-avg-val');
+
+        peakEl.textContent = Math.round(stats.peak);
+        peakEl.style.color = intensityToColor(stats.peak);
+        avgEl.textContent = Math.round(stats.average);
+        avgEl.style.color = intensityToColor(stats.average);
+    } catch (e) {
+        console.error('Failed to calculate backend intensity stats:', e);
+    }
+}
+
 function updateCounter() {
     const editing = getEditingArray();
     counter.textContent = isEditingVariant()
@@ -197,19 +220,20 @@ function updateCounter() {
         : `Taps: ${editing.length}`;
 
     const actions = generateFunscriptActions(editing);
-    const stats = calculateIntensityStats(actions);
 
-    const peakEl = document.getElementById('editor-peak-val');
-    const avgEl = document.getElementById('editor-avg-val');
+    // 1. Instantaneous stroke peak (local fast calculation)
+    const instantStats = calculateIntensityStats(actions);
+    const instantPeakEl = document.getElementById('editor-instant-peak-val');
+    if (instantPeakEl) {
+        instantPeakEl.textContent = Math.round(instantStats.peak);
+        instantPeakEl.style.color = intensityToColor(instantStats.peak);
+    }
 
-    if (peakEl) {
-        peakEl.textContent = Math.round(stats.peak);
-        peakEl.style.color = intensityToColor(stats.peak);
-    }
-    if (avgEl) {
-        avgEl.textContent = Math.round(stats.avg);
-        avgEl.style.color = intensityToColor(stats.avg);
-    }
+    // 2. True backend intensity stats (debounced fetch from Rust backend)
+    clearTimeout(state.calcDebounceTimer);
+    state.calcDebounceTimer = setTimeout(() => {
+        updateBackendIntensityStats(actions);
+    }, 150);
 }
 
 // ── Actions ────────────────────────────────────────────────────────────

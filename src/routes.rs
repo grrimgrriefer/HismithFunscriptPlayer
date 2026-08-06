@@ -21,6 +21,7 @@ pub fn setup_routes(cfg: &mut web::ServiceConfig) {
             web::scope("/api")
                 .route("/directory-tree", web::get().to(index::get_directory_tree))
                 .route("/funscripts", web::post().to(editor::save_funscript))
+                .route("/funscripts/calculate-draft-intensity", web::post().to(editor::calculate_draft_intensity))
                 .route("/calibration-mapping", web::get().to(calibration::get_bpm_mapping))
                 .route("/calibration-profiles", web::get().to(calibration::get_profiles))
                 .route("/calibration-profiles", web::post().to(calibration::save_profile))

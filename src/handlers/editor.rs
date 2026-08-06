@@ -8,7 +8,7 @@
 //! the resulting .funscript file under FUNSCRIPT_SHARE_PATH. Triggers a
 //! background cache refresh after successful writes.
 
-use crate::buttplug::funscript_utils::{Action, FunscriptData};
+use crate::buttplug::funscript_utils::{self, Action, FunscriptData};
 use crate::funscript_cache;
 use actix_files::NamedFile;
 use actix_web::{Error, HttpResponse, Responder, web};
@@ -24,6 +24,32 @@ pub async fn handle_editor_page() -> Result<impl Responder, Error> {
     Ok(NamedFile::open("./static/editor.html")?
         .customize()
         .insert_header(("Cache-Control", "no-cache")))
+}
+
+#[derive(Deserialize)]
+pub struct CalculateDraftIntensityPayload {
+    pub actions: Vec<Action>,
+}
+
+/// Provide intensity values for the 'draft' funscript the user is authoring in the editor page.
+pub async fn calculate_draft_intensity(
+    payload: web::Json<CalculateDraftIntensityPayload>,
+) -> impl Responder {
+    let mut actions = payload.into_inner().actions;
+    if actions.len() < 2 {
+        return HttpResponse::Ok().json(serde_json::json!({
+            "peak": 0.0,
+            "average": 0.0
+        }));
+    }
+
+    let intensity_curve = funscript_utils::actions_to_intensity_curve(&mut actions, 50, 500);
+    let (average, peak) = funscript_utils::calculate_intensity_stats(&intensity_curve);
+
+    HttpResponse::Ok().json(serde_json::json!({
+        "peak": peak,
+        "average": average
+    }))
 }
 
 #[derive(Deserialize, Debug)]

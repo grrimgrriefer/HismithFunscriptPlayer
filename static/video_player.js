@@ -23,7 +23,6 @@ import {
 } from './settings_menu.js';
 import {
     lerp,
-    relativeIntensityToColor,
     toFunscriptPath,
     getFunscriptStats
 } from './utils.js';
@@ -44,7 +43,9 @@ const state = {
     currentVideoRelativePath: null,
     nextVideoTimer: null,
     isOverlayVisible: false,
-    playedVideos: new Set()
+    playedVideos: new Set(),
+    funscriptEndCancelled: false,
+    videoEndedCancelled: false
 };
 
 function computeOscillateValue(intensity, progress) {
@@ -84,12 +85,24 @@ function updateProgressBars(videoElement) {
     );
 
     const funscriptEnd = getFunscriptDuration();
+
+    if (funscriptEnd > 0 && currentTime < funscriptEnd - 500) {
+        state.funscriptEndCancelled = false;
+    }
+    if (!videoElement.ended) {
+        state.videoEndedCancelled = false;
+    }
+
     if (!state.isOverlayVisible && !videoElement.loop) {
-        if (
-            videoElement.ended ||
-            (funscriptEnd > 0 && currentTime >= funscriptEnd)
+        if (videoElement.ended && !state.videoEndedCancelled) {
+            videoElement.pause();
+            showNextVideoOverlay();
+        } else if (
+            funscriptEnd > 0 &&
+            currentTime >= funscriptEnd &&
+            !state.funscriptEndCancelled &&
+            !videoElement.ended
         ) {
-            if (videoElement.ended) videoElement.pause();
             showNextVideoOverlay();
         }
     }
@@ -124,6 +137,8 @@ export async function playVideo(
 ) {
     state.currentVideoRelativePath = relativePath;
     state.playedVideos.add(relativePath);
+    state.funscriptEndCancelled = false;
+    state.videoEndedCancelled = false;
     hideNextVideoOverlay();
 
     const errorOverlay = document.getElementById('video-error-overlay');
@@ -152,6 +167,11 @@ export async function playVideo(
         videoPlayer.appendChild(spinner);
     }
     spinner.style.display = 'block';
+
+    videoElement.onseeking = () => {
+        state.funscriptEndCancelled = false;
+        state.videoEndedCancelled = false;
+    };
 
     videoElement.onplay = () => {
         if (isHardLimitUnlocked()) {
@@ -416,6 +436,16 @@ function hideNextVideoOverlay() {
     state.isOverlayVisible = false;
     clearTimeout(state.nextVideoTimer);
     document.getElementById('next-video-overlay')?.classList.add('hidden');
+
+    const videoElement = document.querySelector('#video-player video');
+    if (videoElement?.ended) {
+        state.videoEndedCancelled = true;
+    } else {
+        state.funscriptEndCancelled = true;
+    }
+
+    const settingsBtn = document.getElementById('settings-button');
+    if (settingsBtn) settingsBtn.style.display = 'block';
 }
 
 // ── Folder Start Selection Helpers ─────────────────────────────────────
@@ -486,7 +516,6 @@ export function showFolderStartOverlay(folderPath) {
 
     overlay.classList.remove('hidden');
     document.getElementById('video-container').classList.remove('hidden');
-    document.getElementById('settings-button').style.display = 'none';
 
     exitFullscreen();
 

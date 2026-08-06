@@ -1,6 +1,7 @@
 // static/editor.js
 
-import { toFunscriptPath, isTextInput } from './utils.js';
+import { toFunscriptPath, isTextInput, intensityToColor } from './utils.js';
+import { bpmToIntensity } from './calibration.js';
 
 // ── Constants ──────────────────────────────────────────────────────────
 
@@ -109,6 +110,41 @@ function generateFunscriptActions(timestamps) {
     return Array.from(seen.values()).sort((a, b) => a.at - b.at);
 }
 
+function calculateIntensityStats(actions) {
+    if (!actions || actions.length < 2) {
+        return { peak: 0, avg: 0 };
+    }
+
+    let maxIntensity = 0;
+    let totalWeightedIntensity = 0;
+    let totalTimeSec = 0;
+
+    for (let i = 1; i < actions.length; i++) {
+        const a0 = actions[i - 1];
+        const a1 = actions[i];
+        const deltaPos = Math.abs(a1.pos - a0.pos);
+        const dtSec = (a1.at - a0.at) / 1000.0;
+
+        if (dtSec <= 0) continue;
+
+        const speed = deltaPos / dtSec;
+        const effectiveBpm = speed * 0.3;
+        const segIntensity = bpmToIntensity(effectiveBpm);
+
+        if (segIntensity > maxIntensity) {
+            maxIntensity = segIntensity;
+        }
+
+        totalWeightedIntensity += segIntensity * dtSec;
+        totalTimeSec += dtSec;
+    }
+
+    const avgIntensity =
+        totalTimeSec > 0 ? totalWeightedIntensity / totalTimeSec : 0;
+
+    return { peak: maxIntensity, avg: avgIntensity };
+}
+
 // ── Data Loading ───────────────────────────────────────────────────────
 
 async function loadFunscript() {
@@ -159,6 +195,21 @@ function updateCounter() {
     counter.textContent = isEditingVariant()
         ? `Taps: ${editing.length} (variant: ${state.currentVariant}) — Original: ${state.base.length}`
         : `Taps: ${editing.length}`;
+
+    const actions = generateFunscriptActions(editing);
+    const stats = calculateIntensityStats(actions);
+
+    const peakEl = document.getElementById('editor-peak-val');
+    const avgEl = document.getElementById('editor-avg-val');
+
+    if (peakEl) {
+        peakEl.textContent = Math.round(stats.peak);
+        peakEl.style.color = intensityToColor(stats.peak);
+    }
+    if (avgEl) {
+        avgEl.textContent = Math.round(stats.avg);
+        avgEl.style.color = intensityToColor(stats.avg);
+    }
 }
 
 // ── Actions ────────────────────────────────────────────────────────────
@@ -362,6 +413,7 @@ function setupCanvasEvents() {
                     selectedArray.map((t) => Math.max(0, Math.round(t + delta)))
                 );
             }
+            updateCounter();
         } else if (state.selecting) {
             state.selectionEndX = e.offsetX;
         }
@@ -385,6 +437,7 @@ function setupCanvasEvents() {
 
         state.dragging = false;
         state.selecting = false;
+        updateCounter();
         draw();
     });
 }

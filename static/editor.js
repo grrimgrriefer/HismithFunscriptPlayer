@@ -518,6 +518,14 @@ async function init() {
         return;
     }
 
+    if (state.videoPath.includes(' ')) {
+        alert(
+            `Warning: The video file path "${state.videoPath}" contains spaces.\n\n` +
+                `While funscripts can be created, loading them reliably might be an issue due to how file paths are handled by the server.\n\n` +
+                `It's recommended to rename your video file and its corresponding funscript (if any) to remove spaces for best compatibility.`
+        );
+    }
+
     if (params.get('variant') && variantInput) {
         variantInput.value = params.get('variant');
     }

@@ -265,9 +265,12 @@ function spinnerFrame(ts) {
     const targetBpm =
         state.measuredBpmVal && state.measuredBpmVal > 0
             ? state.measuredBpmVal
-            : state.selectedPreset
-              ? intensityToBpm(state.selectedPreset)
-              : 0;
+            : calibratedBpms[state.selectedPreset] &&
+                calibratedBpms[state.selectedPreset] > 0
+              ? calibratedBpms[state.selectedPreset]
+              : state.selectedPreset
+                ? intensityToBpm(state.selectedPreset)
+                : 0;
 
     const degDelta = dt * (targetBpm / 60.0) * 360;
     state.spinnerAccum += degDelta;

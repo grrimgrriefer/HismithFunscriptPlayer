@@ -35,7 +35,7 @@ pub struct CalculateDraftIntensityPayload {
 pub async fn calculate_draft_intensity(
     payload: web::Json<CalculateDraftIntensityPayload>,
 ) -> impl Responder {
-    let mut actions = payload.into_inner().actions;
+    let actions = payload.into_inner().actions;
     if actions.len() < 2 {
         return HttpResponse::Ok().json(serde_json::json!({
             "peak": 0.0,

@@ -198,7 +198,7 @@ fn generate_intensity(original: &FunscriptData) -> Result<FunscriptData, String>
         return Err("Funscript has fewer than 2 actions".to_string());
     }
 
-    let mut actions = original.actions.clone();
+    let actions = original.actions.clone();
     let intensity_actions = funscript_utils::actions_to_intensity_curve(&actions);
 
     if intensity_actions.is_empty() {

@@ -6,7 +6,7 @@
 //! a tree structure representing the file system hierarchy. It's primarily used
 //! to display video files in the web interface.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::{
     fs, io,
@@ -14,11 +14,19 @@ use std::{
 };
 use walkdir::WalkDir;
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct VariantStat {
+    pub peak: f64,
+    pub avg: f64,
+}
+
+#[derive(Serialize, Debug, Clone)]
 pub struct FileNode {
     pub name: String,
     pub path: String,
     pub is_dir: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stats: Option<Vec<VariantStat>>,
     pub children: Option<Vec<FileNode>>,
 }
 
@@ -51,6 +59,7 @@ pub fn build_directory_tree(path: &Path, relative_path: &str) -> io::Result<File
                 name,
                 path: child_relative_path,
                 is_dir: false,
+                stats: None,
                 children: None,
             }
         } else {
@@ -70,6 +79,7 @@ pub fn build_directory_tree(path: &Path, relative_path: &str) -> io::Result<File
             .to_string(),
         path: relative_path.to_string(),
         is_dir: true,
+        stats: None,
         children: Some(children),
     })
 }

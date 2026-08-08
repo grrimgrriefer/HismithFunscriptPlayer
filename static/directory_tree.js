@@ -1,48 +1,7 @@
 // static/directory_tree.js
 
 import { playVideo, showFolderStartOverlay } from './video_player.js';
-import {
-    toFunscriptPath,
-    getFunscriptStats,
-    intensityToColor
-} from './utils.js';
-
-// ── Data Helpers ───────────────────────────────────────────────────────
-
-function collectVariantStats(filePath, funscriptMap) {
-    const baseNorm = toFunscriptPath(filePath).replace('.funscript', '');
-    return Object.entries(funscriptMap)
-        .filter(([key]) => key.startsWith(baseNorm))
-        .map(([, entry]) => getFunscriptStats(entry))
-        .filter((s) => isFinite(s.avg) || isFinite(s.peak));
-}
-
-// ── Sorting ────────────────────────────────────────────────────────────
-
-function compareNodes(a, b, funscriptMap) {
-    if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
-
-    if (!a.is_dir) {
-        const aStats = collectVariantStats(a.path, funscriptMap);
-        const bStats = collectVariantStats(b.path, funscriptMap);
-        const aHas = aStats.some((s) => isFinite(s.peak));
-        const bHas = bStats.some((s) => isFinite(s.peak));
-
-        if (aHas !== bHas) return aHas ? -1 : 1;
-
-        if (aHas && bHas) {
-            const aPeak = Math.min(
-                ...aStats.filter((s) => isFinite(s.peak)).map((s) => s.peak)
-            );
-            const bPeak = Math.min(
-                ...bStats.filter((s) => isFinite(s.peak)).map((s) => s.peak)
-            );
-            if (aPeak !== bPeak) return aPeak - bPeak;
-        }
-    }
-
-    return a.name.localeCompare(b.name);
-}
+import { toFunscriptPath, intensityToColor } from './utils.js';
 
 // ── Rendering ──────────────────────────────────────────────────────────
 
@@ -64,7 +23,7 @@ function toggleFolder(id) {
 }
 
 function buildIntensityBadge(stats) {
-    if (stats.length === 0) return null;
+    if (!stats || stats.length === 0) return null;
 
     const entries = stats
         .map((s) => ({
@@ -112,7 +71,7 @@ function buildIntensityBadge(stats) {
     return badge;
 }
 
-function renderTree(node, parent, funscriptMap) {
+function renderTree(node, parent) {
     const li = document.createElement('li');
 
     if (node.is_dir) {
@@ -127,18 +86,13 @@ function renderTree(node, parent, funscriptMap) {
         ul.id = node.path;
         ul.className = 'hidden';
 
-        const children = (node.children || []).slice();
-        children
-            .sort((a, b) => compareNodes(a, b, funscriptMap))
-            .forEach((child) => renderTree(child, ul, funscriptMap));
+        (node.children || []).forEach((child) => renderTree(child, ul));
         li.appendChild(ul);
     } else {
         const row = document.createElement('div');
         row.className = 'file-row';
 
-        const badge = buildIntensityBadge(
-            collectVariantStats(node.path, funscriptMap)
-        );
+        const badge = buildIntensityBadge(node.stats);
         if (badge) row.appendChild(badge);
 
         const link = document.createElement('a');
@@ -162,11 +116,7 @@ function renderTree(node, parent, funscriptMap) {
 
 // ── Public API ─────────────────────────────────────────────────────────
 
-export function initDirectoryTree(
-    treeData,
-    containerElement,
-    funscriptMap = {}
-) {
+export function initDirectoryTree(treeData, containerElement) {
     if (!treeData || !containerElement) {
         console.error('Directory tree data or container element is missing.');
         return;
@@ -176,10 +126,7 @@ export function initDirectoryTree(
     const rootUl = document.createElement('ul');
     rootUl.id = 'directory-tree-root';
 
-    const children = (treeData.children || []).slice();
-    children
-        .sort((a, b) => compareNodes(a, b, funscriptMap))
-        .forEach((child) => renderTree(child, rootUl, funscriptMap));
+    (treeData.children || []).forEach((child) => renderTree(child, rootUl));
 
     containerElement.appendChild(rootUl);
 }

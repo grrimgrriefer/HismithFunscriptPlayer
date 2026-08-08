@@ -7,7 +7,7 @@
 //! precomputed funscript cache data (from FUNSCRIPT_SHARE_PATH) including
 //! average/peak intensity statistics for each funscript file.
 
-use crate::directory_browser;
+use crate::directory_browser::{self, FileNode, VariantStat};
 use crate::funscript_cache;
 use actix_files::NamedFile;
 use actix_web::{HttpResponse, Responder, Result};
@@ -15,7 +15,7 @@ use log::{error, info, warn};
 use serde_json::{Value, json};
 use std::{
     env,
-    path::{PathBuf,Path},
+    path::{Path, PathBuf},
 };
 
 const VIDEO_SHARE_ENV: &str = "VIDEO_SHARE_PATH";
@@ -42,7 +42,7 @@ pub async fn get_directory_tree() -> impl Responder {
         Err(response) => return response,
     };
 
-    let directory_tree = match directory_browser::build_directory_tree(&video_base, "") {
+    let mut directory_tree = match directory_browser::build_directory_tree(&video_base, "") {
         Ok(tree) => tree,
         Err(e) => {
             error!("Failed to read video directory: {}", e);
@@ -54,6 +54,10 @@ pub async fn get_directory_tree() -> impl Responder {
 
     if let Some(cache_obj) = funscript_cache.as_object_mut() {
         apply_cache_fallbacks(cache_obj, &video_base);
+        populate_and_sort_tree(&mut directory_tree, cache_obj);
+    } else {
+        let empty_cache = serde_json::Map::new();
+        populate_and_sort_tree(&mut directory_tree, &empty_cache);
     }
 
     HttpResponse::Ok().json(json!({
@@ -61,6 +65,111 @@ pub async fn get_directory_tree() -> impl Responder {
         "funscripts": funscript_cache,
         "funscript_cache_error": funscript_cache_error
     }))
+}
+
+fn populate_and_sort_tree(node: &mut FileNode, cache: &serde_json::Map<String, serde_json::Value>) {
+    if node.is_dir {
+        if let Some(children) = &mut node.children {
+            for child in children.iter_mut() {
+                populate_and_sort_tree(child, cache);
+            }
+            sort_file_nodes(children);
+        }
+    } else {
+        node.stats = extract_stats_for_file(&node.path, cache);
+    }
+}
+
+fn extract_stats_for_file(
+    file_path: &str,
+    cache: &serde_json::Map<String, serde_json::Value>,
+) -> Option<Vec<VariantStat>> {
+    let stem_path = Path::new(file_path).with_extension("");
+    let stem_str = stem_path.to_string_lossy();
+
+    let exact_match = format!("{stem_str}.funscript");
+    let variant_prefix = format!("{stem_str}.");
+
+    let mut stats = Vec::new();
+
+    for (key, val) in cache {
+        let is_exact = key == &exact_match;
+        let is_variant = key.starts_with(&variant_prefix) && key.ends_with(".funscript");
+
+        if is_exact || is_variant {
+            let peak = val
+                .get("peak_intensity")
+                .or_else(|| val.get("peak"))
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
+            let avg = val
+                .get("average_intensity")
+                .or_else(|| val.get("avg"))
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
+
+            stats.push(VariantStat { peak, avg });
+        }
+    }
+
+    if stats.is_empty() {
+        None
+    } else {
+        Some(stats)
+    }
+}
+
+fn sort_file_nodes(children: &mut [FileNode]) {
+    children.sort_by(|a, b| {
+        if a.is_dir != b.is_dir {
+            if a.is_dir {
+                return std::cmp::Ordering::Less;
+            } else {
+                return std::cmp::Ordering::Greater;
+            }
+        }
+
+        if !a.is_dir {
+            let a_has_peak = a.stats.as_ref().map_or(false, |s| s.iter().any(|v| v.peak.is_finite()));
+            let b_has_peak = b.stats.as_ref().map_or(false, |s| s.iter().any(|v| v.peak.is_finite()));
+
+            if a_has_peak != b_has_peak {
+                if a_has_peak {
+                    return std::cmp::Ordering::Less;
+                } else {
+                    return std::cmp::Ordering::Greater;
+                }
+            }
+
+            if a_has_peak && b_has_peak {
+                let a_min_peak = a
+                    .stats
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .map(|s| s.peak)
+                    .filter(|p| p.is_finite())
+                    .fold(f64::INFINITY, f64::min);
+
+                let b_min_peak = b
+                    .stats
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .map(|s| s.peak)
+                    .filter(|p| p.is_finite())
+                    .fold(f64::INFINITY, f64::min);
+
+                if (a_min_peak - b_min_peak).abs() > f64::EPSILON {
+                    return a_min_peak
+                        .partial_cmp(&b_min_peak)
+                        .unwrap_or(std::cmp::Ordering::Equal);
+                }
+            }
+        }
+
+        a.name.to_lowercase().cmp(&b.name.to_lowercase())
+    });
 }
 
 fn required_env_path(key: &str) -> Result<PathBuf, HttpResponse> {

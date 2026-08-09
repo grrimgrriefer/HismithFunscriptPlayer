@@ -123,6 +123,42 @@ pub fn calculate_intensity_stats(samples: &[Action]) -> (f64, f64) {
     }
 }
 
+/// Generate full funscript actions from raw tap timestamps (ms).
+/// Also inserts down-thrusts halfway between taps + edge padding + deduplicates actions at identical timestamps.
+pub fn generate_funscript_actions_from_taps(taps: &[u64]) -> Vec<Action> {
+    if taps.is_empty() {
+        return vec![Action { at: 0, pos: 0.0 }];
+    }
+
+    let mut sorted_taps = taps.to_vec();
+    sorted_taps.sort_unstable();
+    sorted_taps.dedup();
+
+    let mut actions = Vec::new();
+    let mut last = 0u64;
+
+    for &t in &sorted_taps {
+        let down = (last + t) / 2;
+        if !actions.is_empty() || down > 0 {
+            actions.push(Action { at: down, pos: 0.0 });
+        }
+        actions.push(Action { at: t, pos: 100.0 });
+        last = t;
+    }
+
+    actions.push(Action { at: last + 500, pos: 0.0 });
+    if actions.first().map_or(false, |a| a.at > 0) {
+        actions.insert(0, Action { at: 0, pos: 0.0 });
+    }
+
+    // Deduplicate by timestamp (preserving order)
+    let mut seen = std::collections::BTreeMap::new();
+    for action in actions {
+        seen.insert(action.at, action);
+    }
+    seen.into_values().collect()
+}
+
 /// Linearly interpolate position between two actions at a given time.
 fn lerp_position(before: Option<&Action>, after: Option<&Action>, time: u64) -> f64 {
     match (before, after) {

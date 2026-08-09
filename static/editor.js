@@ -1,7 +1,6 @@
 // static/editor.js
 
 import { toFunscriptPath, isTextInput, intensityToColor } from './utils.js';
-import { bpmToIntensity } from './calibration.js';
 
 // ── Constants ──────────────────────────────────────────────────────────
 
@@ -111,41 +110,6 @@ function generateFunscriptActions(timestamps) {
     return Array.from(seen.values()).sort((a, b) => a.at - b.at);
 }
 
-function calculateIntensityStats(actions) {
-    if (!actions || actions.length < 2) {
-        return { peak: 0, avg: 0 };
-    }
-
-    let maxIntensity = 0;
-    let totalWeightedIntensity = 0;
-    let totalTimeSec = 0;
-
-    for (let i = 1; i < actions.length; i++) {
-        const a0 = actions[i - 1];
-        const a1 = actions[i];
-        const deltaPos = Math.abs(a1.pos - a0.pos);
-        const dtSec = (a1.at - a0.at) / 1000.0;
-
-        if (dtSec <= 0) continue;
-
-        const speed = deltaPos / dtSec;
-        const effectiveBpm = speed * 0.3;
-        const segIntensity = bpmToIntensity(effectiveBpm);
-
-        if (segIntensity > maxIntensity) {
-            maxIntensity = segIntensity;
-        }
-
-        totalWeightedIntensity += segIntensity * dtSec;
-        totalTimeSec += dtSec;
-    }
-
-    const avgIntensity =
-        totalTimeSec > 0 ? totalWeightedIntensity / totalTimeSec : 0;
-
-    return { peak: maxIntensity, avg: avgIntensity };
-}
-
 // ── Data Loading ───────────────────────────────────────────────────────
 
 async function loadFunscript() {
@@ -191,12 +155,12 @@ async function loadFunscript() {
 
 // ── UI Updates ─────────────────────────────────────────────────────────
 
-async function updateBackendIntensityStats(actions) {
+async function updateBackendIntensityStats(taps) {
     try {
         const res = await fetch('/api/funscripts/calculate-draft-intensity', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ actions })
+            body: JSON.stringify({ taps })
         });
         if (!res.ok) return;
         const stats = await res.json();
@@ -219,20 +183,10 @@ function updateCounter() {
         ? `Taps: ${editing.length} (variant: ${state.currentVariant}) — Original: ${state.base.length}`
         : `Taps: ${editing.length}`;
 
-    const actions = generateFunscriptActions(editing);
-
-    // 1. Instantaneous stroke peak (local fast calculation)
-    const instantStats = calculateIntensityStats(actions);
-    const instantPeakEl = document.getElementById('editor-instant-peak-val');
-    if (instantPeakEl) {
-        instantPeakEl.textContent = Math.round(instantStats.peak);
-        instantPeakEl.style.color = intensityToColor(instantStats.peak);
-    }
-
-    // 2. True backend intensity stats (debounced fetch from Rust backend)
+    // Debounced fetch for intensity stats from Rust backend
     clearTimeout(state.calcDebounceTimer);
     state.calcDebounceTimer = setTimeout(() => {
-        updateBackendIntensityStats(actions);
+        updateBackendIntensityStats(editing);
     }, 150);
 }
 
@@ -268,9 +222,9 @@ function handleDeleteSelected() {
 }
 
 async function handleSave() {
-    const actions = generateFunscriptActions(getEditingArray());
-    if (actions.length < 2) {
-        alert('Not enough actions to create a funscript.');
+    const taps = getEditingArray();
+    if (taps.length < 1) {
+        alert('Not enough taps to create a funscript.');
         return;
     }
 
@@ -284,7 +238,7 @@ async function handleSave() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 video_path: state.videoPath,
-                actions,
+                taps,
                 variant: variantVal || null
             })
         });

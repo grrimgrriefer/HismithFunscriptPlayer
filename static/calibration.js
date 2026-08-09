@@ -65,7 +65,7 @@ export function intensityToBpm(intensity) {
     return 0.0;
 }
 
-export function bpmToIntensity(bpm) {
+function bpmToIntensity(bpm) {
     const val = Number(bpm);
     if (!isFinite(val) || val <= 0.0) return 0.0;
     if (val >= 270.0) return 100.0;

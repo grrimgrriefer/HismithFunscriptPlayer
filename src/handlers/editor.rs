@@ -28,21 +28,22 @@ pub async fn handle_editor_page() -> Result<impl Responder, Error> {
 
 #[derive(Deserialize)]
 pub struct CalculateDraftIntensityPayload {
-    pub actions: Vec<Action>,
+    pub taps: Vec<u64>,
 }
 
 /// Provide intensity values for the 'draft' funscript the user is authoring in the editor page.
 pub async fn calculate_draft_intensity(
     payload: web::Json<CalculateDraftIntensityPayload>,
 ) -> impl Responder {
-    let actions = payload.into_inner().actions;
-    if actions.len() < 2 {
+    let taps = payload.into_inner().taps;
+    if taps.len() < 2 {
         return HttpResponse::Ok().json(serde_json::json!({
             "peak": 0.0,
             "average": 0.0
         }));
     }
 
+    let actions = funscript_utils::generate_funscript_actions_from_taps(&taps);
     let intensity_curve = funscript_utils::actions_to_intensity_curve(&actions);
     let (average, peak) = funscript_utils::calculate_intensity_stats(&intensity_curve);
 
@@ -55,7 +56,7 @@ pub async fn calculate_draft_intensity(
 #[derive(Deserialize, Debug)]
 pub struct SaveFunscriptPayload {
     pub video_path: String,
-    pub actions: Vec<Action>,
+    pub taps: Vec<u64>,
     pub variant: Option<String>,
 }
 
@@ -83,8 +84,9 @@ pub async fn save_funscript(payload: web::Json<SaveFunscriptPayload>) -> impl Re
 
     let output_path = build_funscript_path(&share_path, &relative_video_path, variant.as_deref());
 
+    let actions = funscript_utils::generate_funscript_actions_from_taps(&request.taps);
     let funscript_data = FunscriptData {
-        actions: request.actions,
+        actions,
         ..Default::default()
     };
 

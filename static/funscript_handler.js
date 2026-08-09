@@ -1,7 +1,5 @@
 // static/funscript_handler.js
 
-import { getInverseCalibratedIntensity } from './calibration.js';
-
 export let funscriptActions = [];
 export let intensityActions = [];
 
@@ -56,10 +54,6 @@ export function getLastIntensityStats() {
 }
 
 export function getCurrentIntensity(currentTime) {
-    return Math.min(getCurrentIntensityUnclamped(currentTime), absoluteMax);
-}
-
-export function getCurrentIntensityUnclamped(currentTime) {
     if (intensityActions.length === 0) return 0;
 
     const idx = intensityActions.findIndex((a) => a.at > currentTime);
@@ -92,10 +86,6 @@ export function setAbsoluteMaximum(max) {
 
 export function getAbsoluteMaximum() {
     return absoluteMax;
-}
-
-export function getAbsoluteMaximumInverseCalibrated() {
-    return getInverseCalibratedIntensity(absoluteMax);
 }
 
 export function getCurrentVideoRawMaxIntensity() {

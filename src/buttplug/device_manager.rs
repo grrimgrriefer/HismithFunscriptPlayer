@@ -20,7 +20,7 @@ use buttplug::{
 use futures::StreamExt;
 use log::{error, info, warn};
 use once_cell::sync::OnceCell;
-use std::{sync::Arc, time::Duration};
+use std::{sync::{Arc, RwLock}, time::Duration};
 use tokio::sync::Mutex;
 
 static MANAGER: OnceCell<Arc<DeviceManager>> = OnceCell::new();
@@ -39,6 +39,8 @@ struct DeviceManager {
     devices: Arc<Mutex<DevicePair>>,
     oscillate_intensity: AtomicF64,
     vibrate_intensity: AtomicF64,
+    max_limit: AtomicF64,
+    active_calibration_points: RwLock<Vec<(f64, f64)>>, // [(bpm, intensity)]
 }
 
 impl DeviceManager {
@@ -50,29 +52,35 @@ impl DeviceManager {
             })),
             oscillate_intensity: AtomicF64::new(0.0),
             vibrate_intensity: AtomicF64::new(0.0),
+            max_limit: AtomicF64::new(1.0),
+            active_calibration_points: RwLock::new(vec![(0.0, 0.0)]),
         })
     }
 
     async fn send_commands(&self) {
         let devices = self.devices.lock().await;
 
-        let osc_val = self
+        let raw_osc = self
             .oscillate_intensity
             .load(std::sync::atomic::Ordering::Relaxed)
             .clamp(0.0, 1.0);
-        let vib_val = self
+        let raw_vib = self
             .vibrate_intensity
             .load(std::sync::atomic::Ordering::Relaxed)
             .clamp(0.0, 1.0);
 
+        let max_limit = self.max_limit.load(std::sync::atomic::Ordering::Relaxed);        
+        let final_osc = raw_osc.min(max_limit).clamp(0.0, 1.0);
+        let final_vib = raw_vib; // .min(max_limit).clamp(0.0, 1.0);
+
         if let Some(ref dev) = devices.oscillator {
-            if let Err(e) = dev.oscillate(&ScalarValueCommand::ScalarValue(osc_val)).await {
+            if let Err(e) = dev.oscillate(&ScalarValueCommand::ScalarValue(final_osc)).await {
                 error!("Failed to send oscillate command: {}", e);
             }
         }
 
         if let Some(ref dev) = devices.vibrator {
-            if let Err(e) = dev.vibrate(&ScalarValueCommand::ScalarValue(vib_val)).await {
+            if let Err(e) = dev.vibrate(&ScalarValueCommand::ScalarValue(final_vib)).await {
                 error!("Failed to send vibrate command: {}", e);
             }
         }
@@ -218,5 +226,30 @@ pub fn set_vibrate(value: f64) {
     if let Some(m) = MANAGER.get() {
         m.vibrate_intensity
             .store(value.clamp(0.0, 1.0), std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+pub fn set_active_calibration_points(points: Vec<(f64, f64)>) {
+    if let Some(m) = MANAGER.get() {
+        if let Ok(mut guard) = m.active_calibration_points.write() {
+            *guard = points;
+        }
+    }
+}
+
+pub fn get_active_calibration_points() -> Vec<(f64, f64)> {
+    if let Some(m) = MANAGER.get() {
+        m.active_calibration_points
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    } else {
+        vec![(0.0, 0.0)]
+    }
+}
+
+pub fn set_max_limit(limit: f64) {
+    if let Some(m) = MANAGER.get() {
+        m.max_limit.store(limit.clamp(0.0, 1.0), std::sync::atomic::Ordering::Relaxed);
     }
 }

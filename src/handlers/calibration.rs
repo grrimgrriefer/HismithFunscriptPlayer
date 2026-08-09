@@ -110,3 +110,34 @@ pub async fn save_profile(payload: web::Json<SaveProfilePayload>) -> impl Respon
         }
     }
 }
+
+#[derive(Deserialize)]
+pub struct SetActiveProfilePayload {
+    pub bpms: HashMap<String, f64>,
+}
+
+pub async fn set_active_profile(payload: web::Json<SetActiveProfilePayload>) -> impl Responder {
+    let mut points = vec![(0.0, 0.0)];
+
+    for (preset_str, bpm_val) in &payload.bpms {
+        if let Ok(preset_intensity) = preset_str.parse::<f64>() {
+            points.push((*bpm_val, preset_intensity));
+        }
+    }
+
+    points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    crate::buttplug::device_manager::set_active_calibration_points(points);
+
+    HttpResponse::Ok().json(serde_json::json!({ "ok": true }))
+}
+
+#[derive(Deserialize)]
+pub struct SetMaxLimitPayload {
+    pub limit: f64,
+}
+
+pub async fn set_max_limit(payload: web::Json<SetMaxLimitPayload>) -> impl Responder {
+    let normalized_limit = (payload.limit / 100.0).clamp(0.0, 1.0);
+    crate::buttplug::device_manager::set_max_limit(normalized_limit);
+    HttpResponse::Ok().json(serde_json::json!({ "ok": true }))
+}

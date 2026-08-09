@@ -6,7 +6,7 @@
 //! data for videos. It loads the original funscript and generates real-time intensity
 //! data used for device control.
 
-use crate::buttplug::funscript_utils::{self, FunscriptData};
+use crate::buttplug::{device_manager::self, funscript_utils::{self, FunscriptData}};
 use actix_web::{HttpResponse, web};
 use log::{error, info, warn};
 use serde::Serialize;
@@ -87,7 +87,8 @@ pub async fn handle_funscript(
         original.actions = funscript_utils::double_beat_actions(&original.actions);
     }
 
-    let intensity = match generate_intensity(&original) {
+    let cal_points = device_manager::get_active_calibration_points();
+    let intensity = match generate_intensity(&original, &cal_points) {
         Ok(data) => Some(data),
         Err(e) => {
             warn!("Could not generate intensity for {}: {}", video_path, e);
@@ -193,13 +194,13 @@ async fn read_funscript(path: &Path) -> Result<FunscriptData, String> {
     serde_json::from_str(&content).map_err(|e| format!("Parse error {:?}: {}", path, e))
 }
 
-fn generate_intensity(original: &FunscriptData) -> Result<FunscriptData, String> {
+fn generate_intensity(original: &FunscriptData, cal_points: &[(f64, f64)]) -> Result<FunscriptData, String> {
     if original.actions.len() < 2 {
         return Err("Funscript has fewer than 2 actions".to_string());
     }
 
     let actions = original.actions.clone();
-    let intensity_actions = funscript_utils::actions_to_intensity_curve(&actions);
+    let intensity_actions = funscript_utils::actions_to_intensity_curve(&actions, cal_points);
 
     if intensity_actions.is_empty() {
         return Err(

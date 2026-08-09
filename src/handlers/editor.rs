@@ -8,7 +8,7 @@
 //! the resulting .funscript file under FUNSCRIPT_SHARE_PATH. Triggers a
 //! background cache refresh after successful writes.
 
-use crate::buttplug::funscript_utils::{self, Action, FunscriptData};
+use crate::buttplug::{device_manager::self, funscript_utils::{self, FunscriptData}};
 use crate::funscript_cache;
 use actix_files::NamedFile;
 use actix_web::{Error, HttpResponse, Responder, web};
@@ -43,8 +43,9 @@ pub async fn calculate_draft_intensity(
         }));
     }
 
+    let cal_points = device_manager::get_active_calibration_points();
     let actions = funscript_utils::generate_funscript_actions_from_taps(&taps);
-    let intensity_curve = funscript_utils::actions_to_intensity_curve(&actions);
+    let intensity_curve = funscript_utils::actions_to_intensity_curve(&actions, &cal_points);
     let (average, peak) = funscript_utils::calculate_intensity_stats(&intensity_curve);
 
     HttpResponse::Ok().json(serde_json::json!({

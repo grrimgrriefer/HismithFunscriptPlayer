@@ -1,7 +1,8 @@
 // static/calibration.js
 
-import { initWebSocket, sendDeviceCommand } from './socket.js';
-import { clamp } from './utils.js';
+import { sendDeviceCommand } from './socket.js';
+import { loadFunscript } from './funscript_handler.js';
+import { clamp, toFunscriptPath } from './utils.js';
 
 // ── Constants ──────────────────────────────────────────────────────────
 const PRESETS = [10, 20, 30, 40, 50];
@@ -209,6 +210,14 @@ function savePoint() {
 
     buildPresetButtons();
     refreshDisplays();
+
+    const activeBpms = {};
+    for (const p of PRESETS) {
+        if (calibratedBpms[p] !== null && calibratedBpms[p] !== undefined) {
+            activeBpms[String(p)] = calibratedBpms[p];
+        }
+    }
+    syncActiveProfileToRust(activeBpms);
 }
 
 // ── Audio ──────────────────────────────────────────────────────────────
@@ -425,6 +434,7 @@ function applyProfile(name) {
     const profile = window.__calibrationProfiles?.[name];
     if (!profile) {
         resetBpms();
+        syncActiveProfileToRust({});
         return;
     }
 
@@ -440,6 +450,14 @@ function applyProfile(name) {
     }
     buildPresetButtons();
 
+    const activeBpms = {};
+    for (const p of PRESETS) {
+        if (calibratedBpms[p] !== null && calibratedBpms[p] !== undefined) {
+            activeBpms[String(p)] = calibratedBpms[p];
+        }
+    }
+    syncActiveProfileToRust(activeBpms);
+
     const first = PRESETS.find(
         (p) => calibratedBpms[p] !== undefined && calibratedBpms[p] !== null
     );
@@ -447,7 +465,6 @@ function applyProfile(name) {
         const btn = els.presetsContainer.querySelector(
             `button[data-preset="${first}"]`
         );
-
         if (btn) selectPreset(first, btn);
     } else {
         state.selectedPreset = null;
@@ -630,84 +647,32 @@ function getCalibratedPoints() {
 
 // ── Public API ─────────────────────────────────────────────────────────
 
-export function getCalibratedIntensity(rawIntensity) {
-    const points = getCalibratedPoints();
-    if (points.length <= 1) {
-        return rawIntensity;
-    }
-
-    const bpm = intensityToBpm(rawIntensity);
-    if (bpm <= 0) return 0.0;
-
-    if (bpm <= points[1][0]) {
-        const [b0, i0] = points[0];
-        const [b1, i1] = points[1];
-        if (b1 === b0) return i1;
-        const t = (bpm - b0) / (b1 - b0);
-        return i0 + t * (i1 - i0);
-    }
-
-    const lastIdx = points.length - 1;
-    if (bpm >= points[lastIdx][0]) {
-        const [b0, i0] = points[lastIdx];
-        const b1 = 270.0;
-        const i1 = 100.0;
-        if (bpm >= b1) return 100.0;
-        const t = (bpm - b0) / (b1 - b0);
-        return i0 + t * (i1 - i0);
-    }
-
-    for (let i = 1; i < points.length - 1; i++) {
-        const [b0, i0] = points[i];
-        const [b1, i1] = points[i + 1];
-        if (bpm >= b0 && bpm <= b1) {
-            if (b1 === b0) return i1;
-            const t = (bpm - b0) / (b1 - b0);
-            return i0 + t * (i1 - i0);
-        }
-    }
-
-    return rawIntensity;
+function getCurrentVideoBaseUrl() {
+    const videoEl = document.querySelector('#video-player video');
+    if (!videoEl?.src) return null;
+    const url = new URL(videoEl.src, window.location.origin);
+    const match = url.pathname.match(/\/site\/video\/(.+)/);
+    return match ? `/site/funscripts/${toFunscriptPath(match[1])}` : null;
 }
 
-export function getInverseCalibratedIntensity(calibratedIntensity) {
-    const points = getCalibratedPoints();
-    if (points.length <= 1) {
-        return calibratedIntensity;
+async function reloadActiveFunscript() {
+    const baseUrl = getCurrentVideoBaseUrl();
+    if (baseUrl) {
+        await loadFunscript(baseUrl);
     }
+}
 
-    let bpm = 0.0;
-    if (calibratedIntensity <= 0) {
-        bpm = 0.0;
-    } else if (calibratedIntensity >= 100) {
-        bpm = 270.0;
-    } else if (calibratedIntensity <= points[1][1]) {
-        const [b0, i0] = points[0];
-        const [b1, i1] = points[1];
-        if (i1 === i0) bpm = b1;
-        else bpm = b0 + ((calibratedIntensity - i0) / (i1 - i0)) * (b1 - b0);
-    } else if (calibratedIntensity >= points[points.length - 1][1]) {
-        const [b0, i0] = points[points.length - 1];
-        const b1 = 270.0;
-        const i1 = 100.0;
-        if (i1 === i0) bpm = b1;
-        else bpm = b0 + ((calibratedIntensity - i0) / (i1 - i0)) * (b1 - b0);
-    } else {
-        for (let i = 1; i < points.length - 1; i++) {
-            const [b0, i0] = points[i];
-            const [b1, i1] = points[i + 1];
-            if (calibratedIntensity >= i0 && calibratedIntensity <= i1) {
-                if (i1 === i0) bpm = b1;
-                else
-                    bpm =
-                        b0 +
-                        ((calibratedIntensity - i0) / (i1 - i0)) * (b1 - b0);
-                break;
-            }
-        }
+export async function syncActiveProfileToRust(bpms) {
+    try {
+        await fetch('/api/calibration-activate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bpms })
+        });
+        await reloadActiveFunscript();
+    } catch (err) {
+        console.error('Failed to sync active profile to server', err);
     }
-
-    return bpmToIntensity(bpm);
 }
 
 export async function saveOnClose() {
@@ -718,7 +683,6 @@ export async function saveOnClose() {
 }
 
 export function setup() {
-    initWebSocket();
     initElements();
 
     for (const p of PRESETS) {

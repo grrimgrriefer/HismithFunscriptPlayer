@@ -13,6 +13,7 @@ import {
     getLastIntensityStats
 } from './funscript_handler.js';
 import { toFunscriptPath, intensityToColor } from './utils.js';
+import { updateFunscriptDisplayBox } from './funscript_display_graphs.js';
 
 let initialized = false;
 
@@ -134,6 +135,18 @@ export function setSBSMode(enabled) {
 export function isHardLimitUnlocked() {
     const input = document.getElementById('hard-limit-input');
     return input ? !input.disabled : false;
+}
+
+async function syncMaxLimitToRust(limitValue) {
+    try {
+        await fetch('/api/max-limit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ limit: limitValue })
+        });
+    } catch (err) {
+        console.error('Failed to sync max limit to server:', err);
+    }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -263,6 +276,7 @@ function initHardLimit(menu) {
         const value = parseInt(input.value, 10);
         if (value >= 0 && value <= 100) {
             setAbsoluteMaximum(value);
+            syncMaxLimitToRust(value);
         } else {
             alert('Please enter a value between 0 and 100.');
             input.value = getAbsoluteMaximum().toString();
@@ -382,6 +396,12 @@ function bindOverlayClose(overlay) {
             await window.__calibrationModule?.saveOnClose?.();
         } catch (err) {
             console.error('Failed to save calibration on close', err);
+        }
+
+        updateIntensityDisplay();
+        const videoEl = document.querySelector('#video-player video');
+        if (videoEl) {
+            updateFunscriptDisplayBox(videoEl.currentTime * 1000);
         }
 
         document.body.style.overflow = '';

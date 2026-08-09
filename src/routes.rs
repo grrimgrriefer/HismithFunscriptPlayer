@@ -25,6 +25,8 @@ pub fn setup_routes(cfg: &mut web::ServiceConfig) {
                 .route("/calibration-mapping", web::get().to(calibration::get_bpm_mapping))
                 .route("/calibration-profiles", web::get().to(calibration::get_profiles))
                 .route("/calibration-profiles", web::post().to(calibration::save_profile))
+                .route("/calibration-activate", web::post().to(calibration::set_active_profile))
+                .route("/max-limit", web::post().to(calibration::set_max_limit))
         )
         .service(
             web::scope("/site")

@@ -2,12 +2,10 @@
 
 import {
     getAbsoluteMaximum,
-    getAbsoluteMaximumInverseCalibrated,
     funscriptActions,
     intensityActions,
     getCurrentIntensity,
-    getCurrentVideoMaxIntensity,
-    getCurrentIntensityUnclamped
+    getCurrentVideoMaxIntensity
 } from './funscript_handler.js';
 
 const TIME_RANGE_MS = 1500; // visible range before/after current time
@@ -63,9 +61,7 @@ export function updateFunscriptDisplayBox(currentTime) {
 
     const rawMax = getCurrentVideoMaxIntensity();
     const absMax = getAbsoluteMaximum();
-    const absMaxInvCal = getAbsoluteMaximumInverseCalibrated();
     const intensity = getCurrentIntensity(currentTime);
-    const intensityUnclamped = getCurrentIntensityUnclamped(currentTime);
 
     const ctx = canvas.getContext('2d');
     const { width, height } = canvas;
@@ -86,7 +82,7 @@ export function updateFunscriptDisplayBox(currentTime) {
         scaleY,
         width,
         height,
-        absMaxInvCal,
+        absMax,
         intensity,
         rawMax
     );
@@ -99,16 +95,7 @@ export function updateFunscriptDisplayBox(currentTime) {
         progressX
     );
     drawProgressLine(ctx, progressX, height, hit);
-    drawClampLine(
-        ctx,
-        width,
-        height,
-        scaleY,
-        absMaxInvCal,
-        absMax,
-        rawMax,
-        intensityUnclamped
-    );
+    drawClampLine(ctx, width, height, scaleY, absMax, rawMax, intensity);
     drawEdgeFadeMask(ctx, width, height);
 }
 
@@ -128,7 +115,7 @@ function drawIntensityCurve(
     scaleY,
     width,
     height,
-    absMaxInvCal,
+    absMaxVal,
     intensity,
     rawMax
 ) {
@@ -156,9 +143,9 @@ function drawIntensityCurve(
         if (cur.at < startTime || next.at > endTime) continue;
 
         const curX = (cur.at - startTime) * scaleX;
-        const curY = height - Math.min(cur.pos, absMaxInvCal) * scaleY;
+        const curY = height - Math.min(cur.pos, absMaxVal) * scaleY;
         const nextX = (next.at - startTime) * scaleX;
-        const nextY = height - Math.min(next.pos, absMaxInvCal) * scaleY;
+        const nextY = height - Math.min(next.pos, absMaxVal) * scaleY;
 
         if (!started) {
             ctx.moveTo(curX, height);
@@ -229,17 +216,16 @@ function drawClampLine(
     width,
     height,
     scaleY,
-    absMaxInvCal,
-    absMax,
+    absMaxVal,
     rawMax,
     intensityUnclamped
 ) {
-    const clampY = height - absMaxInvCal * scaleY;
+    const clampY = height - absMaxVal * scaleY;
 
     // Label
     ctx.fillStyle = 'white';
     let label = `Max: ${rawMax.toFixed(2)}`;
-    if (rawMax > absMax) label += ` (Clamped: ${absMax.toFixed(2)})`;
+    if (rawMax > absMaxVal) label += ` (Clamped: ${absMaxVal.toFixed(2)})`;
 
     const fontSize = Math.min(16, height * 0.1);
     ctx.font = `${fontSize}px Arial`;
@@ -252,7 +238,7 @@ function drawClampLine(
 
     // Clamp line (red if exceeding, white otherwise)
     ctx.beginPath();
-    if (intensityUnclamped > absMax) {
+    if (intensityUnclamped > absMaxVal) {
         ctx.strokeStyle = 'rgb(255, 0, 0)';
         ctx.lineWidth = 8;
     } else {

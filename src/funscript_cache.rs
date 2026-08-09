@@ -70,7 +70,7 @@ fn build_entry(content: &str, sha256: String) -> Result<FunscriptCacheEntry, Str
     }
 
     let actions = data.actions.clone();
-    let intensity = actions_to_intensity_curve(&actions);
+    let intensity = actions_to_intensity_curve(&actions, &[]); //baseline uncalibrated is fine
     let (average_intensity, peak_intensity) = calculate_intensity_stats(&intensity);
 
     Ok(FunscriptCacheEntry {

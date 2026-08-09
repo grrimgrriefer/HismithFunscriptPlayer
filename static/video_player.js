@@ -14,18 +14,13 @@ import {
     updateFunscriptDisplayBox
 } from './funscript_display_graphs.js';
 import { sendDeviceCommand } from './socket.js';
-import { getCalibratedIntensity } from './calibration.js';
 import {
     refreshVariantsForCurrentVideo,
     updateIntensityDisplay,
     setSBSMode,
     isHardLimitUnlocked
 } from './settings_menu.js';
-import {
-    lerp,
-    toFunscriptPath,
-    getFunscriptStats
-} from './utils.js';
+import { lerp, toFunscriptPath, getFunscriptStats } from './utils.js';
 
 const urlParams = new URLSearchParams(window.location.search);
 const DISABLE_FULLSCREEN = ['1', 'true', 'yes'].includes(
@@ -50,17 +45,16 @@ const state = {
 
 function computeOscillateValue(intensity, progress) {
     if (intensity === undefined) return 0;
-    return lerp(0, getCalibratedIntensity(intensity), progress) / 100;
+    return lerp(0, intensity / 100, progress);
 }
 
 function computeVibrateValue(currentTime, intensity, progress) {
     if (getVibrateMode() === 'Rate') {
         if (intensity === undefined) return 0;
-        const calibratedIntensity = getCalibratedIntensity(intensity);
         return (
             lerp(
                 0,
-                (calibratedIntensity / 100) * getCurrentVideoMaxIntensity(),
+                (intensity / 100) * getCurrentVideoMaxIntensity(),
                 progress
             ) / 100
         );

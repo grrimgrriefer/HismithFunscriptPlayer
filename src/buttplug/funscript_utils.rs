@@ -229,7 +229,7 @@ fn bpm_to_intensity(bpm: f64) -> f64 {
 
 /// Sum absolute position changes within [win_start, win_end], convert to BPM,
 /// then map to intensity. Inserts interpolated boundary points.
-fn window_intensity(actions: &[Action], win_start: u64, win_end: u64) -> f64 {
+fn window_intensity(actions: &[Action], win_start: u64, win_end: u64, cal_points: &[(f64, f64)]) -> f64 {
     if actions.is_empty() || win_end <= win_start {
         return 0.0;
     }
@@ -289,7 +289,8 @@ fn window_intensity(actions: &[Action], win_start: u64, win_end: u64) -> f64 {
     //     = total_change * 60 / (200 * duration_sec)
     //     = total_change * 300.0 / (1000.0 * duration_sec)   [when duration is in ms]
     let bpm = (total_change / 200.0) * (60.0 / duration_sec);
-    bpm_to_intensity(bpm)
+    let raw_intensity = bpm_to_intensity(bpm);
+    get_calibrated_intensity(raw_intensity, cal_points)
 }
 
 /// Convert binary (0/100) funscript actions into a smoothed intensity curve.
@@ -298,7 +299,7 @@ fn window_intensity(actions: &[Action], win_start: u64, win_end: u64) -> f64 {
 ///
 /// Returns an empty `Vec` if the input is not a binary script (positions must
 /// be 0 or 100) or contains fewer than 2 actions.
-pub fn actions_to_intensity_curve(actions: &[Action]) -> Vec<Action> {
+pub fn actions_to_intensity_curve(actions: &[Action], cal_points: &[(f64, f64)]) -> Vec<Action> {
     let step_ms = INTENSITY_STEP_MS;
     let window_ms = INTENSITY_WINDOW_MS;
     
@@ -338,7 +339,7 @@ pub fn actions_to_intensity_curve(actions: &[Action]) -> Vec<Action> {
         let w_start = t.saturating_sub(window_ms);
         let w_end = min(end_time, t + window_ms);
 
-        let mut intensity = window_intensity(&sorted, w_start, w_end);
+        let mut intensity = window_intensity(&sorted, w_start, w_end, cal_points);
 
         // Rate-limit rises
         if intensity > prev_intensity + max_rise_per_step {
@@ -477,4 +478,73 @@ pub fn quarter_beat_actions(actions: &[Action]) -> Vec<Action> {
     merge_same_position_runs(&mut result, 2);
 
     result
+}
+
+pub fn intensity_to_bpm(intensity: f64) -> f64 {
+    let val = intensity.clamp(0.0, 100.0);
+    if val <= 0.0 {
+        return 0.0;
+    }
+    if val >= 100.0 {
+        return 270.0;
+    }
+
+    for pair in BPM_TO_INTENSITY.windows(2) {
+        let (b0, i0) = pair[0];
+        let (b1, i1) = pair[1];
+        if val >= i0 && val <= i1 {
+            let t = (val - i0) / (i1 - i0);
+            return b0 + t * (b1 - b0);
+        }
+    }
+    0.0
+}
+
+/// Applies piecewise linear calibration interpolation on a raw intensity (0..100).
+/// `cal_points` must be sorted by BPM: `[(bpm, intensity), ...]`
+pub fn get_calibrated_intensity(raw_intensity: f64, cal_points: &[(f64, f64)]) -> f64 {
+    if cal_points.len() <= 1 {
+        return raw_intensity;
+    }
+
+    let bpm = intensity_to_bpm(raw_intensity);
+    if bpm <= 0.0 {
+        return 0.0;
+    }
+
+    if bpm <= cal_points[1].0 {
+        let (b0, i0) = cal_points[0];
+        let (b1, i1) = cal_points[1];
+        if (b1 - b0).abs() < f64::EPSILON {
+            return i1;
+        }
+        let t = (bpm - b0) / (b1 - b0);
+        return i0 + t * (i1 - i0);
+    }
+
+    let last_idx = cal_points.len() - 1;
+    if bpm >= cal_points[last_idx].0 {
+        let (b0, i0) = cal_points[last_idx];
+        let b1 = 270.0;
+        let i1 = 100.0;
+        if bpm >= b1 {
+            return 100.0;
+        }
+        let t = (bpm - b0) / (b1 - b0);
+        return i0 + t * (i1 - i0);
+    }
+
+    for window in cal_points.windows(2) {
+        let (b0, i0) = window[0];
+        let (b1, i1) = window[1];
+        if bpm >= b0 && bpm <= b1 {
+            if (b1 - b0).abs() < f64::EPSILON {
+                return i1;
+            }
+            let t = (bpm - b0) / (b1 - b0);
+            return i0 + t * (i1 - i0);
+        }
+    }
+
+    raw_intensity
 }

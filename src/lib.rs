@@ -26,6 +26,7 @@ pub mod handlers {
     pub mod editor;
     pub mod funscript;
     pub mod index;
+    pub mod recommendations;
     pub mod thumbnail;
     pub mod video;
 }

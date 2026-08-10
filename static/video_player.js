@@ -274,84 +274,6 @@ export function setPlaybackData(tree, map) {
     state.globalFunscriptMap = map;
 }
 
-function getVideosInSameFolder(path) {
-    if (!state.globalTree || !path) return [];
-    const parts = path.split('/');
-    parts.pop();
-    let current = state.globalTree;
-    for (const part of parts) {
-        if (!part) continue;
-        const found = current.children?.find(
-            (c) => c.is_dir && c.name === part
-        );
-        if (!found) return [];
-        current = found;
-    }
-    return (current.children || []).filter((c) => !c.is_dir);
-}
-
-function findRandomVideo(currentPeak, minDiff, maxDiff) {
-    const siblings = getVideosInSameFolder(state.currentVideoRelativePath);
-    let candidates = siblings.filter((v) => {
-        if (
-            v.path === state.currentVideoRelativePath ||
-            state.playedVideos.has(v.path)
-        ) {
-            return false;
-        }
-        const normPath = toFunscriptPath(v.path);
-        const stats = getFunscriptStats(state.globalFunscriptMap[normPath]);
-        if (!stats) return false;
-        const peak = stats.peak;
-        const diff = peak - currentPeak;
-        return diff >= minDiff && diff <= maxDiff;
-    });
-
-    if (candidates.length === 0) {
-        candidates = siblings.filter((v) => {
-            if (
-                v.path === state.currentVideoRelativePath ||
-                state.playedVideos.has(v.path)
-            ) {
-                return false;
-            }
-            const normPath = toFunscriptPath(v.path);
-            const stats = getFunscriptStats(state.globalFunscriptMap[normPath]);
-            if (!stats) return false;
-            const peak = stats.peak;
-            const diff = peak - currentPeak;
-            return diff >= minDiff && diff <= maxDiff;
-        });
-    }
-
-    return candidates.length > 0
-        ? candidates[Math.floor(Math.random() * candidates.length)]
-        : null;
-}
-
-function findClosestVideo(currentPeak) {
-    const siblings = getVideosInSameFolder(state.currentVideoRelativePath);
-
-    const candidates = siblings
-        .filter(
-            (v) =>
-                v.path !== state.currentVideoRelativePath &&
-                !state.playedVideos.has(v.path)
-        )
-        .map((v) => {
-            const normPath = toFunscriptPath(v.path);
-            const stats = getFunscriptStats(state.globalFunscriptMap[normPath]);
-            if (!stats) return null;
-            return { node: v, diff: Math.abs(stats.peak - currentPeak) };
-        })
-        .filter(Boolean);
-
-    if (candidates.length === 0) return null;
-
-    candidates.sort((a, b) => a.diff - b.diff);
-    return candidates[0].node;
-}
-
 function startNextVideo(videoNode) {
     if (!videoNode) {
         alert('No similar video found in the specified intensity range.');
@@ -366,7 +288,7 @@ function startNextVideo(videoNode) {
     );
 }
 
-function showNextVideoOverlay() {
+async function showNextVideoOverlay() {
     if (state.isOverlayVisible) return;
     state.isOverlayVisible = true;
     if (state.nextVideoTimer) clearTimeout(state.nextVideoTimer);
@@ -378,15 +300,19 @@ function showNextVideoOverlay() {
     overlay.classList.remove('hidden');
     exitFullscreen();
 
-    const currentStats = getStats({ path: state.currentVideoRelativePath });
+    const played = Array.from(state.playedVideos).join(',');
+    let candidates = { lower: null, similar: null, higher: null };
 
-    const candidates = {
-        higher: findRandomVideo(currentStats.peak, 5, 15),
-        similar:
-            findRandomVideo(currentStats.peak, -5, 5) ||
-            findClosestVideo(currentStats.peak),
-        lower: findRandomVideo(currentStats.peak, -15, -5)
-    };
+    try {
+        const resp = await fetch(
+            `/api/recommendations/next?video=${encodeURIComponent(state.currentVideoRelativePath)}&exclude=${encodeURIComponent(played)}`
+        );
+        if (resp.ok) {
+            candidates = await resp.json();
+        }
+    } catch (err) {
+        console.error('Failed to fetch next recommendations:', err);
+    }
 
     updateOverlayButtons(
         candidates,
@@ -443,69 +369,25 @@ function hideNextVideoOverlay() {
 }
 
 // ── Folder Start Selection Helpers ─────────────────────────────────────
-function findFolderNode(currentNode, folderPath) {
-    if (!currentNode) return null;
-    if (currentNode.path === folderPath && currentNode.is_dir) {
-        return currentNode;
-    }
-    if (currentNode.children) {
-        for (const child of currentNode.children) {
-            const found = findFolderNode(child, folderPath);
-            if (found) return found;
+
+export async function showFolderStartOverlay(folderPath) {
+    let candidates = { low: null, med: null, high: null };
+
+    try {
+        const resp = await fetch(
+            `/api/recommendations/folder-start?folder=${encodeURIComponent(folderPath)}`
+        );
+        if (resp.ok) {
+            candidates = await resp.json();
         }
+    } catch (err) {
+        console.error('Failed to fetch folder start recommendations:', err);
     }
-    return null;
-}
 
-function findClosestVideoToIntensity(
-    videos,
-    targetIntensity,
-    excludeSet = new Set()
-) {
-    let bestVideo = null;
-    let minDiff = Infinity;
-
-    for (const v of videos) {
-        if (excludeSet.has(v.path)) continue;
-        const normPath = toFunscriptPath(v.path);
-        const stats = getFunscriptStats(state.globalFunscriptMap?.[normPath]);
-        if (!stats) continue;
-        const diff = Math.abs(stats.peak - targetIntensity);
-        if (diff < minDiff) {
-            minDiff = diff;
-            bestVideo = v;
-        }
-    }
-    return bestVideo;
-}
-
-function selectStartCandidates(videos) {
-    const excludeSet = new Set();
-    const low = findClosestVideoToIntensity(videos, 20, excludeSet);
-    if (low) excludeSet.add(low.path);
-
-    const med = findClosestVideoToIntensity(videos, 35, excludeSet);
-    if (med) excludeSet.add(med.path);
-
-    const high = findClosestVideoToIntensity(videos, 50, excludeSet);
-    if (high) excludeSet.add(high.path);
-
-    return { low, med, high };
-}
-
-export function showFolderStartOverlay(folderPath) {
-    const folderNode = findFolderNode(state.globalTree, folderPath);
-    if (!folderNode) return;
-
-    const videos = (folderNode.children || []).filter((c) => !c.is_dir);
-    if (videos.length === 0) return;
-
-    const candidates = selectStartCandidates(videos);
     if (!candidates.low && !candidates.med && !candidates.high) return;
 
     state.isOverlayVisible = true;
     const overlay = document.getElementById('next-video-overlay');
-
     if (!overlay) return;
 
     overlay.classList.remove('hidden');
@@ -519,7 +401,7 @@ export function showFolderStartOverlay(folderPath) {
             similar: candidates.med,
             higher: candidates.high
         },
-        ['Low (~20)', 'Medium (~35)', 'High (~50)'],
+        ['Low', 'Medium', 'High'],
         'absolute'
     );
 
@@ -543,15 +425,14 @@ function getStats(v) {
 
 function getStatHtml(candidate, currentStats, mode = 'relative') {
     if (!candidate) return '';
-    const stats = getStats(candidate);
     if (mode === 'absolute') {
         return (
-            `<span style="color:#69f0ae">${stats.peak.toFixed(1)} Peak</span><br>` +
-            `<span style="opacity:0.8">${stats.avg.toFixed(1)} Avg</span>`
+            `<span style="color:#69f0ae">${candidate.peak.toFixed(1)} Peak</span><br>` +
+            `<span style="opacity:0.8">${candidate.avg.toFixed(1)} Avg</span>`
         );
     }
-    const dPeak = stats.peak - currentStats.peak;
-    const dAvg = stats.avg - currentStats.avg;
+    const dPeak = candidate.peak - currentStats.peak;
+    const dAvg = candidate.avg - currentStats.avg;
     const peakPrefix = dPeak > 0 ? '+' : '';
     const avgPrefix = dAvg > 0 ? '+' : '';
     const peakColor = dPeak > 0 ? '#ff5252' : '#69f0ae';

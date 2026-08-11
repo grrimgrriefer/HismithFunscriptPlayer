@@ -11,22 +11,9 @@ const FLASH_DURATION_MS = 220;
 const SEND_INTERVAL_MS = 100;
 const KEEPALIVE_MS = 1500;
 
-export const BPM_TO_INTENSITY = [
-    [0.0, 0.0],
-    [42.0, 10.0],
-    [66.0, 20.0],
-    [90.0, 30.0],
-    [116.0, 40.0],
-    [140.0, 50.0],
-    [160.0, 60.0],
-    [182.0, 70.0],
-    [218.0, 80.0],
-    [245.0, 90.0],
-    [270.0, 100.0]
-];
-
 // ── State ──────────────────────────────────────────────────────────────
 const calibratedBpms = {};
+let bpmMapping = [];
 
 const state = {
     selectedPreset: null,
@@ -50,33 +37,35 @@ const els = {};
 // ── Utilities ──────────────────────────────────────────────────────────
 const round2 = (v) => Math.round(v * 100) / 100;
 
-export function intensityToBpm(intensity) {
-    const val = clamp(intensity, 0, 100);
-    if (val <= 0) return 0.0;
-    if (val >= 100) return 270.0;
-
-    for (let i = 0; i < BPM_TO_INTENSITY.length - 1; i++) {
-        const [b0, i0] = BPM_TO_INTENSITY[i];
-        const [b1, i1] = BPM_TO_INTENSITY[i + 1];
-        if (val >= i0 && val <= i1) {
-            const t = (val - i0) / (i1 - i0);
-            return b0 + t * (b1 - b0);
+async function loadBpmMapping() {
+    try {
+        const resp = await fetch('/api/calibration-mapping');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (Array.isArray(data)) {
+            bpmMapping = data.map((pt) => [
+                Number(pt.bpm),
+                Number(pt.intensity)
+            ]);
         }
+    } catch (err) {
+        console.error('Failed to load BPM mapping', err);
     }
-    return 0.0;
 }
 
-function bpmToIntensity(bpm) {
-    const val = Number(bpm);
-    if (!isFinite(val) || val <= 0.0) return 0.0;
-    if (val >= 270.0) return 100.0;
+export function intensityToBpm(intensity) {
+    const val = clamp(intensity, 0, 100);
+    if (bpmMapping.length === 0) return 0.0;
+    if (val <= 0) return bpmMapping[0][0];
+    if (val >= 100) return bpmMapping[bpmMapping.length - 1][0];
 
-    for (let i = 0; i < BPM_TO_INTENSITY.length - 1; i++) {
-        const [b0, i0] = BPM_TO_INTENSITY[i];
-        const [b1, i1] = BPM_TO_INTENSITY[i + 1];
-        if (val >= b0 && val <= b1) {
-            const t = (val - b0) / (b1 - b0);
-            return i0 + t * (i1 - i0);
+    for (let i = 0; i < bpmMapping.length - 1; i++) {
+        const [b0, i0] = bpmMapping[i];
+        const [b1, i1] = bpmMapping[i + 1];
+        if (val >= i0 && val <= i1) {
+            if (i1 === i0) return b0;
+            const t = (val - i0) / (i1 - i0);
+            return b0 + t * (b1 - b0);
         }
     }
     return 0.0;
@@ -579,7 +568,7 @@ function renderMappingGraph() {
     }
 
     // 1. Draw Baseline
-    const baselinePoints = BPM_TO_INTENSITY.map(([bpm, intensity]) => [
+    const baselinePoints = bpmMapping.map(([bpm, intensity]) => [
         intensity,
         bpm
     ]);
@@ -682,7 +671,7 @@ export async function saveOnClose() {
     }
 }
 
-export function setup() {
+export async function setup() {
     initElements();
 
     for (const p of PRESETS) {
@@ -691,6 +680,8 @@ export function setup() {
 
     buildPresetButtons();
     renderMappingList();
+
+    await loadBpmMapping();
 
     loadProfilesFromServer().then(() => {
         if (els.profileSelect && els.profileSelect.value) {
@@ -740,4 +731,5 @@ export function setup() {
     els.sentIntensity.textContent = '—';
     els.theoreticalBpm.textContent = '—';
     els.measuredBpm.textContent = '—';
+    refreshDisplays();
 }

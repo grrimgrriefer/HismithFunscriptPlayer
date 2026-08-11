@@ -36,21 +36,24 @@ pub async fn calculate_draft_intensity(
     payload: web::Json<CalculateDraftIntensityPayload>,
 ) -> impl Responder {
     let taps = payload.into_inner().taps;
+    let actions = funscript_utils::generate_funscript_actions_from_taps(&taps);
+
     if taps.len() < 2 {
         return HttpResponse::Ok().json(serde_json::json!({
             "peak": 0.0,
-            "average": 0.0
+            "average": 0.0,
+            "actions": actions
         }));
     }
 
     let cal_points = device_manager::get_active_calibration_points();
-    let actions = funscript_utils::generate_funscript_actions_from_taps(&taps);
     let intensity_curve = funscript_utils::actions_to_intensity_curve(&actions, &cal_points);
     let (average, peak) = funscript_utils::calculate_intensity_stats(&intensity_curve);
 
     HttpResponse::Ok().json(serde_json::json!({
         "peak": peak,
-        "average": average
+        "average": average,
+        "actions": actions
     }))
 }
 

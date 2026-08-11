@@ -34,7 +34,9 @@ const state = {
     selectionStartX: 0,
     selectionEndX: 0,
     dragOffsetMs: 0,
-    calcDebounceTimer: null
+    calcDebounceTimer: null,
+    baseActions: [],
+    editingActions: []
 };
 
 // ── Utilities ──────────────────────────────────────────────────────────
@@ -64,6 +66,22 @@ async function fetchJson(url) {
     }
 }
 
+async function fetchActions(taps) {
+    try {
+        const res = await fetch('/api/funscripts/calculate-draft-intensity', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ taps })
+        });
+        if (!res.ok) return [];
+        const data = await res.json();
+        return data.actions || [];
+    } catch (e) {
+        console.error('Failed to fetch actions:', e);
+        return [];
+    }
+}
+
 function extractActionsFromResponse(data, variantName) {
     if (!data) return [];
     if (variantName && data[variantName]?.actions)
@@ -85,38 +103,12 @@ function pxToMs(px) {
     return Math.round((px / canvas.width) * VIEW_WINDOW_MS + getViewStartMs());
 }
 
-// ── Funscript Generation ───────────────────────────────────────────────
-
-function generateFunscriptActions(timestamps) {
-    if (!timestamps || timestamps.length === 0) return [{ at: 0, pos: 0 }];
-
-    const sorted = [...timestamps].sort((a, b) => a - b);
-    const actions = [];
-    let last = 0;
-
-    for (const t of sorted) {
-        const down = Math.round((last + t) / 2);
-        if (actions.length > 0 || down > 0) actions.push({ at: down, pos: 0 });
-        actions.push({ at: t, pos: 100 });
-        last = t;
-    }
-
-    actions.push({ at: last + 500, pos: 0 });
-    if (actions[0]?.at > 0) actions.unshift({ at: 0, pos: 0 });
-
-    // Dedupe by timestamp
-    const seen = new Map();
-    for (const a of actions) seen.set(a.at, a);
-    return Array.from(seen.values()).sort((a, b) => a.at - b.at);
-}
-
 // ── Data Loading ───────────────────────────────────────────────────────
 
 async function loadFunscript() {
     state.currentVariant = variantInput?.value.trim() ?? '';
     const baseUrl = `/site/funscripts/${toFunscriptPath(state.videoPath)}`;
 
-    // Variant list
     const listData = await fetchJson(`${baseUrl}?list=1`);
     if (listData?.variants && variantList) {
         variantList.innerHTML = '';
@@ -127,14 +119,13 @@ async function loadFunscript() {
         }
     }
 
-    // Base actions
     const baseData = await fetchJson(baseUrl);
     state.base = (extractActionsFromResponse(baseData, 'original') || [])
         .filter((a) => a.pos === 100)
         .map((a) => a.at)
         .sort((a, b) => a - b);
 
-    // Variant actions
+    state.baseActions = await fetchActions(state.base);
     state.variant = [];
     if (isEditingVariant()) {
         const vdata = await fetchJson(
@@ -164,6 +155,7 @@ async function updateBackendIntensityStats(taps) {
         });
         if (!res.ok) return;
         const stats = await res.json();
+        state.editingActions = stats.actions || [];
 
         const peakEl = document.getElementById('editor-peak-val');
         const avgEl = document.getElementById('editor-avg-val');
@@ -172,6 +164,8 @@ async function updateBackendIntensityStats(taps) {
         peakEl.style.color = intensityToColor(stats.peak);
         avgEl.textContent = Math.round(stats.average);
         avgEl.style.color = intensityToColor(stats.average);
+
+        draw();
     } catch (e) {
         console.error('Failed to calculate backend intensity stats:', e);
     }
@@ -294,12 +288,10 @@ function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const currentTimeMs = video.currentTime * 1000;
 
-    const baseActions = generateFunscriptActions(state.base);
-    const editingActions = generateFunscriptActions(getEditingArray());
-
-    if (isEditingVariant() && baseActions.length > 0)
-        drawWave(baseActions, '#777');
-    if (editingActions.length > 0) drawWave(editingActions, '#4CAF50');
+    if (isEditingVariant() && state.baseActions && state.baseActions.length > 0)
+        drawWave(state.baseActions, '#777');
+    if (state.editingActions && state.editingActions.length > 0)
+        drawWave(state.editingActions, '#4CAF50');
 
     if (isEditingVariant()) {
         drawTaps(state.base, false);

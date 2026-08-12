@@ -141,9 +141,9 @@ Click **Settings** in the top-right corner to open the player options panel
 When a video ends (or when the script actions finish), an automated **Up Next** overlay opens with a 6-second countdown timer.
 
 - **Options Provided:**
-  - **Lower:** Selects a video from the same folder with a -5 to -15 delta lower peak intensity.
-  - **Similar:** Selects a video with matching intensity (±5 delta peak intensity).
-  - **Higher:** Selects a video with +5 to +15 delta higher peak intensity.
+  - **Lower:** Selects a video from the same folder with a -7.5 to -22.5 delta lower peak intensity.
+  - **Similar:** Selects a video with matching intensity (±7.5 delta peak intensity).
+  - **Higher:** Selects a video with -7.5 to -22.5 delta higher peak intensity.
   - **Replay Current:** Restarts playback of the current video.
   - **Cancel:** Closes the overlay to remain on the completed video.
 - Each button shows a thumbnail (`/site/thumbnails/...`), filename, and intensity diff relative to the current video (e.g., `+8.5 Peak / +2.1 Avg`).

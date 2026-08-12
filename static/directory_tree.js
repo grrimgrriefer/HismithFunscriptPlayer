@@ -25,29 +25,9 @@ function toggleFolder(id) {
 function buildIntensityBadge(stats) {
     if (!stats || stats.length === 0) return null;
 
-    const entries = stats
-        .map((s) => ({
-            peak: isFinite(s.peak) ? Math.round(s.peak) : NaN,
-            avg: isFinite(s.avg) ? Math.round(s.avg) : NaN
-        }))
-        .filter((e) => isFinite(e.peak) || isFinite(e.avg))
-        .sort((a, b) => {
-            const ap = isFinite(a.peak) ? a.peak : Infinity;
-            const bp = isFinite(b.peak) ? b.peak : Infinity;
-            if (ap !== bp) return ap - bp;
-            return (
-                (isFinite(a.avg) ? a.avg : 0) - (isFinite(b.avg) ? b.avg : 0)
-            );
-        });
-
-    const seen = new Set();
     const parts = [];
 
-    for (const e of entries) {
-        const key = `${isFinite(e.peak) ? e.peak : '_'}|${isFinite(e.avg) ? e.avg : '_'}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-
+    for (const e of stats) {
         const peakText = isFinite(e.peak) ? String(e.peak) : '—';
         const avgText = isFinite(e.avg) ? String(e.avg) : '—';
         const peakColor = isFinite(e.peak)

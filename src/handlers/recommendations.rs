@@ -34,6 +34,10 @@ pub struct RecommendedVideo {
     pub name: String,
     pub peak: f64,
     pub avg: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delta_peak: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delta_avg: Option<f64>,
 }
 
 #[derive(Serialize)]
@@ -88,17 +92,21 @@ pub async fn get_next_recommendations(query: web::Query<NextQuery>) -> impl Resp
 
     let mut videos_with_stats = Vec::new();
     let mut current_video_peak = None;
+    let mut current_video_avg = None;
 
     for v in sibling_videos {
         if let Some((peak, avg)) = get_stats_for_video(&v.path, &cache) {
             if v.path == *target_path {
                 current_video_peak = Some(peak);
+                current_video_avg = Some(avg);
             }
             videos_with_stats.push(RecommendedVideo {
                 path: v.path,
                 name: v.name,
                 peak,
                 avg,
+                delta_peak: None,
+                delta_avg: None,
             });
         }
     }
@@ -111,10 +119,25 @@ pub async fn get_next_recommendations(query: web::Query<NextQuery>) -> impl Resp
         });
     };
 
-    let lower = find_random_video(&videos_with_stats, target_path, current_peak, -15.0, -5.0, &excluded_paths);
-    let similar = find_random_video(&videos_with_stats, target_path, current_peak, -5.0, 5.0, &excluded_paths)
+    let mut lower = find_random_video(&videos_with_stats, target_path, current_peak, -22.5, -7.5, &excluded_paths);
+    let mut similar = find_random_video(&videos_with_stats, target_path, current_peak, -7.5, 7.5, &excluded_paths)
         .or_else(|| find_closest_video(&videos_with_stats, target_path, current_peak, &excluded_paths));
-    let higher = find_random_video(&videos_with_stats, target_path, current_peak, 5.0, 15.0, &excluded_paths);
+    let mut higher = find_random_video(&videos_with_stats, target_path, current_peak, 7.5, 22.5, &excluded_paths);
+
+    if let Some(ca) = current_video_avg {
+        if let Some(ref mut r) = lower {
+            r.delta_peak = Some(r.peak - current_peak);
+            r.delta_avg = Some(r.avg - ca);
+        }
+        if let Some(ref mut r) = similar {
+            r.delta_peak = Some(r.peak - current_peak);
+            r.delta_avg = Some(r.avg - ca);
+        }
+        if let Some(ref mut r) = higher {
+            r.delta_peak = Some(r.peak - current_peak);
+            r.delta_avg = Some(r.avg - ca);
+        }
+    }
 
     HttpResponse::Ok().json(NextRecommendationsResponse {
         lower,

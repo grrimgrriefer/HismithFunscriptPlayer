@@ -108,14 +108,50 @@ fn extract_stats_for_file(
                 .and_then(|v| v.as_f64())
                 .unwrap_or(0.0);
 
-            stats.push(VariantStat { peak, avg });
+            if peak.is_finite() || avg.is_finite() {
+                // Rounding required by JS badges
+                let rounded_peak = if peak.is_finite() { peak.round() } else { f64::NAN };
+                let rounded_avg = if avg.is_finite() { avg.round() } else { f64::NAN };
+                stats.push(VariantStat { peak: rounded_peak, avg: rounded_avg });
+            }
         }
     }
 
     if stats.is_empty() {
+        return None;
+    }
+
+    // Sort ascending: peak first, then average
+    stats.sort_by(|a, b| {
+        let ap = if a.peak.is_finite() { a.peak } else { f64::INFINITY };
+        let bp = if b.peak.is_finite() { b.peak } else { f64::INFINITY };
+        if ap != bp {
+            return ap.partial_cmp(&bp).unwrap_or(std::cmp::Ordering::Equal);
+        }
+        let aa = if a.avg.is_finite() { a.avg } else { 0.0 };
+        let ba = if b.avg.is_finite() { b.avg } else { 0.0 };
+        aa.partial_cmp(&ba).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    // Deduplicate rounded peak/avg combinations using a HashSet
+    let mut deduped = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for s in stats {
+        let key = format!(
+            "{}|{}",
+            if s.peak.is_finite() { s.peak.to_string() } else { "_".to_string() },
+            if s.avg.is_finite() { s.avg.to_string() } else { "_".to_string() }
+        );
+        if !seen.contains(&key) {
+            seen.insert(key);
+            deduped.push(s);
+        }
+    }
+
+    if deduped.is_empty() {
         None
     } else {
-        Some(stats)
+        Some(deduped)
     }
 }
 

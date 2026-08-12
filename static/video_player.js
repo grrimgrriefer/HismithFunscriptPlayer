@@ -423,7 +423,7 @@ function getStats(v) {
     return getFunscriptStats(state.globalFunscriptMap[toFunscriptPath(v.path)]);
 }
 
-function getStatHtml(candidate, currentStats, mode = 'relative') {
+function getStatHtml(candidate, mode = 'relative') {
     if (!candidate) return '';
     if (mode === 'absolute') {
         return (
@@ -431,8 +431,8 @@ function getStatHtml(candidate, currentStats, mode = 'relative') {
             `<span style="opacity:0.8">${candidate.avg.toFixed(1)} Avg</span>`
         );
     }
-    const dPeak = candidate.peak - currentStats.peak;
-    const dAvg = candidate.avg - currentStats.avg;
+    const dPeak = candidate.delta_peak ?? 0;
+    const dAvg = candidate.delta_avg ?? 0;
     const peakPrefix = dPeak > 0 ? '+' : '';
     const avgPrefix = dAvg > 0 ? '+' : '';
     const peakColor = dPeak > 0 ? '#ff5252' : '#69f0ae';
@@ -450,11 +450,6 @@ function updateOverlayButtons(candidates, labels, statMode = 'relative') {
     document.querySelector('#next-higher-btn .next-label').textContent =
         labels[2];
 
-    const currentStats =
-        statMode === 'relative'
-            ? getStats({ path: state.currentVideoRelativePath })
-            : null;
-
     const formatBtn = (id, candidate) => {
         const btn = document.getElementById(id);
         const thumbImg = btn.querySelector('.next-thumb');
@@ -470,7 +465,7 @@ function updateOverlayButtons(candidates, labels, statMode = 'relative') {
             thumbImg.style.display = 'block';
             thumbImg.src = `/site/thumbnails/${candidate.path}.jpg`;
         }
-        statsEl.innerHTML = getStatHtml(candidate, currentStats, statMode);
+        statsEl.innerHTML = getStatHtml(candidate, statMode);
         btn.onclick = () => startNextVideo(candidate);
     };
 

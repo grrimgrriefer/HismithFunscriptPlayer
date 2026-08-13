@@ -319,6 +319,23 @@ button#toggle-directory {
     border: 1px solid #888;
 }
 
+.temporary-message-overlay {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 15px 25px;
+    border-radius: 8px;
+    font-size: 1.2em;
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+    text-align: center;
+    pointer-events: none;
+}
+
 /* ── Directory Tree & Items ───────────────────────────────────────────── */
 #directory-container {
     position: absolute;

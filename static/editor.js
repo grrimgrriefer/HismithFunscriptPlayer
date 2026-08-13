@@ -1,6 +1,11 @@
 // static/editor.js
 
-import { toFunscriptPath, isTextInput, intensityToColor } from './utils.js';
+import {
+    toFunscriptPath,
+    isTextInput,
+    intensityToColor,
+    showTemporaryOverlayMessage
+} from './utils.js';
 
 // ── Constants ──────────────────────────────────────────────────────────
 
@@ -218,7 +223,7 @@ function handleDeleteSelected() {
 async function handleSave() {
     const taps = getEditingArray();
     if (taps.length < 1) {
-        alert('Not enough taps to create a funscript.');
+        showTemporaryOverlayMessage('Not enough taps to create a funscript.');
         return;
     }
 
@@ -237,7 +242,7 @@ async function handleSave() {
             })
         });
         if (!res.ok) throw new Error(`Failed to save: ${await res.text()}`);
-        alert('Funscript saved successfully!');
+        showTemporaryOverlayMessage('Funscript saved successfully!');
         window.location.reload();
     } catch (err) {
         console.error(err);
@@ -465,7 +470,7 @@ async function init() {
     }
 
     if (state.videoPath.includes(' ')) {
-        alert(
+        showTemporaryOverlayMessage(
             `Warning: The video file path "${state.videoPath}" contains spaces.\n\n` +
                 `While funscripts can be created, loading them reliably might be an issue due to how file paths are handled by the server.\n\n` +
                 `It's recommended to rename your video file and its corresponding funscript (if any) to remove spaces for best compatibility.`

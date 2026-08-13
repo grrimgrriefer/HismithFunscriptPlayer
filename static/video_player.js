@@ -20,7 +20,12 @@ import {
     setSBSMode,
     isHardLimitUnlocked
 } from './settings_menu.js';
-import { lerp, toFunscriptPath, getFunscriptStats } from './utils.js';
+import {
+    lerp,
+    toFunscriptPath,
+    getFunscriptStats,
+    showTemporaryOverlayMessage
+} from './utils.js';
 
 const urlParams = new URLSearchParams(window.location.search);
 const DISABLE_FULLSCREEN = ['1', 'true', 'yes'].includes(
@@ -170,7 +175,7 @@ export async function playVideo(
     videoElement.onplay = () => {
         if (isHardLimitUnlocked()) {
             videoElement.pause();
-            alert(
+            showTemporaryOverlayMessage(
                 'Playback refused: Max Intensity Limit is currently unlocked. Please lock it, for your safety, in Settings before playing.'
             );
             return;
@@ -276,7 +281,9 @@ export function setPlaybackData(tree, map) {
 
 function startNextVideo(videoNode) {
     if (!videoNode) {
-        alert('No similar video found in the specified intensity range.');
+        showTemporaryOverlayMessage(
+            'No similar video found in the specified intensity range.'
+        );
         return;
     }
     hideNextVideoOverlay();

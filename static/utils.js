@@ -73,3 +73,25 @@ export function isTextInput(target) {
     const tag = target?.tagName?.toUpperCase() ?? '';
     return tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable;
 }
+
+export function showTemporaryOverlayMessage(message) {
+    let overlay = document.getElementById('temporary-message-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'temporary-message-overlay';
+        overlay.classList.add('temporary-message-overlay');
+        document.body.appendChild(overlay);
+    }
+
+    overlay.textContent = message;
+    overlay.style.opacity = '1';
+
+    setTimeout(() => {
+        overlay.style.opacity = '0';
+        setTimeout(() => {
+            if (overlay.parentNode) {
+                overlay.parentNode.removeChild(overlay);
+            }
+        }, 300); // fade out matches CSS transition
+    }, 2000);
+}

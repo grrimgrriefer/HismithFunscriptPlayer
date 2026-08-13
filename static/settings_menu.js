@@ -12,7 +12,11 @@ import {
     getSelectedSpeed,
     getLastIntensityStats
 } from './funscript_handler.js';
-import { toFunscriptPath, intensityToColor } from './utils.js';
+import {
+    toFunscriptPath,
+    intensityToColor,
+    showTemporaryOverlayMessage
+} from './utils.js';
 import { updateFunscriptDisplayBox } from './funscript_display_graphs.js';
 
 let initialized = false;
@@ -264,8 +268,8 @@ function initHardLimit(menu) {
                 const video = document.querySelector('#video-player video');
                 if (video && !video.paused) {
                     video.pause();
-                    alert(
-                        'Playback paused because Max Intensity Limit was unlocked.'
+                    showTemporaryOverlayMessage(
+                        'Playback paused: Max Intensity Limit unlocked.'
                     );
                 }
             }
@@ -278,7 +282,9 @@ function initHardLimit(menu) {
             setAbsoluteMaximum(value);
             syncMaxLimitToRust(value);
         } else {
-            alert('Please enter a value between 0 and 100.');
+            showTemporaryOverlayMessage(
+                'Please enter a value between 0 and 100.'
+            );
             input.value = getAbsoluteMaximum().toString();
         }
     });
@@ -299,7 +305,9 @@ function initEditorButton(menu) {
     btn.addEventListener('click', () => {
         const videoPath = getCurrentVideoPath();
         if (!videoPath) {
-            alert('No video loaded. Open a video from the directory first.');
+            showTemporaryOverlayMessage(
+                'No video loaded. Open a video from the directory first.'
+            );
             return;
         }
         window.open(
@@ -351,7 +359,7 @@ async function fetchCalibrationHtml() {
         return card ? card.outerHTML : doc.body.innerHTML;
     } catch (err) {
         console.error('Failed to fetch calibration UI', err);
-        alert('Failed to load calibration UI');
+        showTemporaryOverlayMessage('Failed to load calibration UI');
         return null;
     }
 }

@@ -68,9 +68,20 @@ pub async fn handle_calibration_page() -> Result<impl Responder, Error> {
         .insert_header(("Cache-Control", "no-cache")))
 }
 
+#[derive(Serialize)]
+pub struct BpmMappingResponse {
+    pub points: Vec<crate::buttplug::funscript_utils::BpmIntensityPoint>,
+    pub lut: HashMap<String, f64>,
+}
+
 pub async fn get_bpm_mapping() -> impl Responder {
-    let mapping = crate::buttplug::funscript_utils::get_bpm_intensity_mapping();
-    HttpResponse::Ok().json(mapping)
+    let points = crate::buttplug::funscript_utils::get_bpm_intensity_mapping();
+    let mut lut = HashMap::new();
+    for i in 0..=100 {
+        let bpm = crate::buttplug::funscript_utils::intensity_to_bpm(i as f64);
+        lut.insert(i.to_string(), bpm);
+    }
+    HttpResponse::Ok().json(BpmMappingResponse { points, lut })
 }
 
 pub async fn get_profiles() -> impl Responder {

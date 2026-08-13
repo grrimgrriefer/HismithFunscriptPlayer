@@ -175,6 +175,8 @@ pub async fn get_folder_start_recommendations(query: web::Query<FolderStartQuery
                 name: v.name,
                 peak,
                 avg,
+                delta_peak: None,
+                delta_avg: None,
             });
         }
     }

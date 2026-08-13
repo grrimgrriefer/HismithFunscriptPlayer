@@ -14,6 +14,7 @@ const KEEPALIVE_MS = 1500;
 // ── State ──────────────────────────────────────────────────────────────
 const calibratedBpms = {};
 let bpmMapping = [];
+let bpmLut = {};
 
 const state = {
     selectedPreset: null,
@@ -42,11 +43,14 @@ async function loadBpmMapping() {
         const resp = await fetch('/api/calibration-mapping');
         if (!resp.ok) return;
         const data = await resp.json();
-        if (Array.isArray(data)) {
-            bpmMapping = data.map((pt) => [
+        if (data && Array.isArray(data.points)) {
+            bpmMapping = data.points.map((pt) => [
                 Number(pt.bpm),
                 Number(pt.intensity)
             ]);
+        }
+        if (data && data.lut) {
+            bpmLut = data.lut;
         }
     } catch (err) {
         console.error('Failed to load BPM mapping', err);
@@ -54,21 +58,8 @@ async function loadBpmMapping() {
 }
 
 export function intensityToBpm(intensity) {
-    const val = clamp(intensity, 0, 100);
-    if (bpmMapping.length === 0) return 0.0;
-    if (val <= 0) return bpmMapping[0][0];
-    if (val >= 100) return bpmMapping[bpmMapping.length - 1][0];
-
-    for (let i = 0; i < bpmMapping.length - 1; i++) {
-        const [b0, i0] = bpmMapping[i];
-        const [b1, i1] = bpmMapping[i + 1];
-        if (val >= i0 && val <= i1) {
-            if (i1 === i0) return b0;
-            const t = (val - i0) / (i1 - i0);
-            return b0 + t * (b1 - b0);
-        }
-    }
-    return 0.0;
+    const val = Math.round(clamp(intensity, 0, 100));
+    return bpmLut[String(val)] ?? 0.0;
 }
 
 // ── DOM Initialization ─────────────────────────────────────────────────

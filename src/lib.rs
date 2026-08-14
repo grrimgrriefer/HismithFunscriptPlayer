@@ -22,6 +22,7 @@
 
 pub mod routes;
 pub mod handlers {
+    pub mod analysis;
     pub mod calibration;
     pub mod editor;
     pub mod funscript;

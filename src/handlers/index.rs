@@ -108,11 +108,21 @@ fn extract_stats_for_file(
                 .and_then(|v| v.as_f64())
                 .unwrap_or(0.0);
 
+            let volatility = val
+                .get("volatility")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
+
             if peak.is_finite() || avg.is_finite() {
                 // Rounding required by JS badges
                 let rounded_peak = if peak.is_finite() { peak.round() } else { f64::NAN };
                 let rounded_avg = if avg.is_finite() { avg.round() } else { f64::NAN };
-                stats.push(VariantStat { peak: rounded_peak, avg: rounded_avg });
+                let rounded_vol = if volatility.is_finite() { (volatility * 10.0).round() / 10.0 } else { f64::NAN };
+                stats.push(VariantStat {
+                    peak: rounded_peak,
+                    avg: rounded_avg,
+                    volatility: rounded_vol,
+                });
             }
         }
     }

@@ -44,6 +44,11 @@ export function relativeIntensityToColor(d) {
               : '#fff';
 }
 
+export function volatilityToColor(v) {
+    const val = Math.max(0, Math.min(10, Number(v) || 0));
+    return intensityToColor(val * 10);
+}
+
 export function clamp(v, min, max) {
     return Math.min(max, Math.max(min, v));
 }

@@ -548,3 +548,160 @@ pub fn get_calibrated_intensity(raw_intensity: f64, cal_points: &[(f64, f64)]) -
 
     raw_intensity
 }
+
+pub fn calculate_volatility(actions: &[Action]) -> f64 {
+    if actions.len() < 2 {
+        return 0.0;
+    }
+
+    let curve_actions = actions_to_intensity_curve(actions, &[]);
+    if curve_actions.is_empty() {
+        return 0.0;
+    }
+
+    let curve: Vec<(f64, f64)> = curve_actions
+        .iter()
+        .map(|a| (a.at as f64 / 1000.0, a.pos))
+        .collect();
+
+    // Section calculation logic (same as in analysis.rs)
+    let sections = compute_sections(&curve);
+    if sections.is_empty() {
+        return 0.0;
+    }
+
+    let total_duration_sec: f64 = sections.iter().map(|s| s.duration).sum();
+    let num_sections = sections.len();
+    if total_duration_sec <= 0.0 || num_sections == 0 {
+        return 0.0;
+    }
+
+    let avg_section_duration = total_duration_sec / num_sections as f64;
+    let mut jumps = Vec::new();
+    for i in 0..num_sections - 1 {
+        jumps.push((sections[i + 1].mean_intensity - sections[i].mean_intensity).abs());
+    }
+    let avg_intensity_jump = if !jumps.is_empty() {
+        jumps.iter().sum::<f64>() / jumps.len() as f64
+    } else {
+        0.0
+    };
+
+    let variance = sections
+        .iter()
+        .map(|s| (s.duration - avg_section_duration).powi(2))
+        .sum::<f64>()
+        / num_sections as f64;
+    let std_dev_section_duration = variance.sqrt();
+
+    let avg_duration_norm = (1.0 - (avg_section_duration - 5.0) / 25.0).clamp(0.0, 1.0);
+    let avg_jump_norm = ((avg_intensity_jump - 5.0) / 35.0).clamp(0.0, 1.0);
+    let std_dev_norm = (std_dev_section_duration / 15.0).clamp(0.0, 1.0);
+
+    let raw_score = 0.50 * avg_duration_norm + 0.30 * avg_jump_norm + 0.20 * std_dev_norm;
+    ((raw_score * 9.0 + 1.0).clamp(1.0, 10.0) * 10.0).round() / 10.0
+}
+
+#[derive(Clone)]
+struct Section {
+    duration: f64,
+    peak_intensity: f64,
+    mean_intensity: f64,
+    bucket: String,
+}
+
+fn get_bucket(intensity: f64) -> String {
+    let val = intensity.clamp(0.0, 100.0);
+    let mut lower = (val / 10.0).floor() as u32 * 10;
+    if lower >= 100 {
+        lower = 90;
+    }
+    format!("{}-{}", lower, lower + 10)
+}
+
+fn compute_sections(curve: &[(f64, f64)]) -> Vec<Section> {
+    if curve.is_empty() {
+        return Vec::new();
+    }
+
+    let max_variation = 10.0;
+    let min_duration = 1.0;
+    let mut sections = Vec::new();
+    let mut current_start_idx = 0;
+    let mut i = 0;
+
+    while i < curve.len() {
+        let window = &curve[current_start_idx..=i];
+        let c_min = window.iter().map(|p| p.1).fold(f64::INFINITY, f64::min);
+        let c_max = window.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max);
+
+        if c_max - c_min > max_variation {
+            let end_idx = current_start_idx.max(i.saturating_sub(1));
+            let sec_curve = &curve[current_start_idx..=end_idx];
+            let sec_duration = sec_curve.last().unwrap().0 - sec_curve.first().unwrap().0;
+            let sec_peak = sec_curve.iter().map(|p| p.1).fold(0.0, f64::max);
+            let sec_mean = sec_curve.iter().map(|p| p.1).sum::<f64>() / sec_curve.len() as f64;
+
+            sections.push(Section {
+                duration: sec_duration,
+                peak_intensity: sec_peak,
+                mean_intensity: sec_mean,
+                bucket: get_bucket(sec_peak),
+            });
+
+            current_start_idx = end_idx + 1;
+            i = current_start_idx;
+        } else if i == curve.len() - 1 {
+            let sec_curve = &curve[current_start_idx..=i];
+            let sec_duration = sec_curve.last().unwrap().0 - sec_curve.first().unwrap().0;
+            let sec_peak = sec_curve.iter().map(|p| p.1).fold(0.0, f64::max);
+            let sec_mean = sec_curve.iter().map(|p| p.1).sum::<f64>() / sec_curve.len() as f64;
+
+            sections.push(Section {
+                duration: sec_duration,
+                peak_intensity: sec_peak,
+                mean_intensity: sec_mean,
+                bucket: get_bucket(sec_peak),
+            });
+            i += 1;
+        } else {
+            i += 1;
+        }
+    }
+
+    // Iterative collapse
+    let mut changed = true;
+    while changed {
+        changed = false;
+        if sections.len() <= 1 {
+            break;
+        }
+
+        let mut new_sections = vec![sections[0].clone()];
+        for j in 1..sections.len() {
+            let sec = &sections[j];
+            let prev = new_sections.last_mut().unwrap();
+
+            if sec.bucket == prev.bucket || sec.duration < min_duration || prev.duration < min_duration {
+                let total_dur = prev.duration + sec.duration;
+                let new_peak = prev.peak_intensity.max(sec.peak_intensity);
+                let new_mean = if total_dur > 0.0 {
+                    (prev.mean_intensity * prev.duration + sec.mean_intensity * sec.duration) / total_dur
+                } else {
+                    0.0
+                };
+
+                prev.duration = total_dur;
+                prev.peak_intensity = new_peak;
+                prev.mean_intensity = new_mean;
+                prev.bucket = get_bucket(new_peak);
+                changed = true;
+            } else {
+                new_sections.push(sec.clone());
+            }
+        }
+        sections = new_sections;
+    }
+
+    sections
+}

@@ -1,7 +1,11 @@
 // static/directory_tree.js
 
 import { playVideo, showFolderStartOverlay } from './video_player.js';
-import { toFunscriptPath, intensityToColor } from './utils.js';
+import {
+    toFunscriptPath,
+    intensityToColor,
+    volatilityToColor
+} from './utils.js';
 
 // ── Rendering ──────────────────────────────────────────────────────────
 
@@ -30,16 +34,26 @@ function buildIntensityBadge(stats) {
     for (const e of stats) {
         const peakText = isFinite(e.peak) ? String(e.peak) : '—';
         const avgText = isFinite(e.avg) ? String(e.avg) : '—';
+        const volText = isFinite(e.volatility)
+            ? Number(e.volatility).toFixed(1)
+            : '—';
+
         const peakColor = isFinite(e.peak)
             ? intensityToColor(e.peak)
             : 'rgba(255,255,255,0.75)';
         const avgColor = isFinite(e.avg)
             ? intensityToColor(e.avg)
             : 'rgba(255,255,255,0.5)';
+        const volColor = isFinite(e.volatility)
+            ? volatilityToColor(e.volatility)
+            : 'rgba(255,255,255,0.5)';
 
         parts.push(
-            `<span><span style="color:${peakColor}">${peakText}</span>` +
-                `<span style="color:${avgColor}"> (${avgText})</span></span>`
+            `<span>` +
+                `<span style="color:${peakColor}">🔺${peakText}</span> ` +
+                `<span style="color:${avgColor}">🌡️${avgText}</span> ` +
+                `<span style="color:${volColor}">⚡${volText}</span>` +
+                `</span>`
         );
     }
 

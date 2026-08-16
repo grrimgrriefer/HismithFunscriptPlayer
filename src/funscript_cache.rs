@@ -7,7 +7,7 @@
 //! (.funscript_cache.json) beside the funscript base and maps relative file paths
 //! to computed entries (sha256, average/peak intensity, sample counts, timestamp).
 
-use crate::buttplug::funscript_utils::{FunscriptData, actions_to_intensity_curve, calculate_intensity_stats, };
+use crate::buttplug::funscript_utils::{self, FunscriptData };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -16,11 +16,21 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::fs;
 use walkdir::WalkDir;
 
+const CURRENT_CACHE_VERSION: u32 = 2;
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FunscriptCacheFile {
+    pub version: u32,
+    pub entries: HashMap<String, FunscriptCacheEntry>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FunscriptCacheEntry {
     pub sha256: String,
     pub average_intensity: f64,
     pub peak_intensity: f64,
+    #[serde(default)]
+    pub volatility: f64,
     pub sample_count: usize,
     pub last_updated: u64,
 }
@@ -64,19 +74,22 @@ fn build_entry(content: &str, sha256: String) -> Result<FunscriptCacheEntry, Str
             sha256,
             average_intensity: 0.0,
             peak_intensity: 0.0,
+            volatility: 0.0,
             sample_count: 0,
             last_updated: unix_now_secs(),
         });
     }
 
     let actions = data.actions.clone();
-    let intensity = actions_to_intensity_curve(&actions, &[]); //baseline uncalibrated is fine
-    let (average_intensity, peak_intensity) = calculate_intensity_stats(&intensity);
+    let intensity = funscript_utils::actions_to_intensity_curve(&actions, &[]);
+    let (average_intensity, peak_intensity) = funscript_utils::calculate_intensity_stats(&intensity);
+    let volatility = funscript_utils::calculate_volatility(&actions); // <-- Added
 
     Ok(FunscriptCacheEntry {
         sha256,
         average_intensity,
         peak_intensity,
+        volatility,
         sample_count: intensity.len(),
         last_updated: unix_now_secs(),
     })
@@ -85,7 +98,14 @@ fn build_entry(content: &str, sha256: String) -> Result<FunscriptCacheEntry, Str
 async fn read_cache(path: &Path) -> Result<FunscriptCache, String> {
     match fs::read_to_string(path).await {
         Ok(raw) => {
-            serde_json::from_str(&raw).map_err(|e| format!("Failed parse cache json: {}", e))
+            if let Ok(wrapper) = serde_json::from_str::<FunscriptCacheFile>(&raw) {
+                if wrapper.version == CURRENT_CACHE_VERSION {
+                    return Ok(wrapper.entries);
+                }
+                log::info!("Cache schema version changed (v{} -> v{}). Rebuilding cache...", wrapper.version, CURRENT_CACHE_VERSION);
+                return Ok(HashMap::new());
+            }
+            Ok(HashMap::new())
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(HashMap::new()),
         Err(e) => Err(format!("Failed read cache file {:?}: {}", path, e)),

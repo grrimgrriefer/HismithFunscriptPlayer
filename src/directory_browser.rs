@@ -18,6 +18,7 @@ use walkdir::WalkDir;
 pub struct VariantStat {
     pub peak: f64,
     pub avg: f64,
+    pub volatility: f64,
 }
 
 #[derive(Serialize, Debug, Clone)]

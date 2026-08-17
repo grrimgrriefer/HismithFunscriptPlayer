@@ -174,46 +174,6 @@ fn sort_file_nodes(children: &mut [FileNode]) {
                 return std::cmp::Ordering::Greater;
             }
         }
-
-        if !a.is_dir {
-            let a_has_peak = a.stats.as_ref().map_or(false, |s| s.iter().any(|v| v.peak.is_finite()));
-            let b_has_peak = b.stats.as_ref().map_or(false, |s| s.iter().any(|v| v.peak.is_finite()));
-
-            if a_has_peak != b_has_peak {
-                if a_has_peak {
-                    return std::cmp::Ordering::Less;
-                } else {
-                    return std::cmp::Ordering::Greater;
-                }
-            }
-
-            if a_has_peak && b_has_peak {
-                let a_min_peak = a
-                    .stats
-                    .as_ref()
-                    .unwrap()
-                    .iter()
-                    .map(|s| s.peak)
-                    .filter(|p| p.is_finite())
-                    .fold(f64::INFINITY, f64::min);
-
-                let b_min_peak = b
-                    .stats
-                    .as_ref()
-                    .unwrap()
-                    .iter()
-                    .map(|s| s.peak)
-                    .filter(|p| p.is_finite())
-                    .fold(f64::INFINITY, f64::min);
-
-                if (a_min_peak - b_min_peak).abs() > f64::EPSILON {
-                    return a_min_peak
-                        .partial_cmp(&b_min_peak)
-                        .unwrap_or(std::cmp::Ordering::Equal);
-                }
-            }
-        }
-
         a.name.to_lowercase().cmp(&b.name.to_lowercase())
     });
 }

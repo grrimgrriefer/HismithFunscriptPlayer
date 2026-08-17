@@ -14,6 +14,14 @@
     <div id="app">
         <div id="directory-container">
             <h1>Video Player</h1>
+            <div class="sort-container">
+                <span class="sort-label-title">Order by:</span>
+                <div class="sort-buttons" id="sort-buttons">
+                    <button class="sort-btn" data-sort="peak" title="Sort by Peak Intensity">🔺 <span class="sort-label">Peak</span></button>
+                    <button class="sort-btn" data-sort="avg" title="Sort by Average Intensity">🌡️ <span class="sort-label">Avg</span></button>
+                    <button class="sort-btn" data-sort="volatility" title="Sort by Volatility">⚡ <span class="sort-label">Volatility</span></button>
+                </div>
+            </div>
             <div id="search-container-placeholder"></div>
             <div id="directory-tree"></div>
         </div>

@@ -5,6 +5,8 @@ import { initWebSocket } from './socket.js';
 import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js';
 import { setPlaybackData } from './video_player.js';
 
+let currentTreeData = null;
+
 function initializeUI() {
     createSettingsMenu();
 
@@ -43,22 +45,47 @@ async function main() {
     initWebSocket();
 
     const treeContainer = document.getElementById('directory-tree');
+    const sortButtons = document.querySelectorAll('#sort-buttons .sort-btn');
+
+    let currentSort = localStorage.getItem('directorySortBy') || 'peak';
+
+    const updateActiveSortButton = (sortBy) => {
+        sortButtons.forEach((btn) => {
+            btn.classList.toggle('active', btn.dataset.sort === sortBy);
+        });
+    };
+
+    updateActiveSortButton(currentSort);
 
     try {
         const response = await fetch('/api/directory-tree');
-        if (!response.ok) {
-            throw new Error(
-                `Failed to fetch directory tree: ${response.statusText}`
-            );
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const payload = await response.json();
-        const treeData = payload.tree || payload;
+        currentTreeData = payload.tree || payload;
         const funscriptMap = payload.funscripts || {};
 
-        setPlaybackData(treeData, funscriptMap);
+        setPlaybackData(currentTreeData, funscriptMap);
         renderCacheError(payload, treeContainer);
-        initDirectoryTree(treeData, treeContainer, funscriptMap);
+
+        initDirectoryTree(currentTreeData, treeContainer, currentSort);
+
+        sortButtons.forEach((btn) => {
+            btn.onclick = () => {
+                const sortBy = btn.dataset.sort;
+                if (sortBy === currentSort) return;
+                currentSort = sortBy;
+                localStorage.setItem('directorySortBy', currentSort);
+                updateActiveSortButton(currentSort);
+                if (currentTreeData) {
+                    initDirectoryTree(
+                        currentTreeData,
+                        treeContainer,
+                        currentSort
+                    );
+                }
+            };
+        });
     } catch (error) {
         console.error(error);
         treeContainer.innerHTML =

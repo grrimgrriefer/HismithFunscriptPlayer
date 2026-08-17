@@ -65,7 +65,7 @@ function buildIntensityBadge(stats) {
     return badge;
 }
 
-function renderTree(node, parent) {
+function renderTree(node, parent, openFolders = new Set()) {
     const li = document.createElement('li');
 
     if (node.is_dir) {
@@ -78,9 +78,13 @@ function renderTree(node, parent) {
 
         const ul = document.createElement('ul');
         ul.id = node.path;
-        ul.className = 'hidden';
+        if (!openFolders.has(node.path)) {
+            ul.className = 'hidden';
+        }
 
-        (node.children || []).forEach((child) => renderTree(child, ul));
+        (node.children || []).forEach((child) =>
+            renderTree(child, ul, openFolders)
+        );
         li.appendChild(ul);
     } else {
         const row = document.createElement('div');
@@ -110,17 +114,82 @@ function renderTree(node, parent) {
 
 // ── Public API ─────────────────────────────────────────────────────────
 
-export function initDirectoryTree(treeData, containerElement) {
+export function sortTreeNodes(node, sortBy = 'peak') {
+    if (!node.children || node.children.length === 0) return;
+
+    const getMetric = (fileNode, key) => {
+        if (!fileNode.stats || fileNode.stats.length === 0) return Infinity;
+        const vals = fileNode.stats
+            .map((s) => s[key])
+            .filter((v) => typeof v === 'number' && isFinite(v));
+        return vals.length > 0 ? Math.min(...vals) : Infinity;
+    };
+
+    node.children.sort((a, b) => {
+        if (a.is_dir !== b.is_dir) {
+            return a.is_dir ? -1 : 1;
+        }
+
+        if (!a.is_dir) {
+            const aHasStats = a.stats && a.stats.length > 0;
+            const bHasStats = b.stats && b.stats.length > 0;
+
+            if (aHasStats !== bHasStats) {
+                return aHasStats ? -1 : 1;
+            }
+
+            if (aHasStats && bHasStats && sortBy !== 'name') {
+                const aPrimary = getMetric(a, sortBy);
+                const bPrimary = getMetric(b, sortBy);
+
+                if (Math.abs(aPrimary - bPrimary) > 1e-5) {
+                    return aPrimary - bPrimary;
+                }
+
+                if (sortBy !== 'peak') {
+                    const aPeak = getMetric(a, 'peak');
+                    const bPeak = getMetric(b, 'peak');
+                    if (Math.abs(aPeak - bPeak) > 1e-5) {
+                        return aPeak - bPeak;
+                    }
+                }
+            }
+        }
+
+        return a.name.localeCompare(b.name, undefined, {
+            numeric: true,
+            sensitivity: 'base'
+        });
+    });
+
+    for (const child of node.children) {
+        if (child.is_dir) {
+            sortTreeNodes(child, sortBy);
+        }
+    }
+}
+
+export function initDirectoryTree(treeData, containerElement, sortBy = 'peak') {
     if (!treeData || !containerElement) {
         console.error('Directory tree data or container element is missing.');
         return;
     }
 
+    const openFolders = new Set(
+        Array.from(containerElement.querySelectorAll('ul:not(.hidden)'))
+            .map((el) => el.id)
+            .filter(Boolean)
+    );
+
+    const treeCopy = JSON.parse(JSON.stringify(treeData));
+    sortTreeNodes(treeCopy, sortBy);
+
     containerElement.innerHTML = '';
     const rootUl = document.createElement('ul');
     rootUl.id = 'directory-tree-root';
 
-    (treeData.children || []).forEach((child) => renderTree(child, rootUl));
-
+    (treeCopy.children || []).forEach((child) =>
+        renderTree(child, rootUl, openFolders)
+    );
     containerElement.appendChild(rootUl);
 }

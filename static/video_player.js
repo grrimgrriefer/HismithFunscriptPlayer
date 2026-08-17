@@ -24,7 +24,10 @@ import {
     lerp,
     toFunscriptPath,
     getFunscriptStats,
-    showTemporaryOverlayMessage
+    showTemporaryOverlayMessage,
+    intensityToColor,
+    volatilityToColor,
+    relativeIntensityToColor
 } from './utils.js';
 
 const urlParams = new URLSearchParams(window.location.search);
@@ -432,20 +435,35 @@ function getStats(v) {
 
 function getStatHtml(candidate, mode = 'relative') {
     if (!candidate) return '';
+
     if (mode === 'absolute') {
+        const peakColor = intensityToColor(candidate.peak);
+        const avgColor = intensityToColor(candidate.avg);
+        const volColor = volatilityToColor(candidate.volatility);
+
         return (
-            `<span style="color:#69f0ae">${candidate.peak.toFixed(1)} Peak</span><br>` +
-            `<span style="opacity:0.8">${candidate.avg.toFixed(1)} Avg</span>`
+            `<span style="color:${peakColor}">🔺 ${candidate.peak.toFixed(1)} Peak</span><br>` +
+            `<span style="color:${avgColor}">🌡️ ${candidate.avg.toFixed(1)} Avg</span><br>` +
+            `<span style="color:${volColor}">⚡️ ${candidate.volatility.toFixed(1)} Vol</span>`
         );
     }
+
     const dPeak = candidate.delta_peak ?? 0;
     const dAvg = candidate.delta_avg ?? 0;
+    const dVol = candidate.delta_volatility ?? 0;
+
     const peakPrefix = dPeak > 0 ? '+' : '';
     const avgPrefix = dAvg > 0 ? '+' : '';
-    const peakColor = dPeak > 0 ? '#ff5252' : '#69f0ae';
+    const volPrefix = dVol > 0 ? '+' : '';
+
+    const peakColor = relativeIntensityToColor(dPeak);
+    const avgColor = relativeIntensityToColor(dAvg);
+    const volColor = relativeIntensityToColor(dVol);
+
     return (
-        `<span style="color:${peakColor}">${peakPrefix}${dPeak.toFixed(1)} Peak</span><br>` +
-        `<span style="opacity:0.8">${avgPrefix}${dAvg.toFixed(1)} Avg</span>`
+        `<span style="color:${peakColor}">🔺 ${peakPrefix}${dPeak.toFixed(1)} Peak</span><br>` +
+        `<span style="color:${avgColor}">🌡️ ${avgPrefix}${dAvg.toFixed(1)} Avg</span><br>` +
+        `<span style="color:${volColor}">⚡️ ${volPrefix}${dVol.toFixed(1)} Vol</span>`
     );
 }
 

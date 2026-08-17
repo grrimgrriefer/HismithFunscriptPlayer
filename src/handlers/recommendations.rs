@@ -34,10 +34,13 @@ pub struct RecommendedVideo {
     pub name: String,
     pub peak: f64,
     pub avg: f64,
+    pub volatility: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub delta_peak: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub delta_avg: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delta_volatility: Option<f64>,
 }
 
 #[derive(Serialize)]
@@ -93,20 +96,24 @@ pub async fn get_next_recommendations(query: web::Query<NextQuery>) -> impl Resp
     let mut videos_with_stats = Vec::new();
     let mut current_video_peak = None;
     let mut current_video_avg = None;
+    let mut current_video_volatility = None;
 
     for v in sibling_videos {
-        if let Some((peak, avg)) = get_stats_for_video(&v.path, &cache) {
+        if let Some((peak, avg, volatility)) = get_stats_for_video(&v.path, &cache) {
             if v.path == *target_path {
                 current_video_peak = Some(peak);
                 current_video_avg = Some(avg);
+                current_video_volatility = Some(volatility);
             }
             videos_with_stats.push(RecommendedVideo {
                 path: v.path,
                 name: v.name,
                 peak,
                 avg,
+                volatility,
                 delta_peak: None,
                 delta_avg: None,
+                delta_volatility: None,
             });
         }
     }
@@ -124,18 +131,21 @@ pub async fn get_next_recommendations(query: web::Query<NextQuery>) -> impl Resp
         .or_else(|| find_closest_video(&videos_with_stats, target_path, current_peak, &excluded_paths));
     let mut higher = find_random_video(&videos_with_stats, target_path, current_peak, 7.5, 22.5, &excluded_paths);
 
-    if let Some(ca) = current_video_avg {
+    if let (Some(cp), Some(ca), Some(cv)) = (current_video_peak, current_video_avg, current_video_volatility) {
         if let Some(ref mut r) = lower {
-            r.delta_peak = Some(r.peak - current_peak);
+            r.delta_peak = Some(r.peak - cp);
             r.delta_avg = Some(r.avg - ca);
+            r.delta_volatility = Some(r.volatility - cv);
         }
         if let Some(ref mut r) = similar {
-            r.delta_peak = Some(r.peak - current_peak);
+            r.delta_peak = Some(r.peak - cp);
             r.delta_avg = Some(r.avg - ca);
+            r.delta_volatility = Some(r.volatility - cv);
         }
         if let Some(ref mut r) = higher {
-            r.delta_peak = Some(r.peak - current_peak);
+            r.delta_peak = Some(r.peak - cp);
             r.delta_avg = Some(r.avg - ca);
+            r.delta_volatility = Some(r.volatility - cv);
         }
     }
 
@@ -169,14 +179,16 @@ pub async fn get_folder_start_recommendations(query: web::Query<FolderStartQuery
 
     let mut videos_with_stats = Vec::new();
     for v in folder_videos {
-        if let Some((peak, avg)) = get_stats_for_video(&v.path, &cache) {
+        if let Some((peak, avg, volatility)) = get_stats_for_video(&v.path, &cache) {
             videos_with_stats.push(RecommendedVideo {
                 path: v.path,
                 name: v.name,
                 peak,
                 avg,
+                volatility,
                 delta_peak: None,
                 delta_avg: None,
+                delta_volatility: None,
             });
         }
     }
@@ -239,7 +251,7 @@ fn get_videos_in_folder(tree: &FileNode, folder_path: &str) -> Vec<FileNode> {
 fn get_stats_for_video(
     file_path: &str,
     cache: &funscript_cache::FunscriptCache,
-) -> Option<(f64, f64)> {
+) -> Option<(f64, f64, f64)> {
     let stem_path = Path::new(file_path).with_extension("");
     let stem_str = stem_path.to_string_lossy();
     let exact_match = format!("{stem_str}.funscript");
@@ -250,7 +262,7 @@ fn get_stats_for_video(
         let is_variant = key.starts_with(&variant_prefix) && key.ends_with(".funscript");
 
         if is_exact || is_variant {
-            return Some((val.peak_intensity, val.average_intensity));
+            return Some((val.peak_intensity, val.average_intensity, val.volatility));
         }
     }
     None

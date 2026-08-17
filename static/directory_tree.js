@@ -52,7 +52,7 @@ function buildIntensityBadge(stats) {
             `<span>` +
                 `<span style="color:${peakColor}">🔺${peakText}</span> ` +
                 `<span style="color:${avgColor}">🌡️${avgText}</span> ` +
-                `<span style="color:${volColor}">⚡${volText}</span>` +
+                `<span style="color:${volColor}">⚡️${volText}</span>` +
                 `</span>`
         );
     }

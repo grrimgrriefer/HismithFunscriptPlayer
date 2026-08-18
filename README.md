@@ -12,23 +12,27 @@ A web-based video player (built with Rust, Actix-web, and plain JavaScript) that
 - **Funscript Synchronization**  
 Continuous real-time intensity calculation from `.funscript` files.
 - **On-Screen Graph & HUD**  
-Real-time visualization of upcoming thrusts, intensity curve, beat markers, and active user-defined safety hardwarelimits.
+Real-time visualization of upcoming thrusts, intensity curve, beat markers, and active user-defined safety hardware limits.
+- **Directory Badges & Sorting**  
+Display Peak (`🔺`), Average (`🌡️`), and Volatility (`⚡️`) metrics on file tree items. Sort directory contents by Peak, Average, or Volatility.
 - **Side-by-Side (SBS) 3D Support**  
 SBS toggle and automatic activation for 32:9 aspect ratio videos.
 - **Smart Next-Video Overlay**  
-Automatic recommendations (Lower, Similar, Higher intensity) when a video or script ends, with preview thumbnail previews and intensity deltas (compared to the current video).
+Automatic recommendations (Lower, Similar, Higher intensity) when a video or script ends, featuring thumbnail previews and relative intensity/volatility deltas (`🔺`, `🌡️`, `⚡️`).
 - **Folder Start Recommendations**  
 Pre-select starting videos (Low ~20%, Medium ~35%, High ~50% intensity) when opening folders.
 - **Intensity Modulation**  
-Play scripts in normally (1x), half-beat (0.5x), quarter-beat (0.25x), or double-beat (2.0x) to allow easy variation and facilitate various toy-sizes.
+Play scripts normally (1.0x), half-beat (0.5x), quarter-beat (0.25x), or double-beat (2.0x) to facilitate various toy sizes and preferences.
 - **Script Variant Support**  
 Load custom alternate script variants (e.g., `.low.funscript`, `.hard.funscript`) for customized variations (i.e. custom pattern variations).
 - **Vibration Modes**  
-Choose between general intensity-scaled vibration (`Rate`) based on beats-per-minute, or pulse vibration with each beat indivually (`Beat`).
+Choose between continuous intensity-scaled vibration (`Rate`) or beat-pulsed vibration (`Beat`).
 - **In-Browser Funscript Editor**  
-Create or adjust funscripts directly in authoring tool using tap-along controls, multi-selection, dragging, etc. for interactive timeline editing.
+Create or adjust funscripts directly in the authoring tool using tap-along controls, multi-selection, dragging, and real-time intensity calculations.
 - **Machine Calibration**  
-Synchronize your hardware device to perfectly match the stroke speeds by calibrating it. This is to compensate for various friction levels, machine power, angles, etc.
+Map screen intensities (10%–50%) to actual physical stroke speeds (BPM) to compensate for motor power curves and mechanical friction.
+- **Duration Discrepancy Tool**  
+Built-in analysis page (`/site/analysis/durations`) comparing video length against script length to spot incomplete scripts.
 
 ---
 
@@ -39,6 +43,8 @@ Synchronize your hardware device to perfectly match the stroke speeds by calibra
   - Install and run [Intiface Central](https://intiface.com/central/).
   - Ensure the WebSocket server is active on the (default) port `12345` (`ws://127.0.0.1:12345/buttplug`).
   - Connect compatible devices inside Intiface.
+- **FFmpeg & FFprobe:**
+  - Required for generating dynamic video thumbnails and analyzing video duration gaps. Must be available in system `PATH` for native execution (pre-installed in Docker container).
 
 ### 2. Configuration (`.env`)
 Create a `.env` file in the project root:
@@ -70,24 +76,25 @@ docker run -d -p 5441:5441 \
 
 Open your browser at `http://<HOST_IP>:5441/site/`
 
-
 ---
 
 ## User Guide & Interface Overview
 
-### URL Query Parameters
+### URL Query Parameters & Utility Routes
 - **`?no_fullscreen=1`** (or `true`/`yes`)  
-  Appended to the page URL (e.g. `http://<HOST_IP>:5441/site/?no_fullscreen=1`). Disables automatic browser fullscreen mode upon video playback start. Useful for windowed browsing, testing, or desktop setups.
+Disables automatic browser fullscreen mode upon video playback start. Useful for windowed browsing or testing.
+- **`/site/analysis/durations`**  
+Opens an automated analysis page that runs `ffprobe` on all videos and reports script-to-video duration gaps.
 
 ### Directory Browser (Left Sidebar)
 - **Toggle Directory Button**  
-Click the top-left button to show or hide the file explorer.
-- **Directory Hierarchy**  
-Reflects your `VIDEO_SHARE_PATH` layout (skipping subfolders named `funscripts`).
-- **Intensity Badges**  
-Videos with scripts display color-coded badges indicating intensity in the format `Peak (Avg)` (e.g., `45 (22)`). Colors blend (gentle to intense) from green, to yellow, red, purple, cyan.
+Click top-left to show or hide the file explorer.
+- **Sorting Controls**  
+Select **Order by:** `Peak` (🔺), `Avg` (🌡️), or `Volatility` (⚡️) in the top-right of the directory header. Re-sorting maintains currently open folders.
+- **Intensity & Volatility Badges**  
+Files display badges in the format `🔺 Peak  🌡️ Avg  ⚡️ Volatility`. Colors adapt dynamically based on intensity and volatility ratings.
 - **Folder Start Recommendations**  
-Toggling a folder containing videos automatically presents a quick-selection of three suggested videos. With varied intensity: **Low (~20)**, **Medium (~35)**, or **High (~50)**. A specific video can also be chosen from the sidebar directly ofc.
+Opening a folder suggests three videos with varied intensity levels: **Low (~20)**, **Medium (~35)**, or **High (~50)**.
 
 <img src="./documentation/directory-files.jpg" width="50%">
 
@@ -210,15 +217,14 @@ _(device used for baselines is my HISMITH without any attachment)_
 
 ---
 
-## Important notes
+## Important Notes
 
 ### 1. Funscript Format Requirements
 > [!IMPORTANT]
-> The automated intensity engine expects ONLY discrete position values of **`0`** (fully retracted) or **`100`** (fully extended). 
-> Smooth multi-point funscripts containing intermediate values (e.g., 30, 70) are **not supported** by the intensity generator and you'll have to modify them or generate new ones in the internal editor.
+> The intensity generator expects discrete position values of **`0`** (fully retracted) or **`100`** (fully extended). Smooth multi-point funscripts containing intermediate values (e.g., 30, 70) are not supported by the intensity engine.
 
 ### 2. Path Matching & Parent Directory Fallback
-- Video files and funscripts are matched by relative directory path and file stem:
+- Videos and funscripts match by relative directory path and stem:
   - Video: `Category/VideoName.mp4`
   - Base Funscript: `Category/VideoName.funscript`
   - Variant Funscript: `Category/VideoName.hard.funscript`
@@ -256,6 +262,7 @@ _(device used for baselines is my HISMITH without any attachment)_
 ```text
 ├── src/
 │   ├── main.rs                     # Entry point, env loading, Actix server setup
+│   ├── lib.rs                      # Module declarations & documentation
 │   ├── routes.rs                   # Endpoint routing (/site, /api, /ws)
 │   ├── intiface_socket.rs          # WebSocket actor receiving client device commands
 │   ├── directory_browser.rs        # Video directory tree scanner
@@ -264,22 +271,25 @@ _(device used for baselines is my HISMITH without any attachment)_
 │   │   ├── device_manager.rs       # Buttplug connection, scanning, & motor loop
 │   │   └── funscript_utils.rs      # Funscript parsing, interpolation, & intensity math
 │   └── handlers/
+│       ├── index.rs                # Main index page & directory tree JSON API
 │       ├── video.rs                # Video streaming handler (HTTP Range support)
 │       ├── funscript.rs            # Funscript loading & intensity curve generation
 │       ├── editor.rs               # Funscript editor page & save POST API
 │       ├── calibration.rs          # Calibration page & profile persistence API
+│       ├── recommendations.rs      # Next video & folder start recommendation API
+│       ├── analysis.rs             # Video vs script duration gap analysis page
 │       └── thumbnail.rs            # Dynamic video thumbnail generator (ffmpeg)
-├── static/                         # Web Client SPA (HTML, CSS, JS Modules)
-│   ├── index.html / main.js        # Main web interface entry
-│   ├── video_player.js             # Core playback loop, device control, & overlay state
-│   ├── funscript_handler.js        # Intensity calculation & speed modulation logic
-│   ├── funscript_display_graphs.js # Canvas HUD graph visualizer
-│   ├── settings_menu.js            # Settings overlay & options handlers
-│   ├── directory_tree.js           # File tree UI & intensity badge renderer
-│   ├── editor.html / editor.js     # Interactive funscript editor UI & logic
-│   └── calibration.html / .js      # Calibration modal & spinner logic
-└── automation/
-    └── check_durations.py          # Utility script to check video vs script duration deltas
+└── static/                         # Web Client SPA (HTML, CSS, JS Modules)
+    ├── index.html / main.js        # Main web interface entry
+    ├── video_player.js             # Core playback loop, device control, & overlay state
+    ├── funscript_handler.js        # Intensity calculation & speed modulation logic
+    ├── funscript_display_graphs.js # Canvas HUD graph visualizer
+    ├── settings_menu.js            # Settings overlay & options handlers
+    ├── directory_tree.js           # File tree UI, sorting & intensity badge renderer
+    ├── socket.js                   # WebSocket connection manager to Rust backend
+    ├── utils.js                    # Intensity/volatility math, colors & helper utilities
+    ├── editor.html / editor.js     # Interactive funscript editor UI & logic
+    └── calibration.html / .js      # Calibration modal & spinner logic
 ```
 
 ## License

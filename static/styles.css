@@ -201,6 +201,14 @@ select,
     box-shadow: none;
 }
 
+body.sbs-playing #toggle-directory,
+body.sbs-playing #settings-button,
+body.sbs-playing #settings-menu,
+body.sbs-playing #funscript-box,
+body.sbs-playing #directory-container {
+    display: none !important;
+}
+
 /* ── Universal Buttons ────────────────────────────────────────────────── */
 .btn,
 button,

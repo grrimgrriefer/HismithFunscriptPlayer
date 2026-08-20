@@ -27,7 +27,8 @@ import {
     showTemporaryOverlayMessage,
     intensityToColor,
     volatilityToColor,
-    relativeIntensityToColor
+    relativeIntensityToColor,
+    updateSbsPlayingState
 } from './utils.js';
 
 const urlParams = new URLSearchParams(window.location.search);
@@ -149,6 +150,7 @@ export async function playVideo(
 
     cancelCurrentAnimation();
     sendDeviceCommand(0, 0);
+    updateSbsPlayingState();
 
     const videoPlayer = document.getElementById('video-player');
     const videoElement = document.createElement('video');
@@ -195,6 +197,7 @@ export async function playVideo(
             updateProgressBars(videoElement)
         );
         enterFullscreen();
+        updateSbsPlayingState();
     };
 
     videoElement.onpause = () => {
@@ -205,6 +208,7 @@ export async function playVideo(
         state.transitionStartTime = Date.now();
         state.transitionTargetValue = 1;
         exitFullscreen();
+        updateSbsPlayingState();
     };
 
     videoElement.onerror = () => {

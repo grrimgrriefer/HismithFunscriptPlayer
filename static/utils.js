@@ -100,3 +100,17 @@ export function showTemporaryOverlayMessage(message) {
         }, 300); // fade out matches CSS transition
     }, 2000);
 }
+
+export function updateSbsPlayingState() {
+    const isSbs = document
+        .getElementById('video-container')
+        ?.classList.contains('sbs-mode');
+    const video = document.querySelector('#video-player video');
+    const isPlaying = video && !video.paused;
+
+    if (isSbs && isPlaying) {
+        document.body.classList.add('sbs-playing');
+    } else {
+        document.body.classList.remove('sbs-playing');
+    }
+}

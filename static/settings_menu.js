@@ -15,7 +15,8 @@ import {
 import {
     toFunscriptPath,
     intensityToColor,
-    showTemporaryOverlayMessage
+    showTemporaryOverlayMessage,
+    updateSbsPlayingState
 } from './utils.js';
 import { updateFunscriptDisplayBox } from './funscript_display_graphs.js';
 
@@ -133,6 +134,7 @@ export function setSBSMode(enabled) {
         toggle.checked = enabled;
         localStorage.setItem('sbsMode', enabled);
         container.classList.toggle('sbs-mode', enabled);
+        updateSbsPlayingState();
     }
 }
 
@@ -201,6 +203,7 @@ function initSBSToggle(menu) {
     toggle.onchange = () => {
         localStorage.setItem('sbsMode', toggle.checked);
         container.classList.toggle('sbs-mode', toggle.checked);
+        updateSbsPlayingState();
     };
 }
 

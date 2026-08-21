@@ -469,11 +469,14 @@ async function init() {
         return;
     }
 
-    if (state.videoPath.includes(' ')) {
+    // Decode all URL percent-encoding to get the raw path
+    const decodedPath = decodeURIComponent(state.videoPath);
+
+    if (decodedPath.includes(' ') || state.videoPath.includes('%20')) {
         showTemporaryOverlayMessage(
-            `Warning: The video file path "${state.videoPath}" contains spaces.\n\n` +
-                `While funscripts can be created, loading them reliably might be an issue due to how file paths are handled by the server.\n\n` +
-                `It's recommended to rename your video file and its corresponding funscript (if any) to remove spaces for best compatibility.`
+            `WARNING: Video files with spaces in the path are not supported.\n\n` +
+                `[${decodedPath}]`,
+            8000
         );
     }
 

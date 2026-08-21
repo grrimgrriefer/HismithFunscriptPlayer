@@ -79,7 +79,7 @@ export function isTextInput(target) {
     return tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable;
 }
 
-export function showTemporaryOverlayMessage(message) {
+export function showTemporaryOverlayMessage(message, durationMs = 2000) {
     let overlay = document.getElementById('temporary-message-overlay');
     if (!overlay) {
         overlay = document.createElement('div');
@@ -89,16 +89,22 @@ export function showTemporaryOverlayMessage(message) {
     }
 
     overlay.textContent = message;
+    overlay.style.whiteSpace = 'pre-wrap';
+
+    void overlay.offsetWidth;
     overlay.style.opacity = '1';
 
-    setTimeout(() => {
+    if (overlay.timeoutId) clearTimeout(overlay.timeoutId);
+    if (overlay.removeTimeoutId) clearTimeout(overlay.removeTimeoutId);
+
+    overlay.timeoutId = setTimeout(() => {
         overlay.style.opacity = '0';
-        setTimeout(() => {
+        overlay.removeTimeoutId = setTimeout(() => {
             if (overlay.parentNode) {
                 overlay.parentNode.removeChild(overlay);
             }
         }, 300); // fade out matches CSS transition
-    }, 2000);
+    }, durationMs);
 }
 
 export function updateSbsPlayingState() {

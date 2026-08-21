@@ -28,7 +28,9 @@ import {
     intensityToColor,
     volatilityToColor,
     relativeIntensityToColor,
-    updateSbsPlayingState
+    updateSbsPlayingState,
+    lockLandscape,
+    lockPortrait
 } from './utils.js';
 
 const urlParams = new URLSearchParams(window.location.search);
@@ -196,7 +198,9 @@ export async function playVideo(
         state.currentAnimationFrame = requestAnimationFrame(() =>
             updateProgressBars(videoElement)
         );
+
         enterFullscreen();
+        setTimeout(lockLandscape, 150);
         updateSbsPlayingState();
     };
 
@@ -207,7 +211,10 @@ export async function playVideo(
         );
         state.transitionStartTime = Date.now();
         state.transitionTargetValue = 1;
-        exitFullscreen();
+
+        lockPortrait().finally(() => {
+            exitFullscreen();
+        });
         updateSbsPlayingState();
     };
 

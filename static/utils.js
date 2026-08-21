@@ -114,3 +114,26 @@ export function updateSbsPlayingState() {
         document.body.classList.remove('sbs-playing');
     }
 }
+
+export async function lockLandscape() {
+    if (!window.screen || !window.screen.orientation) return;
+    if (window.innerWidth > 768) return;
+
+    try {
+        await window.screen.orientation.lock('landscape');
+    } catch (err) {
+        console.warn('Failed to lock screen orientation to landscape:', err);
+    }
+}
+
+export async function lockPortrait() {
+    if (!window.screen || !window.screen.orientation) return;
+    if (window.innerWidth > 768) return;
+
+    try {
+        await window.screen.orientation.lock('portrait');
+        window.screen.orientation.unlock();
+    } catch (err) {
+        console.warn('Failed to lock screen orientation to portrait:', err);
+    }
+}

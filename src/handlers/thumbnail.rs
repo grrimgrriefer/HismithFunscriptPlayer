@@ -71,6 +71,6 @@ fn safe_resolve(root: &Path, requested: &str) -> Result<PathBuf, Error> {
 }
 
 async fn serve_file(path: PathBuf, req: &HttpRequest) -> Result<HttpResponse, Error> {
-    let file = NamedFile::open_async(&path).await.map_err(|_| ErrorNotFound("File lost"))?;
+    let file = NamedFile::open(&path).map_err(|_| ErrorNotFound("File lost"))?;
     Ok(file.into_response(req))
 }

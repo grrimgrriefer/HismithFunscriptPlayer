@@ -15,6 +15,9 @@ RUN cargo install --locked cargo-audit
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 
+# Audit exceptions
+COPY .cargo ./.cargo
+
 # Build dependencies first for better caching
 RUN cargo fetch
 

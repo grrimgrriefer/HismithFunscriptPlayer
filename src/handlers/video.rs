@@ -29,7 +29,7 @@ pub async fn handle_video(
 
     info!("Serving video: {}", full_path.display());
 
-    let file = NamedFile::open_async(&full_path).await.map_err(|e| {
+    let file = NamedFile::open(&full_path).map_err(|e| {
         error!("Failed to open file '{}': {}", full_path.display(), e);
         ErrorNotFound("Video file not found or inaccessible")
     })?;

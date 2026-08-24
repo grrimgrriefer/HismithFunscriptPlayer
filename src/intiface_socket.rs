@@ -1,24 +1,25 @@
 // src/intiface_socket.rs
 
 //! WebSocket handler for device control via the Buttplug protocol.
-//!
-//! Receives JSON messages from browser clients and forwards normalized intensity
-//! values to the Buttplug device manager. Expected JSON payload:
-//! { "o": <f64>, "v": <f64> } where `o` (oscillate) and `v` (vibrate) are optional.
-//! Values are interpreted in the 0.0..1.0 range and are clamped before being
-//! passed to device_manager::set_oscillate and device_manager::set_vibrate.
-//! Non-JSON or binary messages result in a structured JSON error reply. Implemented
-//! as an Actix WebSocket actor.
+
+
+
+
+
+
+
+
 
 use crate::buttplug::device_manager;
-use actix::prelude::*;
+
 use actix_web::{Error, HttpRequest, HttpResponse, web};
-use actix_web_actors::ws;
+use actix_ws::Message;
+use futures::StreamExt;
 use log::{debug, error, info};
 use serde::Deserialize;
 
-#[derive(Default)]
-pub struct DeviceControlWs;
+
+
 
 #[derive(Deserialize)]
 struct ControlCommand {
@@ -26,67 +27,67 @@ struct ControlCommand {
     v: Option<f64>,
 }
 
-impl Actor for DeviceControlWs {
-    type Context = ws::WebsocketContext<Self>;
 
-    fn started(&mut self, _ctx: &mut Self::Context) {
-        info!("WebSocket connection established");
-    }
 
-    fn stopped(&mut self, _ctx: &mut Self::Context) {
-        info!("WebSocket connection closed");
-    }
-}
 
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for DeviceControlWs {
-    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        match msg {
-            Ok(ws::Message::Text(text)) => match serde_json::from_str::<ControlCommand>(&text) {
-                Ok(cmd) => {
-                    if let Some(o) = cmd.o {
-                        let clamped = o.max(0.0).min(1.0);
-                        device_manager::set_oscillate(clamped);
-                    }
-                    if let Some(v) = cmd.v {
-                        let clamped = v.max(0.0).min(1.0);
-                        device_manager::set_vibrate(clamped);
-                    }
-                }
-                Err(e) => {
-                    error!("Invalid JSON command: {}", e);
-                    ctx.text(
-                        serde_json::json!({ "error": format!("invalid JSON: {}", e) }).to_string(),
-                    );
-                }
-            },
 
-            Ok(ws::Message::Ping(msg)) => {
-                debug!("Received ping");
-                ctx.pong(&msg);
-            }
 
-            Ok(ws::Message::Close(reason)) => {
-                info!("Received close message: {:?}", reason);
-                ctx.close(reason);
-                ctx.stop();
-            }
 
-            Ok(ws::Message::Binary(bin)) => {
-                error!("Unexpected binary message of {} bytes", bin.len());
-                ctx.text(
-                    serde_json::json!({ "error": "binary messages not supported" }).to_string(),
-                );
-            }
 
-            Err(e) => {
-                error!("WebSocket protocol error: {}", e);
-                ctx.stop();
-            }
 
-            _ => {}
-        }
-    }
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 pub async fn handle_ws_start(
     req: HttpRequest,
@@ -98,14 +99,58 @@ pub async fn handle_ws_start(
         .unwrap_or_else(|| String::from("unknown"));
     info!("WebSocket connection attempt from {}", addr);
 
-    match ws::start(DeviceControlWs::default(), &req, stream) {
-        Ok(response) => {
-            info!("WebSocket handshake successful");
-            Ok(response)
+    let (response, mut session, mut msg_stream) = actix_ws::handle(&req, stream)?;
+    info!("WebSocket connection established with {}", addr);
+
+    actix_web::rt::spawn(async move {
+        while let Some(Ok(msg)) = msg_stream.next().await {
+            match msg {
+                Message::Text(text) => match serde_json::from_str::<ControlCommand>(&text) {
+                    Ok(cmd) => {
+                        if let Some(o) = cmd.o {
+                            let clamped = o.max(0.0).min(1.0);
+                            device_manager::set_oscillate(clamped);
+                        }
+                        if let Some(v) = cmd.v {
+                            let clamped = v.max(0.0).min(1.0);
+                            device_manager::set_vibrate(clamped);
+                        }
+                    }
+                    Err(e) => {
+                        error!("Invalid JSON command: {}", e);
+                        let _ = session
+                            .text(
+                                serde_json::json!({ "error": format!("invalid JSON: {}", e) })
+                                    .to_string(),
+                            )
+                            .await;
+                    }
+                },
+                Message::Ping(bytes) => {
+                    debug!("Received ping");
+                    if session.pong(&bytes).await.is_err() {
+                        break;
+                    }
+                }
+                Message::Close(reason) => {
+                    info!("Received close message: {:?}", reason);
+                    let _ = session.close(reason).await;
+                    break;
+                }
+                Message::Binary(bin) => {
+                    error!("Unexpected binary message of {} bytes", bin.len());
+                    let _ = session
+                        .text(
+                            serde_json::json!({ "error": "binary messages not supported" })
+                                .to_string(),
+                        )
+                        .await;
+                }
+                _ => {}
+            }
         }
-        Err(e) => {
-            error!("WebSocket handshake failed: {}", e);
-            Err(e)
-        }
-    }
+        info!("WebSocket connection closed for {}", addr);
+    });
+
+    Ok(response)
 }

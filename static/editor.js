@@ -4,6 +4,7 @@ import {
     toFunscriptPath,
     isTextInput,
     intensityToColor,
+    volatilityToColor,
     showTemporaryOverlayMessage
 } from './utils.js';
 
@@ -164,11 +165,14 @@ async function updateBackendIntensityStats(taps) {
 
         const peakEl = document.getElementById('editor-peak-val');
         const avgEl = document.getElementById('editor-avg-val');
+        const volEl = document.getElementById('editor-vol-val');
 
         peakEl.textContent = Math.round(stats.peak);
         peakEl.style.color = intensityToColor(stats.peak);
         avgEl.textContent = Math.round(stats.average);
         avgEl.style.color = intensityToColor(stats.average);
+        volEl.textContent = stats.volatility.toFixed(1);
+        volEl.style.color = volatilityToColor(stats.volatility);
 
         draw();
     } catch (e) {

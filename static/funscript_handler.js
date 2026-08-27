@@ -11,6 +11,7 @@ let selectedSpeed = 'normal';
 let lastBeatAt = null;
 let lastPeak = 0;
 let lastAvg = 0;
+let lastVolatility = 0;
 
 export async function loadFunscript(funscriptUrl) {
     funscriptActions = [];
@@ -40,17 +41,19 @@ export async function loadFunscript(funscriptUrl) {
         }
         lastPeak = data?.peak || 0;
         lastAvg = data?.average || 0;
+        lastVolatility = data?.volatility || 0;
     } catch (error) {
         console.error('Failed to load funscript:', error);
         funscriptActions = [];
         intensityActions = [];
         lastPeak = 0;
         lastAvg = 0;
+        lastVolatility = 0;
     }
 }
 
 export function getLastIntensityStats() {
-    return { peak: lastPeak, avg: lastAvg };
+    return { peak: lastPeak, avg: lastAvg, volatility: lastVolatility };
 }
 
 export function getCurrentIntensity(currentTime) {

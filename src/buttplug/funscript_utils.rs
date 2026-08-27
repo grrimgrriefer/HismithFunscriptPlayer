@@ -602,8 +602,19 @@ pub fn calculate_volatility(actions: &[Action]) -> f64 {
     ((raw_score * 9.0 + 1.0).clamp(1.0, 10.0) * 10.0).round() / 10.0
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SectionInfo {
+    pub start: f64,
+    pub end: f64,
+    pub duration: f64,
+    pub peak_intensity: f64,
+    pub mean_intensity: f64,
+}
+
 #[derive(Clone)]
 struct Section {
+    start: f64,
+    end: f64,
     duration: f64,
     peak_intensity: f64,
     mean_intensity: f64,
@@ -638,11 +649,15 @@ fn compute_sections(curve: &[(f64, f64)]) -> Vec<Section> {
         if c_max - c_min > max_variation {
             let end_idx = current_start_idx.max(i.saturating_sub(1));
             let sec_curve = &curve[current_start_idx..=end_idx];
-            let sec_duration = sec_curve.last().unwrap().0 - sec_curve.first().unwrap().0;
+            let sec_start = sec_curve.first().unwrap().0;
+            let sec_end = sec_curve.last().unwrap().0;
+            let sec_duration = sec_end - sec_start;
             let sec_peak = sec_curve.iter().map(|p| p.1).fold(0.0, f64::max);
             let sec_mean = sec_curve.iter().map(|p| p.1).sum::<f64>() / sec_curve.len() as f64;
 
             sections.push(Section {
+                start: sec_start,
+                end: sec_end,
                 duration: sec_duration,
                 peak_intensity: sec_peak,
                 mean_intensity: sec_mean,
@@ -653,11 +668,15 @@ fn compute_sections(curve: &[(f64, f64)]) -> Vec<Section> {
             i = current_start_idx;
         } else if i == curve.len() - 1 {
             let sec_curve = &curve[current_start_idx..=i];
-            let sec_duration = sec_curve.last().unwrap().0 - sec_curve.first().unwrap().0;
+            let sec_start = sec_curve.first().unwrap().0;
+            let sec_end = sec_curve.last().unwrap().0;
+            let sec_duration = sec_end - sec_start;
             let sec_peak = sec_curve.iter().map(|p| p.1).fold(0.0, f64::max);
             let sec_mean = sec_curve.iter().map(|p| p.1).sum::<f64>() / sec_curve.len() as f64;
 
             sections.push(Section {
+                start: sec_start,
+                end: sec_end,
                 duration: sec_duration,
                 peak_intensity: sec_peak,
                 mean_intensity: sec_mean,
@@ -691,6 +710,7 @@ fn compute_sections(curve: &[(f64, f64)]) -> Vec<Section> {
                     0.0
                 };
 
+                prev.end = sec.end; // Update ending timestamp when collapsing
                 prev.duration = total_dur;
                 prev.peak_intensity = new_peak;
                 prev.mean_intensity = new_mean;
@@ -704,4 +724,40 @@ fn compute_sections(curve: &[(f64, f64)]) -> Vec<Section> {
     }
 
     sections
+}
+
+pub fn calculate_volatility_with_sections(actions: &[Action]) -> (f64, Vec<SectionInfo>) {
+    if actions.len() < 2 {
+        return (0.0, Vec::new());
+    }
+
+    let curve_actions = actions_to_intensity_curve(actions, &[]);
+    if curve_actions.is_empty() {
+        return (0.0, Vec::new());
+    }
+
+    let curve: Vec<(f64, f64)> = curve_actions
+        .iter()
+        .map(|a| (a.at as f64 / 1000.0, a.pos))
+        .collect();
+
+    let sections = compute_sections(&curve);
+    if sections.is_empty() {
+        return (0.0, Vec::new());
+    }
+
+    let score = calculate_volatility(actions); // or reuse internal section score calc
+
+    let section_infos = sections
+        .into_iter()
+        .map(|s| SectionInfo {
+            start: s.start,
+            end: s.end,
+            duration: s.duration,
+            peak_intensity: s.peak_intensity,
+            mean_intensity: s.mean_intensity,
+        })
+        .collect();
+
+    (score, section_infos)
 }

@@ -900,6 +900,62 @@ button#toggle-directory {
     margin-top: 2px;
 }
 
+/* ── Editor heatmap ───────────────────────────────────────────────────── */
+
+#volatility-container {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.volatility-header {
+    font-size: 0.9em;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.volatility-status-text {
+    font-size: 0.8em;
+    color: var(--text-dim);
+    font-style: italic;
+}
+
+#volatility-heatmap-wrapper {
+    width: 100%;
+    height: 22px;
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+#volatility-heatmap {
+    display: flex;
+    width: 100%;
+    height: 100%;
+}
+
+.heatmap-section {
+    height: 100%;
+    border-right: 1px solid rgba(0, 0, 0, 0.4);
+    box-sizing: border-box;
+    transition: opacity 0.2s ease;
+}
+
+.heatmap-section:last-child {
+    border-right: none;
+}
+
+.heatmap-section:hover {
+    opacity: 0.8;
+    cursor: pointer;
+}
+
 /* ── Auxiliary Widgets ────────────────────────────────────────────────── */
 #funscript-box {
     position: absolute;

@@ -43,6 +43,7 @@ pub async fn calculate_draft_intensity(
             "peak": 0.0,
             "average": 0.0,
             "volatility": 0.0,
+            "sections": [],
             "actions": actions
         }));
     }
@@ -50,12 +51,13 @@ pub async fn calculate_draft_intensity(
     let cal_points = device_manager::get_active_calibration_points();
     let intensity_curve = funscript_utils::actions_to_intensity_curve(&actions, &cal_points);
     let (average, peak) = funscript_utils::calculate_intensity_stats(&intensity_curve);
-    let volatility = funscript_utils::calculate_volatility(&actions);
+    let (volatility, sections) = funscript_utils::calculate_volatility_with_sections(&actions);
 
     HttpResponse::Ok().json(serde_json::json!({
         "peak": peak,
         "average": average,
         "volatility": volatility,
+        "sections": sections,
         "actions": actions
     }))
 }

@@ -32,9 +32,19 @@
                 <div>
                     Intensity values: 
                     <span id="editor-peak-val" class="highlight-val">0</span> peak,
-                    <span id="editor-avg-val" class="highlight-val">0</span> avg,
-                    <span id="editor-vol-val" class="highlight-val">0.0</span> vol
+                    <span id="editor-avg-val" class="highlight-val">0</span> avg
                 </div>
+            </div>
+
+            <div id="volatility-container">
+                <div class="volatility-header">
+                    <span>Volatility: <span id="editor-vol-val" class="highlight-val">0.0</span></span>
+                    <span id="volatility-status" class="volatility-status-text">(updates when paused)</span>
+                </div>
+                <div id="volatility-heatmap-wrapper" title="Section intensity breakdown">
+                    <div id="volatility-heatmap"></div>
+                </div>
+                <div class="editor-subnote">Timeline sections & intensity breakdown</div>
             </div>
         </div>
     </div>

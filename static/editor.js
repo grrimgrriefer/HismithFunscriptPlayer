@@ -42,7 +42,8 @@ const state = {
     dragOffsetMs: 0,
     calcDebounceTimer: null,
     baseActions: [],
-    editingActions: []
+    editingActions: [],
+    pendingVolatilityData: null
 };
 
 // ── Utilities ──────────────────────────────────────────────────────────
@@ -165,14 +166,20 @@ async function updateBackendIntensityStats(taps) {
 
         const peakEl = document.getElementById('editor-peak-val');
         const avgEl = document.getElementById('editor-avg-val');
-        const volEl = document.getElementById('editor-vol-val');
 
         peakEl.textContent = Math.round(stats.peak);
         peakEl.style.color = intensityToColor(stats.peak);
         avgEl.textContent = Math.round(stats.average);
         avgEl.style.color = intensityToColor(stats.average);
-        volEl.textContent = stats.volatility.toFixed(1);
-        volEl.style.color = volatilityToColor(stats.volatility);
+
+        state.pendingVolatilityData = {
+            volatility: stats.volatility || 0,
+            sections: stats.sections || []
+        };
+
+        if (video.paused) {
+            applyVolatilityUI();
+        }
 
         draw();
     } catch (e) {
@@ -254,6 +261,55 @@ async function handleSave() {
     } finally {
         saveBtn.disabled = false;
         saveBtn.textContent = 'Save Funscript';
+    }
+}
+
+// ── Volatility heatmap──────────────────────────────────────────────────
+
+function formatSec(sec) {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+}
+
+function applyVolatilityUI() {
+    if (!state.pendingVolatilityData) return;
+    const { volatility, sections } = state.pendingVolatilityData;
+
+    const volEl = document.getElementById('editor-vol-val');
+    const heatmapEl = document.getElementById('volatility-heatmap');
+    const statusEl = document.getElementById('volatility-status');
+
+    if (volEl) {
+        volEl.textContent = Number(volatility || 0).toFixed(1);
+        volEl.style.color = volatilityToColor(volatility || 0);
+    }
+
+    if (statusEl) {
+        statusEl.textContent = video.paused
+            ? '(updated)'
+            : '(updates when paused)';
+    }
+
+    if (!heatmapEl) return;
+    heatmapEl.innerHTML = '';
+
+    if (!sections || sections.length === 0) return;
+
+    const totalDuration = sections.reduce((acc, s) => acc + s.duration, 0);
+    if (totalDuration <= 0) return;
+
+    for (const sec of sections) {
+        const div = document.createElement('div');
+        div.className = 'heatmap-section';
+        const pct = (sec.duration / totalDuration) * 100;
+        div.style.width = `${pct.toFixed(2)}%`;
+        div.style.backgroundColor = intensityToColor(sec.mean_intensity);
+
+        const titleText = `Section: ${formatSec(sec.start)} – ${formatSec(sec.end)}\nDuration: ${sec.duration.toFixed(1)}s\nMean: ${Math.round(sec.mean_intensity)} | Peak: ${Math.round(sec.peak_intensity)}`;
+        div.setAttribute('title', titleText);
+
+        heatmapEl.appendChild(div);
     }
 }
 
@@ -448,7 +504,10 @@ function bind() {
     });
 
     video.addEventListener('play', startRaf);
-    video.addEventListener('pause', stopRaf);
+    video.addEventListener('pause', () => {
+        stopRaf();
+        applyVolatilityUI();
+    });
     video.addEventListener('seeked', draw);
     window.addEventListener('resize', resizeCanvas);
 

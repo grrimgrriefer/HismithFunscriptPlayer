@@ -117,7 +117,12 @@ async fn write_cache(path: &Path, cache: &FunscriptCache) -> Result<(), String> 
         let _ = fs::create_dir_all(parent).await;
     }
 
-    let json = serde_json::to_string_pretty(cache).map_err(|e| format!("Ser failed: {}", e))?;
+    let wrapper = FunscriptCacheFile {
+        version: CURRENT_CACHE_VERSION,
+        entries: cache.clone(),
+    };
+
+    let json = serde_json::to_string_pretty(&wrapper).map_err(|e| format!("Ser failed: {}", e))?;
     fs::write(path, json)
         .await
         .map_err(|e| format!("Failed write cache {:?}: {}", path, e))

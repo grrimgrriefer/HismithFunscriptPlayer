@@ -10,13 +10,14 @@
 //! for setting current intensities from other parts of the application.
 
 use atomic_float::AtomicF64;
-use buttplug::{
-    client::{
-        ButtplugClient, ButtplugClientError, ButtplugClientEvent,
-        device::{ButtplugClientDevice, ScalarValueCommand},
-    },
-    core::{connector::new_json_ws_client_connector, message::ActuatorType},
+use buttplug_client::{
+    ButtplugClient, ButtplugClientDevice, ButtplugClientError, ButtplugClientEvent, 
+    connector::ButtplugRemoteClientConnector,
+    serializer::ButtplugClientJSONSerializer,
+    device::ClientDeviceOutputCommand
 };
+use buttplug_transport_websocket_tungstenite::ButtplugWebsocketClientTransport;
+use buttplug_core::message::OutputType;
 use futures::StreamExt;
 use log::{error, info, warn};
 use once_cell::sync::OnceCell;
@@ -31,8 +32,8 @@ const SCAN_INTERVAL_SECS: u64 = 5;
 const RECONNECT_DELAY_SECS: u64 = 5;
 
 struct DevicePair {
-    oscillator: Option<Arc<ButtplugClientDevice>>,
-    vibrator: Option<Arc<ButtplugClientDevice>>,
+    oscillator: Option<ButtplugClientDevice>,
+    vibrator: Option<ButtplugClientDevice>,
 }
 
 struct DeviceManager {
@@ -74,13 +75,13 @@ impl DeviceManager {
         let final_vib = raw_vib; // .min(max_limit).clamp(0.0, 1.0);
 
         if let Some(ref dev) = devices.oscillator {
-            if let Err(e) = dev.oscillate(&ScalarValueCommand::ScalarValue(final_osc)).await {
+            if let Err(e) = dev.run_output(&ClientDeviceOutputCommand::Oscillate(final_osc.into())).await {
                 error!("Failed to send oscillate command: {}", e);
             }
         }
 
         if let Some(ref dev) = devices.vibrator {
-            if let Err(e) = dev.vibrate(&ScalarValueCommand::ScalarValue(final_vib)).await {
+            if let Err(e) = dev.run_output(&ClientDeviceOutputCommand::Vibrate(final_vib.into())).await {
                 error!("Failed to send vibrate command: {}", e);
             }
         }
@@ -90,22 +91,15 @@ impl DeviceManager {
         pair.oscillator.is_some() && pair.vibrator.is_some()
     }
 
-    async fn assign_device(&self, device: Arc<ButtplugClientDevice>) {
+    async fn assign_device(&self, device: ButtplugClientDevice) {
         let mut devices = self.devices.lock().await;
 
-        let dominated_actuators: Vec<_> = device
-            .message_attributes()
-            .scalar_cmd()
-            .as_ref()
-            .map(|cmds| cmds.iter().map(|c| c.actuator_type().clone()).collect())
-            .unwrap_or_default();
-
-        if dominated_actuators.contains(&ActuatorType::Oscillate) {
+        if device.output_available(OutputType::Oscillate) {
             info!("Assigned oscillator: {}", device.name());
             devices.oscillator = Some(device.clone());
         }
 
-        if dominated_actuators.contains(&ActuatorType::Vibrate) {
+        if device.output_available(OutputType::Vibrate) {
             info!("Assigned vibrator: {}", device.name());
             devices.vibrator = Some(device);
         }
@@ -151,7 +145,8 @@ pub async fn initialize() -> Result<(), ButtplugClientError> {
     let c = client.clone();
     tokio::spawn(async move {
         loop {
-            let connector = new_json_ws_client_connector(SERVER_URL);
+            let connector = ButtplugRemoteClientConnector::<ButtplugWebsocketClientTransport,ButtplugClientJSONSerializer,
+                >::new(ButtplugWebsocketClientTransport::new_insecure_connector(SERVER_URL));
             match c.connect(connector).await {
                 Ok(_) => {
                     info!("Connected to Intiface server at {}", SERVER_URL);
@@ -175,7 +170,6 @@ pub async fn initialize() -> Result<(), ButtplugClientError> {
         while let Some(event) = events.next().await {
             match event {
                 ButtplugClientEvent::DeviceAdded(dev) => {
-                    let dev: Arc<ButtplugClientDevice> = dev;
                     m.assign_device(dev).await;
                 }
                 ButtplugClientEvent::DeviceRemoved(dev) => {

@@ -909,6 +909,8 @@ button#toggle-directory {
     display: flex;
     flex-direction: column;
     gap: 6px;
+    flex: 1;
+    min-height: 0;
 }
 
 .volatility-header {
@@ -954,6 +956,91 @@ button#toggle-directory {
 .heatmap-section:hover {
     opacity: 0.8;
     cursor: pointer;
+}
+
+.volatility-summary-text {
+    font-size: 0.85em;
+    color: var(--text-muted);
+}
+
+.heatmap-legend {
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.heatmap-section.active {
+    outline: 2px solid #fff;
+    outline-offset: -2px;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.9);
+    z-index: 2;
+}
+
+.active-section-card {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    padding: 6px 10px;
+    font-size: 0.85em;
+    color: var(--text-primary);
+    margin-top: 6px;
+}
+
+#sections-list-container {
+    margin-top: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    flex: 1;
+    min-height: 120px;
+    max-height: none;
+    overflow-y: auto;
+    margin-bottom: 10px;
+}
+
+.sections-list-header {
+    font-size: 0.8em;
+    font-weight: bold;
+    color: var(--text-muted);
+    padding: 4px 8px;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+}
+
+#volatility-sections-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.section-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 8px;
+    font-size: 0.8em;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+
+.section-item:hover {
+    background-color: var(--bg-hover);
+}
+
+.section-item.active {
+    background-color: rgba(255, 213, 79, 0.15);
+    border-left: 3px solid var(--accent-yellow);
+}
+
+.section-badge {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
 }
 
 /* ── Auxiliary Widgets ────────────────────────────────────────────────── */

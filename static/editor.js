@@ -272,6 +272,48 @@ function formatSec(sec) {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
 }
 
+function updateActiveSectionHighlight(currentTimeSec) {
+    if (!state.pendingVolatilityData?.sections) return;
+    const sections = state.pendingVolatilityData.sections;
+
+    let activeIdx = -1;
+    sections.forEach((sec, idx) => {
+        if (currentTimeSec >= sec.start && currentTimeSec < sec.end) {
+            activeIdx = idx;
+        }
+    });
+
+    const heatmap = document.getElementById('volatility-heatmap');
+    if (heatmap) {
+        Array.from(heatmap.children).forEach((child, idx) => {
+            child.classList.toggle('active', idx === activeIdx);
+        });
+    }
+
+    const listEl = document.getElementById('volatility-sections-list');
+    if (listEl) {
+        Array.from(listEl.children).forEach((child, idx) => {
+            const isActive = idx === activeIdx;
+            child.classList.toggle('active', isActive);
+        });
+    }
+
+    const activeTextEl = document.getElementById('active-sec-text');
+    if (activeTextEl) {
+        if (activeIdx >= 0) {
+            const sec = sections[activeIdx];
+            activeTextEl.innerHTML =
+                `<strong style="color:var(--accent-yellow)">#${activeIdx + 1}</strong> ` +
+                `(${formatSec(sec.start)}–${formatSec(sec.end)}, ` +
+                `Duration: <strong>${sec.duration.toFixed(1)}s</strong>, ` +
+                `🌡️ Avg: <strong>${Math.round(sec.mean_intensity)}</strong>, ` +
+                `🔺 Peak: <strong>${Math.round(sec.peak_intensity)}</strong>)`;
+        } else {
+            activeTextEl.textContent = '—';
+        }
+    }
+}
+
 function applyVolatilityUI() {
     if (!state.pendingVolatilityData) return;
     const { volatility, sections } = state.pendingVolatilityData;
@@ -279,6 +321,8 @@ function applyVolatilityUI() {
     const volEl = document.getElementById('editor-vol-val');
     const heatmapEl = document.getElementById('volatility-heatmap');
     const statusEl = document.getElementById('volatility-status');
+    const sectionsCountEl = document.getElementById('editor-sections-count');
+    const sectionsListEl = document.getElementById('volatility-sections-list');
 
     if (volEl) {
         volEl.textContent = Number(volatility || 0).toFixed(1);
@@ -291,26 +335,60 @@ function applyVolatilityUI() {
             : '(updates when paused)';
     }
 
-    if (!heatmapEl) return;
-    heatmapEl.innerHTML = '';
+    if (sectionsCountEl) {
+        sectionsCountEl.textContent = sections ? sections.length : 0;
+    }
+
+    if (heatmapEl) heatmapEl.innerHTML = '';
+    if (sectionsListEl) sectionsListEl.innerHTML = '';
 
     if (!sections || sections.length === 0) return;
 
     const totalDuration = sections.reduce((acc, s) => acc + s.duration, 0);
     if (totalDuration <= 0) return;
 
-    for (const sec of sections) {
+    sections.forEach((sec, idx) => {
         const div = document.createElement('div');
         div.className = 'heatmap-section';
         const pct = (sec.duration / totalDuration) * 100;
         div.style.width = `${pct.toFixed(2)}%`;
         div.style.backgroundColor = intensityToColor(sec.mean_intensity);
 
-        const titleText = `Section: ${formatSec(sec.start)} – ${formatSec(sec.end)}\nDuration: ${sec.duration.toFixed(1)}s\nMean: ${Math.round(sec.mean_intensity)} | Peak: ${Math.round(sec.peak_intensity)}`;
+        const titleText = `Section #${idx + 1}: ${formatSec(sec.start)} – ${formatSec(sec.end)}\nDuration: ${sec.duration.toFixed(1)}s\n🌡️ Avg: ${Math.round(sec.mean_intensity)} | 🔺 Peak: ${Math.round(sec.peak_intensity)}`;
         div.setAttribute('title', titleText);
+        div.onclick = () => {
+            video.currentTime = sec.start;
+            draw();
+        };
 
-        heatmapEl.appendChild(div);
-    }
+        if (heatmapEl) heatmapEl.appendChild(div);
+
+        if (sectionsListEl) {
+            const item = document.createElement('div');
+            item.className = 'section-item';
+            const avgColor = intensityToColor(sec.mean_intensity);
+            const peakColor = intensityToColor(sec.peak_intensity);
+
+            item.innerHTML = `
+                <div>
+                    <span class="section-badge" style="background-color: ${avgColor}"></span>
+                    <strong>#${idx + 1}</strong> (${formatSec(sec.start)} - ${formatSec(sec.end)})
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <span style="color: #bbb;">⏱ ${sec.duration.toFixed(1)}s</span>
+                    <span style="color: ${avgColor}; font-weight: bold;">🌡️ Avg ${Math.round(sec.mean_intensity)}</span>
+                    <span style="color: ${peakColor}; font-weight: bold;">🔺 Peak ${Math.round(sec.peak_intensity)}</span>
+                </div>
+            `;
+            item.onclick = () => {
+                video.currentTime = sec.start;
+                draw();
+            };
+            sectionsListEl.appendChild(item);
+        }
+    });
+
+    updateActiveSectionHighlight(video.currentTime);
 }
 
 // ── Drawing ────────────────────────────────────────────────────────────
@@ -349,9 +427,67 @@ function drawTaps(list, interactive) {
     }
 }
 
+function drawSectionsOnCanvas() {
+    if (!state.pendingVolatilityData?.sections) return;
+    const sections = state.pendingVolatilityData.sections;
+    const viewStartMs = getViewStartMs();
+    const viewEndMs = viewStartMs + VIEW_WINDOW_MS;
+
+    sections.forEach((sec, idx) => {
+        const secStartMs = sec.start * 1000;
+        const secEndMs = sec.end * 1000;
+
+        if (secEndMs < viewStartMs || secStartMs > viewEndMs) return;
+
+        const xStart = Math.max(0, msToPx(secStartMs));
+        const xEnd = Math.min(canvas.width, msToPx(secEndMs));
+        const width = xEnd - xStart;
+
+        if (width <= 0) return;
+
+        // Section background tint
+        ctx.save();
+        ctx.fillStyle = intensityToColor(sec.mean_intensity);
+        ctx.globalAlpha = 0.12;
+        ctx.fillRect(xStart, 0, width, canvas.height);
+        ctx.restore();
+
+        // Section start line
+        const lineX = msToPx(secStartMs);
+        if (lineX >= 0 && lineX <= canvas.width) {
+            ctx.save();
+            ctx.setLineDash([4, 4]);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(lineX, 0);
+            ctx.lineTo(lineX, canvas.height);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Section label tag at the top of the canvas
+        const labelX = Math.max(lineX + 4, xStart + 4);
+        if (labelX < xEnd - 20) {
+            ctx.save();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.font = '10px sans-serif';
+            ctx.fillText(
+                `Sec #${idx + 1} (🌡️ Avg ${Math.round(sec.mean_intensity)}, 🔺 Peak ${Math.round(sec.peak_intensity)})`,
+                labelX,
+                14
+            );
+            ctx.restore();
+        }
+    });
+}
+
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const currentTimeMs = video.currentTime * 1000;
+
+    // Draw Section Background Tints & Boundaries on the Canvas
+    drawSectionsOnCanvas();
 
     if (isEditingVariant() && state.baseActions && state.baseActions.length > 0)
         drawWave(state.baseActions, '#777');
@@ -380,6 +516,9 @@ function draw() {
         ctx.fillStyle = 'rgba(0, 150, 255, 0.2)';
         ctx.fillRect(rx, 0, rw, canvas.height);
     }
+
+    // Synchronize active section highlights on minimap & UI
+    updateActiveSectionHighlight(video.currentTime);
 }
 
 // ── Animation Frame ────────────────────────────────────────────────────

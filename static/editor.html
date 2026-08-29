@@ -41,10 +41,21 @@
                     <span>Volatility: <span id="editor-vol-val" class="highlight-val">0.0</span></span>
                     <span id="volatility-status" class="volatility-status-text">(updates when paused)</span>
                 </div>
-                <div id="volatility-heatmap-wrapper" title="Section intensity breakdown">
+                <div class="volatility-summary-text">
+                    Total Sections: <span id="editor-sections-count" class="bold-val">0</span>
+                </div>
+                <div id="volatility-heatmap-wrapper" title="Section intensity breakdown (Minimap)">
                     <div id="volatility-heatmap"></div>
                 </div>
-                <div class="editor-subnote">Timeline sections & intensity breakdown</div>
+                <div id="active-section-info" class="active-section-card">
+                    Current Section: <span id="active-sec-text">—</span>
+                </div>
+                <div id="sections-list-container">
+                    <div class="sections-list-header">
+                        <span>Section Breakdown</span>
+                    </div>
+                    <div id="volatility-sections-list"></div>
+                </div>
             </div>
         </div>
     </div>

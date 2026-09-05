@@ -107,7 +107,7 @@ export function getCurrentBeatValue(currentTime) {
     for (let i = 1; i < funscriptActions.length; i++) {
         const prev = funscriptActions[i - 1];
         const curr = funscriptActions[i];
-        if (prev.pos === 100 && curr.pos === 0) {
+        if (prev.pos === 0 && curr.pos === 100) {
             if (curr.at <= currentTime) lastBeatTime = curr.at;
             else {
                 nextBeatTime = curr.at;

@@ -647,7 +647,39 @@ fn compute_sections(curve: &[(f64, f64)]) -> Vec<Section> {
         let c_max = window.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max);
 
         if c_max - c_min > max_variation {
-            let end_idx = current_start_idx.max(i.saturating_sub(1));
+            let mut split_idx = current_start_idx.max(i.saturating_sub(1));
+
+            if curve[i].1 > curve[current_start_idx].1 {
+                // Intensity is rising: walk backward from `i` to find the local minimum where the rise began
+                let mut min_val = curve[i].1;
+                for idx in (current_start_idx..=i).rev() {
+                    if curve[idx].1 <= min_val {
+                        min_val = curve[idx].1;
+                        split_idx = idx;
+                    } else {
+                        break; // Stop walking back once intensity starts decreasing backward
+                    }
+                }
+            } else {
+                // Intensity is falling: walk backward from `i` to find the local maximum where the fall began
+                let mut max_val = curve[i].1;
+                for idx in (current_start_idx..=i).rev() {
+                    if curve[idx].1 >= max_val {
+                        max_val = curve[idx].1;
+                        split_idx = idx;
+                    } else {
+                        break;
+                    }
+                }
+            }
+
+            // Ensure split_idx produces a valid end index for the preceding section
+            let end_idx = if split_idx > current_start_idx {
+                split_idx
+            } else {
+                current_start_idx.max(i.saturating_sub(1))
+            };
+
             let sec_curve = &curve[current_start_idx..=end_idx];
             let sec_start = sec_curve.first().unwrap().0;
             let sec_end = sec_curve.last().unwrap().0;
@@ -661,7 +693,7 @@ fn compute_sections(curve: &[(f64, f64)]) -> Vec<Section> {
                 duration: sec_duration,
                 peak_intensity: sec_peak,
                 mean_intensity: sec_mean,
-                bucket: get_bucket(sec_peak),
+                bucket: get_bucket(sec_mean),
             });
 
             current_start_idx = end_idx + 1;
@@ -680,7 +712,7 @@ fn compute_sections(curve: &[(f64, f64)]) -> Vec<Section> {
                 duration: sec_duration,
                 peak_intensity: sec_peak,
                 mean_intensity: sec_mean,
-                bucket: get_bucket(sec_peak),
+                bucket: get_bucket(sec_mean),
             });
             i += 1;
         } else {
@@ -710,11 +742,11 @@ fn compute_sections(curve: &[(f64, f64)]) -> Vec<Section> {
                     0.0
                 };
 
-                prev.end = sec.end; // Update ending timestamp when collapsing
+                prev.end = sec.end;
                 prev.duration = total_dur;
                 prev.peak_intensity = new_peak;
                 prev.mean_intensity = new_mean;
-                prev.bucket = get_bucket(new_peak);
+                prev.bucket = get_bucket(new_mean); // re-bucket using time-weighted new_mean
                 changed = true;
             } else {
                 new_sections.push(sec.clone());

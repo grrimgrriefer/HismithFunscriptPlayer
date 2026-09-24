@@ -635,7 +635,6 @@ fn compute_sections(curve: &[(f64, f64)]) -> Vec<Section> {
         return Vec::new();
     }
 
-    let max_variation = 10.0;
     let min_duration = 1.0;
     let mut sections = Vec::new();
     let mut current_start_idx = 0;
@@ -645,12 +644,13 @@ fn compute_sections(curve: &[(f64, f64)]) -> Vec<Section> {
         let window = &curve[current_start_idx..=i];
         let c_min = window.iter().map(|p| p.1).fold(f64::INFINITY, f64::min);
         let c_max = window.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max);
+        let c_mean = window.iter().map(|p| p.1).sum::<f64>() / window.len() as f64;
+        let max_variation = (3.5 + c_mean * 0.10).clamp(3.5, 15.0);
 
         if c_max - c_min > max_variation {
             let mut split_idx = current_start_idx.max(i.saturating_sub(1));
 
-            if curve[i].1 > curve[current_start_idx].1 {
-                // Intensity is rising: walk backward from `i` to find the local minimum where the rise began
+            if curve[i].1 >= curve[current_start_idx].1 {
                 let mut min_val = curve[i].1;
                 for idx in (current_start_idx..=i).rev() {
                     if curve[idx].1 <= min_val {

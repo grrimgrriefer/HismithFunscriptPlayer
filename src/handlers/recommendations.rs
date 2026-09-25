@@ -193,19 +193,43 @@ pub async fn get_folder_start_recommendations(query: web::Query<FolderStartQuery
         }
     }
 
+    if videos_with_stats.is_empty() {
+        return HttpResponse::Ok().json(FolderStartRecommendationsResponse {
+            low: None,
+            med: None,
+            high: None,
+        });
+    }
+
+    // Sort videos by avg intensity ascending
+    videos_with_stats.sort_by(|a, b| {
+        a.avg.partial_cmp(&b.avg).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let total = videos_with_stats.len();
+    let low_end = ((total as f64) * 0.30).round() as usize;
+    let high_start = ((total as f64) * 0.70).round() as usize;
+
+    let low_end = low_end.clamp(1, total);
+    let high_start = high_start.clamp(low_end, total);
+
+    let low_slice = &videos_with_stats[..low_end];
+    let med_slice = &videos_with_stats[low_end..high_start];
+    let high_slice = &videos_with_stats[high_start..];
+
     let mut selected_paths = HashSet::new();
 
-    let low = find_closest_to_intensity(&videos_with_stats, 20.0, &selected_paths);
+    let low = pick_random_from_bucket(low_slice, &videos_with_stats, &selected_paths);
     if let Some(ref r) = low {
         selected_paths.insert(r.path.clone());
     }
 
-    let med = find_closest_to_intensity(&videos_with_stats, 35.0, &selected_paths);
+    let med = pick_random_from_bucket(med_slice, &videos_with_stats, &selected_paths);
     if let Some(ref r) = med {
         selected_paths.insert(r.path.clone());
     }
 
-    let high = find_closest_to_intensity(&videos_with_stats, 50.0, &selected_paths);
+    let high = pick_random_from_bucket(high_slice, &videos_with_stats, &selected_paths);
 
     HttpResponse::Ok().json(FolderStartRecommendationsResponse {
         low,
@@ -320,18 +344,30 @@ fn find_closest_video(
         .cloned()
 }
 
-fn find_closest_to_intensity(
-    videos: &[RecommendedVideo],
-    target_intensity: f64,
+fn pick_random_from_bucket(
+    bucket: &[RecommendedVideo],
+    fallback_all: &[RecommendedVideo],
     excluded: &HashSet<String>,
 ) -> Option<RecommendedVideo> {
-    videos
+    let mut rng = rand::rng();
+
+    let candidates: Vec<&RecommendedVideo> = bucket
         .iter()
         .filter(|v| !excluded.contains(&v.path))
-        .min_by(|a, b| {
-            let diff_a = (a.peak - target_intensity).abs();
-            let diff_b = (b.peak - target_intensity).abs();
-            diff_a.partial_cmp(&diff_b).unwrap_or(std::cmp::Ordering::Equal)
-        })
-        .cloned()
+        .collect();
+
+    if let Some(&choice) = candidates.choose(&mut rng) {
+        return Some(choice.clone());
+    }
+
+    let fallback_candidates: Vec<&RecommendedVideo> = fallback_all
+        .iter()
+        .filter(|v| !excluded.contains(&v.path))
+        .collect();
+
+    if let Some(&choice) = fallback_candidates.choose(&mut rng) {
+        return Some(choice.clone());
+    }
+
+    bucket.choose(&mut rng).or_else(|| fallback_all.choose(&mut rng)).cloned()
 }

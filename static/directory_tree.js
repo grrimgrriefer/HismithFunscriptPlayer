@@ -4,7 +4,8 @@ import { playVideo, showFolderStartOverlay } from './video_player.js';
 import {
     toFunscriptPath,
     intensityToColor,
-    volatilityToColor
+    volatilityToColor,
+    formatDuration
 } from './utils.js';
 
 // ── Rendering ──────────────────────────────────────────────────────────
@@ -37,6 +38,7 @@ function buildIntensityBadge(stats) {
         const volText = isFinite(e.volatility)
             ? Number(e.volatility).toFixed(1)
             : '—';
+        const durText = e.duration ? formatDuration(e.duration) : '—';
 
         const peakColor = isFinite(e.peak)
             ? intensityToColor(e.peak)
@@ -52,7 +54,8 @@ function buildIntensityBadge(stats) {
             `<span>` +
                 `<span style="color:${peakColor}">🔺${peakText}</span> ` +
                 `<span style="color:${avgColor}">🌡️${avgText}</span> ` +
-                `<span style="color:${volColor}">⚡️${volText}</span>` +
+                `<span style="color:${volColor}">⚡️${volText}</span> ` +
+                `<span style="color:rgba(255,255,255,0.75)">⏱️${durText}</span>` +
                 `</span>`
         );
     }

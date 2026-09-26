@@ -25,6 +25,7 @@ pub struct FunscriptResponse {
     pub peak: f64,
     pub average: f64,
     pub volatility: f64,
+    pub duration: u64,
 }
 
 pub async fn handle_funscript(
@@ -75,7 +76,8 @@ pub async fn handle_funscript(
                 intensity: None,
                 volatility: f64::NAN,
                 peak: f64::NAN,
-                average: f64::NAN
+                average: f64::NAN,
+                duration: 0,
             });
         }
     };
@@ -104,13 +106,15 @@ pub async fn handle_funscript(
         .unwrap_or((0.0, 0.0));
 
     let volatility = funscript_utils::calculate_volatility(&original.actions);
+    let duration = original.actions.last().map(|a| a.at / 1000).unwrap_or(0);
 
     HttpResponse::Ok().json(FunscriptResponse {
         original: Some(original),
         intensity,
         peak,
         average,
-        volatility
+        volatility,
+        duration,
     })
 }
 

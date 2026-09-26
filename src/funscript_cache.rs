@@ -16,7 +16,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::fs;
 use walkdir::WalkDir;
 
-const CURRENT_CACHE_VERSION: u32 = 2;
+const CURRENT_CACHE_VERSION: u32 = 3;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FunscriptCacheFile {
@@ -31,6 +31,8 @@ pub struct FunscriptCacheEntry {
     pub peak_intensity: f64,
     #[serde(default)]
     pub volatility: f64,
+    #[serde(default)]
+    pub duration: u64, // in seconds
     pub sample_count: usize,
     pub last_updated: u64,
 }
@@ -68,6 +70,7 @@ fn sha256_hex(bytes: &[u8]) -> String {
 fn build_entry(content: &str, sha256: String) -> Result<FunscriptCacheEntry, String> {
     let data: FunscriptData = serde_json::from_str(content)
         .map_err(|e| format!("Failed to parse funscript json: {}", e))?;
+    let duration = data.actions.last().map(|a| a.at / 1000).unwrap_or(0);
 
     if data.actions.len() < 2 {
         return Ok(FunscriptCacheEntry {
@@ -75,6 +78,7 @@ fn build_entry(content: &str, sha256: String) -> Result<FunscriptCacheEntry, Str
             average_intensity: 0.0,
             peak_intensity: 0.0,
             volatility: 0.0,
+            duration,
             sample_count: 0,
             last_updated: unix_now_secs(),
         });
@@ -83,13 +87,14 @@ fn build_entry(content: &str, sha256: String) -> Result<FunscriptCacheEntry, Str
     let actions = data.actions.clone();
     let intensity = funscript_utils::actions_to_intensity_curve(&actions, &[]);
     let (average_intensity, peak_intensity) = funscript_utils::calculate_intensity_stats(&intensity);
-    let volatility = funscript_utils::calculate_volatility(&actions); // <-- Added
+    let volatility = funscript_utils::calculate_volatility(&actions);
 
     Ok(FunscriptCacheEntry {
         sha256,
         average_intensity,
         peak_intensity,
         volatility,
+        duration,
         sample_count: intensity.len(),
         last_updated: unix_now_secs(),
     })

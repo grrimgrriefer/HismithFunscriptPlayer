@@ -107,11 +107,14 @@ fn extract_stats_for_file(
                 .or_else(|| val.get("avg"))
                 .and_then(|v| v.as_f64())
                 .unwrap_or(0.0);
-
             let volatility = val
                 .get("volatility")
                 .and_then(|v| v.as_f64())
                 .unwrap_or(0.0);
+            let duration = val
+                .get("duration")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
 
             if peak.is_finite() || avg.is_finite() {
                 // Rounding required by JS badges
@@ -122,6 +125,7 @@ fn extract_stats_for_file(
                     peak: rounded_peak,
                     avg: rounded_avg,
                     volatility: rounded_vol,
+                    duration,
                 });
             }
         }

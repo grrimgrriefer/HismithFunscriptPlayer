@@ -35,6 +35,8 @@ pub struct RecommendedVideo {
     pub peak: f64,
     pub avg: f64,
     pub volatility: f64,
+    #[serde(default)]
+    pub duration: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub delta_peak: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -99,7 +101,7 @@ pub async fn get_next_recommendations(query: web::Query<NextQuery>) -> impl Resp
     let mut current_video_volatility = None;
 
     for v in sibling_videos {
-        if let Some((peak, avg, volatility)) = get_stats_for_video(&v.path, &cache) {
+        if let Some((peak, avg, volatility, duration)) = get_stats_for_video(&v.path, &cache) {
             if v.path == *target_path {
                 current_video_peak = Some(peak);
                 current_video_avg = Some(avg);
@@ -111,6 +113,7 @@ pub async fn get_next_recommendations(query: web::Query<NextQuery>) -> impl Resp
                 peak,
                 avg,
                 volatility,
+                duration,
                 delta_peak: None,
                 delta_avg: None,
                 delta_volatility: None,
@@ -179,13 +182,14 @@ pub async fn get_folder_start_recommendations(query: web::Query<FolderStartQuery
 
     let mut videos_with_stats = Vec::new();
     for v in folder_videos {
-        if let Some((peak, avg, volatility)) = get_stats_for_video(&v.path, &cache) {
+        if let Some((peak, avg, volatility, duration)) = get_stats_for_video(&v.path, &cache) {
             videos_with_stats.push(RecommendedVideo {
                 path: v.path,
                 name: v.name,
                 peak,
                 avg,
                 volatility,
+                duration,
                 delta_peak: None,
                 delta_avg: None,
                 delta_volatility: None,
@@ -275,7 +279,7 @@ fn get_videos_in_folder(tree: &FileNode, folder_path: &str) -> Vec<FileNode> {
 fn get_stats_for_video(
     file_path: &str,
     cache: &funscript_cache::FunscriptCache,
-) -> Option<(f64, f64, f64)> {
+) -> Option<(f64, f64, f64, u64)> {
     let stem_path = Path::new(file_path).with_extension("");
     let stem_str = stem_path.to_string_lossy();
     let exact_match = format!("{stem_str}.funscript");
@@ -286,7 +290,7 @@ fn get_stats_for_video(
         let is_variant = key.starts_with(&variant_prefix) && key.ends_with(".funscript");
 
         if is_exact || is_variant {
-            return Some((val.peak_intensity, val.average_intensity, val.volatility));
+            return Some((val.peak_intensity, val.average_intensity, val.volatility, val.duration));
         }
     }
     None

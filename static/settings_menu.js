@@ -16,6 +16,7 @@ import {
     toFunscriptPath,
     intensityToColor,
     volatilityToColor,
+    formatDuration,
     showTemporaryOverlayMessage,
     updateSbsPlayingState
 } from './utils.js';
@@ -118,6 +119,7 @@ export function updateIntensityDisplay() {
     const peakEl = document.getElementById('settings-peak-val');
     const avgEl = document.getElementById('settings-avg-val');
     const volEl = document.getElementById('settings-vol-val');
+    const durEl = document.getElementById('settings-dur-val');
 
     peakEl.textContent = Math.round(stats.peak);
     peakEl.style.color = intensityToColor(stats.peak);
@@ -127,6 +129,8 @@ export function updateIntensityDisplay() {
 
     volEl.textContent = Number(stats.volatility).toFixed(1);
     volEl.style.color = volatilityToColor(stats.volatility || 0);
+
+    durEl.textContent = formatDuration(stats.duration);
 }
 
 export function setSBSMode(enabled) {

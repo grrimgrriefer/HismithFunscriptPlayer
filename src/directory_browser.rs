@@ -19,6 +19,8 @@ pub struct VariantStat {
     pub peak: f64,
     pub avg: f64,
     pub volatility: f64,
+    #[serde(default)]
+    pub duration: u64,
 }
 
 #[derive(Serialize, Debug, Clone)]

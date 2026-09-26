@@ -57,6 +57,21 @@ export function smoothstep(t) {
     return t * t * (3 - 2 * t);
 }
 
+export function formatDuration(sec) {
+    if (!sec || !isFinite(sec) || sec <= 0) return '—';
+    const totalSec = Math.round(sec);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = Math.floor(totalSec % 60);
+    const paddedS = s < 10 ? `0${s}` : s;
+
+    if (h > 0) {
+        const paddedM = m < 10 ? `0${m}` : m;
+        return `${h}:${paddedM}:${paddedS}`;
+    }
+    return `${m}:${paddedS}`;
+}
+
 export function toFunscriptPath(videoPath) {
     return videoPath.replace(/\.[^/.]+$/, '.funscript');
 }

@@ -28,6 +28,7 @@ import {
     intensityToColor,
     volatilityToColor,
     relativeIntensityToColor,
+    formatDuration,
     updateSbsPlayingState,
     lockLandscape,
     lockPortrait
@@ -447,6 +448,9 @@ function getStats(v) {
 function getStatHtml(candidate, mode = 'relative') {
     if (!candidate) return '';
 
+    const durText = candidate.duration
+        ? formatDuration(candidate.duration)
+        : '—';
     if (mode === 'absolute') {
         const peakColor = intensityToColor(candidate.peak);
         const avgColor = intensityToColor(candidate.avg);
@@ -455,7 +459,8 @@ function getStatHtml(candidate, mode = 'relative') {
         return (
             `<span style="color:${peakColor}">🔺 ${candidate.peak.toFixed(1)} Peak</span><br>` +
             `<span style="color:${avgColor}">🌡️ ${candidate.avg.toFixed(1)} Avg</span><br>` +
-            `<span style="color:${volColor}">⚡️ ${candidate.volatility.toFixed(1)} Vol</span>`
+            `<span style="color:${volColor}">⚡️ ${candidate.volatility.toFixed(1)} Vol</span><br>` +
+            `<span style="color:rgba(255,255,255,0.85)">⏱️ ${durText}</span>`
         );
     }
 
@@ -474,7 +479,8 @@ function getStatHtml(candidate, mode = 'relative') {
     return (
         `<span style="color:${peakColor}">🔺 ${peakPrefix}${dPeak.toFixed(1)} Peak</span><br>` +
         `<span style="color:${avgColor}">🌡️ ${avgPrefix}${dAvg.toFixed(1)} Avg</span><br>` +
-        `<span style="color:${volColor}">⚡️ ${volPrefix}${dVol.toFixed(1)} Vol</span>`
+        `<span style="color:${volColor}">⚡️ ${volPrefix}${dVol.toFixed(1)} Vol</span><br>` +
+        `<span style="color:rgba(255,255,255,0.85)">⏱️ ${durText}</span>`
     );
 }
 

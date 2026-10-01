@@ -507,9 +507,9 @@ dependencies = [
 
 [[package]]
 name = "buttplug_core"
-version = "11.0.1"
+version = "11.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e058bbe98551be1c5a4620db65bead5db61e7337681d674b12be0d59adc54585"
+checksum = "62d660e6301194d74a66e040cd1ad30741727a2f8731e033eb6d71b157283884"
 dependencies = [
  "async-stream",
  "cfg-if",

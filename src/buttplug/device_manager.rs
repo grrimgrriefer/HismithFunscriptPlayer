@@ -21,12 +21,12 @@ use buttplug_core::message::OutputType;
 use futures::StreamExt;
 use log::{error, info, warn};
 use once_cell::sync::OnceCell;
-use std::{sync::{Arc, RwLock}, time::Duration};
+use std::{sync::{Arc, RwLock}, time::Duration, env};
 use tokio::sync::Mutex;
 
 static MANAGER: OnceCell<Arc<DeviceManager>> = OnceCell::new();
 
-const SERVER_URL: &str = "ws://127.0.0.1:12345/buttplug";
+const DEFAULT_SERVER_URL: &str = "ws://127.0.0.1:12345/buttplug";
 const CONTROL_INTERVAL_MS: u64 = 100;
 const SCAN_INTERVAL_SECS: u64 = 5;
 const RECONNECT_DELAY_SECS: u64 = 5;
@@ -140,16 +140,17 @@ pub async fn initialize() -> Result<(), ButtplugClientError> {
     MANAGER.set(mgr.clone()).ok();
 
     let client = Arc::new(ButtplugClient::new("Video Player"));
+    let server_url = env::var("INTIFACE_SERVER_URL").unwrap_or_else(|_| DEFAULT_SERVER_URL.to_string());
 
     // Connect with retries
     let c = client.clone();
     tokio::spawn(async move {
         loop {
             let connector = ButtplugRemoteClientConnector::<ButtplugWebsocketClientTransport,ButtplugClientJSONSerializer,
-                >::new(ButtplugWebsocketClientTransport::new_insecure_connector(SERVER_URL));
+                >::new(ButtplugWebsocketClientTransport::new_insecure_connector(&server_url));
             match c.connect(connector).await {
                 Ok(_) => {
-                    info!("Connected to Intiface server at {}", SERVER_URL);
+                    info!("Connected to Intiface server at {}", server_url);
                     break;
                 }
                 Err(e) => {

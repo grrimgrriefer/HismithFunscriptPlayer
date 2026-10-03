@@ -54,6 +54,7 @@ VIDEO_SHARE_PATH="/path/to/videos" # Absolute path to your video library (read-o
 FUNSCRIPT_SHARE_PATH="/path/to/funscripts" # Absolute path to your funscript directory (write permissions)
 HOST_IP=0.0.0.0 # Network IP (use 0.0.0.0 for Docker. Use your LAN IP when not using Docker)
 SERVER_PORT=5441 # Server port (default is 5441. When using a different value, make sure to adjust the socket.js and Dockerfile)
+INTIFACE_SERVER_URL="ws://192.168.x.x:12345/buttplug" # Optional url for the intiface server. Only needed when running through docker.
 ```
 
 ### 3. Build & Run
@@ -67,7 +68,6 @@ cargo run --release
 ```bash
 docker build -t hismith-player-site:v1 . && \
 docker run -d -p 5441:5441 \
-  -e HOST_IP=0.0.0.0 \
   --user "$(id -u):$(id -g)" \ # uses current user by default, if you have custom read/write permissions (e.g. NAS) you can specify a custom user
   --mount type=bind,source=/path/to/videos,target=/path/to/videos,readonly \ # read only video folder
   --mount type=bind,source=/path/to/funscripts,target=/path/to/funscripts \ # writeable folder (funscripts, thumbnails, calibration settings, etc.)

@@ -30,6 +30,7 @@ pub mod handlers {
     pub mod recommendations;
     pub mod thumbnail;
     pub mod video;
+    pub mod video_stats;
 }
 
 pub mod directory_browser;

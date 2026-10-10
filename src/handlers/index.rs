@@ -9,6 +9,7 @@
 
 use crate::directory_browser::{self, FileNode, VariantStat};
 use crate::funscript_cache;
+use crate::handlers::video_stats::{self, VideoStatsMap};
 use actix_files::NamedFile;
 use actix_web::{HttpResponse, Responder, Result};
 use log::{error, info, warn};
@@ -51,13 +52,14 @@ pub async fn get_directory_tree() -> impl Responder {
     };
 
     let (mut funscript_cache, funscript_cache_error) = load_funscript_cache().await;
+    let user_stats = video_stats::read_video_stats().await;
 
     if let Some(cache_obj) = funscript_cache.as_object_mut() {
         apply_cache_fallbacks(cache_obj, &video_base);
-        populate_and_sort_tree(&mut directory_tree, cache_obj);
+        populate_and_sort_tree(&mut directory_tree, cache_obj, &user_stats);
     } else {
         let empty_cache = serde_json::Map::new();
-        populate_and_sort_tree(&mut directory_tree, &empty_cache);
+        populate_and_sort_tree(&mut directory_tree, &empty_cache, &user_stats);
     }
 
     HttpResponse::Ok().json(json!({
@@ -67,16 +69,17 @@ pub async fn get_directory_tree() -> impl Responder {
     }))
 }
 
-fn populate_and_sort_tree(node: &mut FileNode, cache: &serde_json::Map<String, serde_json::Value>) {
+fn populate_and_sort_tree(node: &mut FileNode, cache: &serde_json::Map<String, serde_json::Value>, user_stats: &VideoStatsMap) {
     if node.is_dir {
         if let Some(children) = &mut node.children {
             for child in children.iter_mut() {
-                populate_and_sort_tree(child, cache);
+                populate_and_sort_tree(child, cache, user_stats);
             }
             sort_file_nodes(children);
         }
     } else {
         node.stats = extract_stats_for_file(&node.path, cache);
+        node.user_stats = Some(user_stats.get(&node.path).cloned().unwrap_or_default());
     }
 }
 

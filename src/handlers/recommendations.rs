@@ -6,6 +6,7 @@
 //! by analyzing peak/average intensity statistics of videos in the directory tree.
 
 use crate::directory_browser::{self, FileNode};
+use crate::handlers::video_stats;
 use crate::funscript_cache;
 use actix_web::{HttpResponse, Responder, web};
 use rand::seq::IndexedRandom;
@@ -37,6 +38,10 @@ pub struct RecommendedVideo {
     pub volatility: f64,
     #[serde(default)]
     pub duration: u64,
+    #[serde(default)]
+    pub views: u32,
+    #[serde(default)]
+    pub likes: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub delta_peak: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -94,6 +99,7 @@ pub async fn get_next_recommendations(query: web::Query<NextQuery>) -> impl Resp
         .unwrap_or_default();
 
     let sibling_videos = get_videos_in_folder(&tree, &parent_path);
+    let user_stats = video_stats::read_video_stats().await;
 
     let mut videos_with_stats = Vec::new();
     let mut current_video_peak = None;
@@ -107,6 +113,11 @@ pub async fn get_next_recommendations(query: web::Query<NextQuery>) -> impl Resp
                 current_video_avg = Some(avg);
                 current_video_volatility = Some(volatility);
             }
+            let (views, likes) = user_stats
+                .get(&v.path)
+                .map(|s| (s.views, s.likes))
+                .unwrap_or((0, 0));
+
             videos_with_stats.push(RecommendedVideo {
                 path: v.path,
                 name: v.name,
@@ -114,6 +125,8 @@ pub async fn get_next_recommendations(query: web::Query<NextQuery>) -> impl Resp
                 avg,
                 volatility,
                 duration,
+                views,
+                likes,
                 delta_peak: None,
                 delta_avg: None,
                 delta_volatility: None,
@@ -179,10 +192,16 @@ pub async fn get_folder_start_recommendations(query: web::Query<FolderStartQuery
     };
 
     let folder_videos = get_videos_in_folder(&tree, &query.folder);
+    let user_stats = video_stats::read_video_stats().await;
 
     let mut videos_with_stats = Vec::new();
     for v in folder_videos {
         if let Some((peak, avg, volatility, duration)) = get_stats_for_video(&v.path, &cache) {
+            let (views, likes) = user_stats
+                .get(&v.path)
+                .map(|s| (s.views, s.likes))
+                .unwrap_or((0, 0));
+
             videos_with_stats.push(RecommendedVideo {
                 path: v.path,
                 name: v.name,
@@ -190,6 +209,8 @@ pub async fn get_folder_start_recommendations(query: web::Query<FolderStartQuery
                 avg,
                 volatility,
                 duration,
+                views,
+                likes,
                 delta_peak: None,
                 delta_avg: None,
                 delta_volatility: None,

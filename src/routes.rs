@@ -9,7 +9,7 @@
 //!   with a Cache-Control: no-cache header applied.
 
 use crate::{
-    handlers::{analysis, calibration, editor, funscript, index, recommendations, thumbnail, video},
+    handlers::{analysis, calibration, editor, funscript, index, recommendations, thumbnail, video, video_stats},
     intiface_socket,
 };
 use actix_files::Files;
@@ -29,6 +29,9 @@ pub fn setup_routes(cfg: &mut web::ServiceConfig) {
                 .route("/max-limit", web::post().to(calibration::set_max_limit))
                 .route("/recommendations/next", web::get().to(recommendations::get_next_recommendations))
                 .route("/recommendations/folder-start", web::get().to(recommendations::get_folder_start_recommendations))
+                .route("/video-stats", web::get().to(video_stats::get_stats))
+                .route("/video-stats/view", web::post().to(video_stats::record_view))
+                .route("/video-stats/like", web::post().to(video_stats::record_like))
         )
         .service(
             web::scope("/site")

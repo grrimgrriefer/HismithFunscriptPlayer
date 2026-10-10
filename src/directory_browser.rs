@@ -13,6 +13,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use walkdir::WalkDir;
+use crate::handlers::video_stats::VideoUserStats;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct VariantStat {
@@ -30,6 +31,7 @@ pub struct FileNode {
     pub is_dir: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stats: Option<Vec<VariantStat>>,
+    pub user_stats: Option<VideoUserStats>,
     pub children: Option<Vec<FileNode>>,
 }
 
@@ -63,6 +65,7 @@ pub fn build_directory_tree(path: &Path, relative_path: &str) -> io::Result<File
                 path: child_relative_path,
                 is_dir: false,
                 stats: None,
+                user_stats: None,
                 children: None,
             }
         } else {
@@ -83,6 +86,7 @@ pub fn build_directory_tree(path: &Path, relative_path: &str) -> io::Result<File
         path: relative_path.to_string(),
         is_dir: true,
         stats: None,
+        user_stats: None,
         children: Some(children),
     })
 }

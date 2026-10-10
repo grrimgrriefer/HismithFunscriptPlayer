@@ -27,12 +27,19 @@ function toggleFolder(id) {
     }
 }
 
-function buildIntensityBadge(stats) {
-    if (!stats || stats.length === 0) return null;
+function buildIntensityBadge(stats, userStats) {
+    const uStats = userStats || { views: 0, likes: 0 };
+    const views = uStats.views ?? 0;
+    const likes = uStats.likes ?? 0;
+
+    const statEntries =
+        stats && stats.length > 0
+            ? stats
+            : [{ peak: NaN, avg: NaN, volatility: NaN, duration: 0 }];
 
     const parts = [];
 
-    for (const e of stats) {
+    for (const e of statEntries) {
         const peakText = isFinite(e.peak) ? String(e.peak) : '—';
         const avgText = isFinite(e.avg) ? String(e.avg) : '—';
         const volText = isFinite(e.volatility)
@@ -55,12 +62,12 @@ function buildIntensityBadge(stats) {
                 `<span style="color:${peakColor}">🔺${peakText}</span> ` +
                 `<span style="color:${avgColor}">🌡️${avgText}</span> ` +
                 `<span style="color:${volColor}">⚡️${volText}</span> ` +
-                `<span style="color:rgba(255,255,255,0.75)">⏱️${durText}</span>` +
+                `<span style="color:rgba(255,255,255,0.75)">⏱️${durText}</span> ` +
+                `<span style="color:#ff4081" title="${likes} likes">❤️${likes}</span> ` +
+                `<span style="color:#aaa" title="${views} views">👁️${views}</span>` +
                 `</span>`
         );
     }
-
-    if (parts.length === 0) return null;
 
     const badge = document.createElement('span');
     badge.className = 'file-intensity';
@@ -93,7 +100,7 @@ function renderTree(node, parent, openFolders = new Set()) {
         const row = document.createElement('div');
         row.className = 'file-row';
 
-        const badge = buildIntensityBadge(node.stats);
+        const badge = buildIntensityBadge(node.stats, node.user_stats);
         if (badge) row.appendChild(badge);
 
         const link = document.createElement('a');
@@ -134,14 +141,30 @@ export function sortTreeNodes(node, sortBy = 'peak') {
         }
 
         if (!a.is_dir) {
-            const aHasStats = a.stats && a.stats.length > 0;
-            const bHasStats = b.stats && b.stats.length > 0;
+            // Sort by Likes
+            if (sortBy === 'likes') {
+                const aLikes = a.user_stats?.likes || 0;
+                const bLikes = b.user_stats?.likes || 0;
+                if (aLikes !== bLikes) return bLikes - aLikes;
 
-            if (aHasStats !== bHasStats) {
-                return aHasStats ? -1 : 1;
+                const aViews = a.user_stats?.views || 0;
+                const bViews = b.user_stats?.views || 0;
+                if (aViews !== bViews) return bViews - aViews;
             }
 
-            if (aHasStats && bHasStats && sortBy !== 'name') {
+            // Sort by Views
+            if (sortBy === 'views') {
+                const aViews = a.user_stats?.views || 0;
+                const bViews = b.user_stats?.views || 0;
+                if (aViews !== bViews) return bViews - aViews;
+
+                const aLikes = a.user_stats?.likes || 0;
+                const bLikes = b.user_stats?.likes || 0;
+                if (aLikes !== bLikes) return bLikes - aLikes;
+            }
+
+            // intensity sort fallback
+            if (sortBy !== 'name' && sortBy !== 'likes' && sortBy !== 'views') {
                 const aPrimary = getMetric(a, sortBy);
                 const bPrimary = getMetric(b, sortBy);
 

@@ -51,8 +51,12 @@ const state = {
     nextVideoTimer: null,
     isOverlayVisible: false,
     playedVideos: new Set(),
+    likedVideos: new Set(),
     funscriptEndCancelled: false,
-    videoEndedCancelled: false
+    videoEndedCancelled: false,
+    actualPlayTimeMs: 0,
+    lastPlayTick: null,
+    autoLikeRecorded: false
 };
 
 function computeOscillateValue(intensity, progress) {
@@ -76,6 +80,15 @@ function computeVibrateValue(currentTime, intensity, progress) {
 }
 
 function updateProgressBars(videoElement) {
+    const now = Date.now();
+    if (state.lastPlayTick) {
+        const dt = Math.min(now - state.lastPlayTick, 250);
+        if (!videoElement.paused && !videoElement.seeking) {
+            state.actualPlayTimeMs += dt;
+        }
+    }
+    state.lastPlayTick = now;
+
     const currentTime = videoElement.currentTime * 1000;
     const intensity = getCurrentIntensity(currentTime);
     updateFunscriptDisplayBox(currentTime);
@@ -135,6 +148,18 @@ function cancelCurrentAnimation() {
     }
 }
 
+function findNodeByPath(node, path) {
+    if (!node) return null;
+    if (node.path === path) return node;
+    if (node.children) {
+        for (const child of node.children) {
+            const found = findNodeByPath(child, path);
+            if (found) return found;
+        }
+    }
+    return null;
+}
+
 export async function playVideo(
     videoUrl,
     funscriptUrl,
@@ -145,6 +170,13 @@ export async function playVideo(
     state.playedVideos.add(relativePath);
     state.funscriptEndCancelled = false;
     state.videoEndedCancelled = false;
+    state.viewRecorded = false;
+    state.actualPlayTimeMs = 0;
+    state.lastPlayTick = null;
+
+    const alreadyLikedThisSession = state.likedVideos.has(relativePath);
+    state.autoLikeRecorded = alreadyLikedThisSession;
+
     hideNextVideoOverlay();
 
     const errorOverlay = document.getElementById('video-error-overlay');
@@ -154,6 +186,41 @@ export async function playVideo(
     cancelCurrentAnimation();
     sendDeviceCommand(0, 0);
     updateSbsPlayingState();
+
+    const likeBtn = document.getElementById('like-button');
+    if (likeBtn) {
+        likeBtn.style.display = 'block';
+        likeBtn.style.right = '110px';
+
+        const currentNode = findNodeByPath(state.globalTree, relativePath);
+        const currentLikes = currentNode?.user_stats?.likes ?? 0;
+        likeBtn.textContent = `❤️ ${currentLikes}`;
+        likeBtn.disabled = alreadyLikedThisSession;
+        likeBtn.title = alreadyLikedThisSession
+            ? 'Already liked this session'
+            : 'Like Video';
+
+        likeBtn.onclick = async () => {
+            if (state.likedVideos.has(relativePath)) {
+                showTemporaryOverlayMessage(
+                    'Already liked this session!',
+                    1000
+                );
+                return;
+            }
+
+            state.autoLikeRecorded = true;
+            likeBtn.disabled = true;
+
+            const updated = await recordLike(relativePath);
+            if (updated) {
+                showTemporaryOverlayMessage(
+                    `Liked ❤️ (${updated.likes})`,
+                    1000
+                );
+            }
+        };
+    }
 
     const videoPlayer = document.getElementById('video-player');
     const videoElement = document.createElement('video');
@@ -194,6 +261,24 @@ export async function playVideo(
             state.cancelAnimationTimeout = null;
         }
         cancelCurrentAnimation();
+
+        state.lastPlayTick = Date.now();
+
+        if (!state.viewRecorded) {
+            state.viewRecorded = true;
+            fetch('/api/video-stats/view', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ video_path: relativePath })
+            })
+                .then((res) => res.json())
+                .then((updated) => {
+                    const node = findNodeByPath(state.globalTree, relativePath);
+                    if (node) node.user_stats = updated;
+                })
+                .catch((err) => console.error('Failed to record view', err));
+        }
+
         state.transitionStartTime = Date.now();
         state.transitionTargetValue = 0;
         state.currentAnimationFrame = requestAnimationFrame(() =>
@@ -206,6 +291,7 @@ export async function playVideo(
     };
 
     videoElement.onpause = () => {
+        state.lastPlayTick = null;
         state.cancelAnimationTimeout = setTimeout(
             cancelCurrentAnimation,
             TRANSITION_DURATION + 100
@@ -301,6 +387,10 @@ function startNextVideo(videoNode) {
         );
         return;
     }
+
+    const currentVideoEl = document.querySelector('#video-player video');
+    checkAndTriggerAutoLike(currentVideoEl);
+
     hideNextVideoOverlay();
     playVideo(
         `/site/video/${videoNode.path}`,
@@ -451,6 +541,13 @@ function getStatHtml(candidate, mode = 'relative') {
     const durText = candidate.duration
         ? formatDuration(candidate.duration)
         : '—';
+
+    const node = findNodeByPath(state.globalTree, candidate.path);
+    const views = node?.user_stats?.views ?? candidate.views ?? 0;
+    const likes = node?.user_stats?.likes ?? candidate.likes ?? 0;
+
+    const userHtml = `<span style="color:#ff4081" title="${likes} likes">❤️ ${likes}</span> <span style="color:#aaa" title="${views} views">👁️ ${views}</span>`;
+
     if (mode === 'absolute') {
         const peakColor = intensityToColor(candidate.peak);
         const avgColor = intensityToColor(candidate.avg);
@@ -460,7 +557,8 @@ function getStatHtml(candidate, mode = 'relative') {
             `<span style="color:${peakColor}">🔺 ${candidate.peak.toFixed(1)} Peak</span><br>` +
             `<span style="color:${avgColor}">🌡️ ${candidate.avg.toFixed(1)} Avg</span><br>` +
             `<span style="color:${volColor}">⚡️ ${candidate.volatility.toFixed(1)} Vol</span><br>` +
-            `<span style="color:rgba(255,255,255,0.85)">⏱️ ${durText}</span>`
+            `<span style="color:rgba(255,255,255,0.85)">⏱️ ${durText}</span><br>` +
+            `<span>${userHtml}</span>`
         );
     }
 
@@ -480,7 +578,8 @@ function getStatHtml(candidate, mode = 'relative') {
         `<span style="color:${peakColor}">🔺 ${peakPrefix}${dPeak.toFixed(1)} Peak</span><br>` +
         `<span style="color:${avgColor}">🌡️ ${avgPrefix}${dAvg.toFixed(1)} Avg</span><br>` +
         `<span style="color:${volColor}">⚡️ ${volPrefix}${dVol.toFixed(1)} Vol</span><br>` +
-        `<span style="color:rgba(255,255,255,0.85)">⏱️ ${durText}</span>`
+        `<span style="color:rgba(255,255,255,0.85)">⏱️ ${durText}</span><br>` +
+        `<span>${userHtml}</span>`
     );
 }
 
@@ -514,4 +613,63 @@ function updateOverlayButtons(candidates, labels, statMode = 'relative') {
     formatBtn('next-lower-btn', candidates.lower);
     formatBtn('next-similar-btn', candidates.similar);
     formatBtn('next-higher-btn', candidates.higher);
+}
+
+async function recordLike(relativePath) {
+    if (state.likedVideos.has(relativePath)) return null;
+    state.likedVideos.add(relativePath);
+
+    try {
+        const res = await fetch('/api/video-stats/like', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ video_path: relativePath })
+        });
+        if (res.ok) {
+            const updated = await res.json();
+            const node = findNodeByPath(state.globalTree, relativePath);
+            if (node) node.user_stats = updated;
+
+            const likeBtn = document.getElementById('like-button');
+            if (likeBtn && state.currentVideoRelativePath === relativePath) {
+                likeBtn.textContent = `❤️ ${updated.likes}`;
+                likeBtn.disabled = true;
+                likeBtn.title = 'Already liked this session';
+            }
+            return updated;
+        }
+    } catch (err) {
+        console.error('Failed to record like', err);
+    }
+    return null;
+}
+
+function checkAndTriggerAutoLike(videoElement) {
+    if (
+        state.autoLikeRecorded ||
+        !state.currentVideoRelativePath ||
+        state.likedVideos.has(state.currentVideoRelativePath)
+    ) {
+        return;
+    }
+
+    const durationMs =
+        videoElement?.duration && isFinite(videoElement.duration)
+            ? videoElement.duration * 1000
+            : getFunscriptDuration();
+
+    const minThresholdMs =
+        durationMs > 0 ? Math.min(durationMs * 0.4, 30000) : 15000;
+
+    if (state.actualPlayTimeMs >= minThresholdMs) {
+        state.autoLikeRecorded = true;
+        recordLike(state.currentVideoRelativePath).then((updated) => {
+            if (updated) {
+                showTemporaryOverlayMessage(
+                    `Auto-liked ❤️ (${updated.likes})`,
+                    1200
+                );
+            }
+        });
+    }
 }

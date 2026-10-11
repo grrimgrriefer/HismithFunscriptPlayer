@@ -7,7 +7,6 @@
 //! (.calibration_profiles.json) under FUNSCRIPT_SHARE_PATH and map named
 //! profiles to per-range intensity actual measured BPMs.
 
-
 use actix_files::NamedFile;
 use actix_web::{Error, HttpResponse, Responder, web};
 use log::{error, info};
@@ -70,15 +69,15 @@ pub async fn handle_calibration_page() -> Result<impl Responder, Error> {
 
 #[derive(Serialize)]
 pub struct BpmMappingResponse {
-    pub points: Vec<crate::buttplug::funscript_utils::BpmIntensityPoint>,
+    pub points: Vec<crate::funscript::BpmIntensityPoint>,
     pub lut: HashMap<String, f64>,
 }
 
 pub async fn get_bpm_mapping() -> impl Responder {
-    let points = crate::buttplug::funscript_utils::get_bpm_intensity_mapping();
+    let points = crate::funscript::get_bpm_intensity_mapping();
     let mut lut = HashMap::new();
     for i in 0..=100 {
-        let bpm = crate::buttplug::funscript_utils::intensity_to_bpm(i as f64);
+        let bpm = crate::funscript::intensity_to_bpm(i as f64);
         lut.insert(i.to_string(), bpm);
     }
     HttpResponse::Ok().json(BpmMappingResponse { points, lut })
@@ -137,7 +136,7 @@ pub async fn set_active_profile(payload: web::Json<SetActiveProfilePayload>) -> 
     }
 
     points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-    crate::buttplug::device_manager::set_active_calibration_points(points);
+    crate::device::device_manager::set_active_calibration_points(points);
 
     HttpResponse::Ok().json(serde_json::json!({ "ok": true }))
 }
@@ -149,6 +148,6 @@ pub struct SetMaxLimitPayload {
 
 pub async fn set_max_limit(payload: web::Json<SetMaxLimitPayload>) -> impl Responder {
     let normalized_limit = (payload.limit / 100.0).clamp(0.0, 1.0);
-    crate::buttplug::device_manager::set_max_limit(normalized_limit);
+    crate::device::device_manager::set_max_limit(normalized_limit);
     HttpResponse::Ok().json(serde_json::json!({ "ok": true }))
 }

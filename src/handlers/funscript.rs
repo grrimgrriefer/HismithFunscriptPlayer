@@ -6,7 +6,8 @@
 //! data for videos. It loads the original funscript and generates real-time intensity
 //! data used for device control.
 
-use crate::buttplug::{device_manager::self, funscript_utils::{self, FunscriptData}};
+use crate::device::device_manager;
+use crate::funscript::{self, FunscriptData};
 use actix_web::{HttpResponse, web};
 use log::{error, info, warn};
 use serde::Serialize;
@@ -42,7 +43,6 @@ pub async fn handle_funscript(
         }
     };
 
-    // List available variants for this video
     if query.contains_key("list") {
         let variants = list_variants(&base_path, &video_path);
         return HttpResponse::Ok().json(serde_json::json!({ "variants": variants }));
@@ -57,8 +57,6 @@ pub async fn handle_funscript(
 
     let mut original_res = read_funscript(&funscript_path).await;
 
-    // Fallback: check parent directory if not found in current directory.
-    // Mainly for videos that have a 2D and a 3D SBS variant
     if original_res.is_err() {
         if let Some(parent_path) = build_parent_funscript_path(&video_path, &base_path, variant) {
             if let Ok(data) = read_funscript(&parent_path).await {
@@ -84,11 +82,11 @@ pub async fn handle_funscript(
 
     let speed = query.get("speed").map(|s| s.as_str()).unwrap_or("normal");
     if speed == "halfbeat" {
-        original.actions = funscript_utils::half_beat_actions(&original.actions);
+        original.actions = funscript::half_beat_actions(&original.actions);
     } else if speed == "quarterbeat" {
-        original.actions = funscript_utils::quarter_beat_actions(&original.actions);
+        original.actions = funscript::quarter_beat_actions(&original.actions);
     } else if speed == "doublebeat" {
-        original.actions = funscript_utils::double_beat_actions(&original.actions);
+        original.actions = funscript::double_beat_actions(&original.actions);
     }
 
     let cal_points = device_manager::get_active_calibration_points();
@@ -102,10 +100,10 @@ pub async fn handle_funscript(
 
     let (average, peak) = intensity
         .as_ref()
-        .map(|i| funscript_utils::calculate_intensity_stats(&i.actions))
+        .map(|i| funscript::calculate_intensity_stats(&i.actions))
         .unwrap_or((0.0, 0.0));
 
-    let volatility = funscript_utils::calculate_volatility(&original.actions);
+    let volatility = funscript::calculate_volatility(&original.actions);
     let duration = original.actions.last().map(|a| a.at / 1000).unwrap_or(0);
 
     HttpResponse::Ok().json(FunscriptResponse {
@@ -209,7 +207,7 @@ fn generate_intensity(original: &FunscriptData, cal_points: &[(f64, f64)]) -> Re
     }
 
     let actions = original.actions.clone();
-    let intensity_actions = funscript_utils::actions_to_intensity_curve(&actions, cal_points);
+    let intensity_actions = funscript::actions_to_intensity_curve(&actions, cal_points);
 
     if intensity_actions.is_empty() {
         return Err(

@@ -1,4 +1,4 @@
-// src/buttplug/funscript_utils.rs
+// src/funscript.rs
 
 //! Funscript processing module
 //!

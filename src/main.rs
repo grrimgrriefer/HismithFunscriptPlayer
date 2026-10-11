@@ -4,7 +4,7 @@
 //!
 //! Loads .env and initializes logging. Spawns background tasks for:
 //! - funscript cache initialization when FUNSCRIPT_SHARE_PATH is set
-//! - Intiface initialization via buttplug::device_manager::initialize()
+//! - Intiface initialization via device::device_manager::initialize()
 //!
 //! Configures Actix HTTP server with logging and permissive CORS. Bind address is
 //! controlled by HOST_IP and SERVER_PORT environment variables
@@ -12,7 +12,7 @@
 use actix_cors::Cors;
 use actix_web::{App, HttpServer, middleware::Logger};
 use env_logger::Env;
-use hismith_player_site::{buttplug::device_manager, routes};
+use hismith_player_site::{device::device_manager, routes};
 use log::{error, info};
 use std::env;
 
@@ -25,7 +25,7 @@ async fn main() -> std::io::Result<()> {
     if let Ok(f) = env::var("FUNSCRIPT_SHARE_PATH") {
         let base = std::path::PathBuf::from(f);
         tokio::spawn(async move {
-            match hismith_player_site::funscript_cache::get_cache_for_base(&base).await {
+            match hismith_player_site::funscripts_cache::get_cache_for_base(&base).await {
                 Ok(_) => info!("Funscript cache ready"),
                 Err(e) => error!("Funscript cache error: {}", e),
             }

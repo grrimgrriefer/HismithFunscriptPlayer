@@ -17,8 +17,9 @@
 //! - `routes`: HTTP routing configuration
 //! - `handlers`: Request handlers for videos and funscripts
 //! - `directory_browser`: File system navigation
-//! - `intiface_socket`: WebSocket handler for device communication
-//! - `buttplug`: Device control and funscript processing
+//! - `client_socket`: WebSocket handler for device communication
+//! - `funscript`: Mathematical funscript parsing, curve processing, and volatility calculations
+//! - `device`: Hardware device manager and control loop
 
 pub mod routes;
 pub mod handlers {
@@ -34,16 +35,10 @@ pub mod handlers {
 }
 
 pub mod directory_browser;
-pub mod funscript_cache;
-pub mod intiface_socket;
+pub mod funscripts_cache;
+pub mod client_socket;
+pub mod funscript;
 
-/// Buttplug-related functionality for device control and funscript processing
-///
-/// The buttplug::device_manager module manages the Buttplug client lifecycle,
-/// device discovery and the periodic control loop. It exposes initialize()
-/// for startup and synchronous control helpers used by the WebSocket actor (for
-/// example: set_oscillate and set_vibrate).
-pub mod buttplug {
+pub mod device {
     pub mod device_manager;
-    pub mod funscript_utils;
 }

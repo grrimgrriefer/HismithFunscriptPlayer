@@ -8,8 +8,9 @@
 //! the resulting .funscript file under FUNSCRIPT_SHARE_PATH. Triggers a
 //! background cache refresh after successful writes.
 
-use crate::buttplug::{device_manager::self, funscript_utils::{self, FunscriptData}};
-use crate::funscript_cache;
+use crate::device::device_manager;
+use crate::funscript::{self, FunscriptData};
+use crate::funscripts_cache;
 use actix_files::NamedFile;
 use actix_web::{Error, HttpResponse, Responder, web};
 use serde::Deserialize;
@@ -36,7 +37,7 @@ pub async fn calculate_draft_intensity(
     payload: web::Json<CalculateDraftIntensityPayload>,
 ) -> impl Responder {
     let taps = payload.into_inner().taps;
-    let actions = funscript_utils::generate_funscript_actions_from_taps(&taps);
+    let actions = funscript::generate_funscript_actions_from_taps(&taps);
 
     if taps.len() < 2 {
         return HttpResponse::Ok().json(serde_json::json!({
@@ -49,9 +50,9 @@ pub async fn calculate_draft_intensity(
     }
 
     let cal_points = device_manager::get_active_calibration_points();
-    let intensity_curve = funscript_utils::actions_to_intensity_curve(&actions, &cal_points);
-    let (average, peak) = funscript_utils::calculate_intensity_stats(&intensity_curve);
-    let (volatility, sections) = funscript_utils::calculate_volatility_with_sections(&actions);
+    let intensity_curve = funscript::actions_to_intensity_curve(&actions, &cal_points);
+    let (average, peak) = funscript::calculate_intensity_stats(&intensity_curve);
+    let (volatility, sections) = funscript::calculate_volatility_with_sections(&actions);
 
     HttpResponse::Ok().json(serde_json::json!({
         "peak": peak,
@@ -93,7 +94,7 @@ pub async fn save_funscript(payload: web::Json<SaveFunscriptPayload>) -> impl Re
 
     let output_path = build_funscript_path(&share_path, &relative_video_path, variant.as_deref());
 
-    let actions = funscript_utils::generate_funscript_actions_from_taps(&request.taps);
+    let actions = funscript::generate_funscript_actions_from_taps(&request.taps);
     let funscript_data = FunscriptData {
         actions,
         ..Default::default()
@@ -165,6 +166,6 @@ fn build_funscript_path(root: &Path, relative_video_path: &Path, variant: Option
 
 fn refresh_cache_in_background(share_path: PathBuf) {
     tokio::spawn(async move {
-        let _ = funscript_cache::get_cache_for_base(&share_path).await;
+        let _ = funscripts_cache::get_cache_for_base(&share_path).await;
     });
 }

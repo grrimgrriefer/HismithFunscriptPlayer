@@ -1,9 +1,9 @@
 // src/handlers/analysis.rs
 
 //! Analysis handlers for checking video/funscript duration gaps and funscript volatility.
-//! TODO: get this in the front end (badges maybe? idk yet)
+//! TODO: get this in the front end (maybe button in settings menu?)
 
-use crate::buttplug::funscript_utils::{FunscriptData};
+use crate::funscript::FunscriptData;
 use actix_web::{HttpResponse, Responder};
 use std::{
     env,

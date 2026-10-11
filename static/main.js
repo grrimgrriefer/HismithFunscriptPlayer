@@ -24,7 +24,7 @@ function initializeUI() {
 }
 
 function renderCacheError(payload, treeContainer) {
-    if (payload?.funscript_cache_error) {
+    if (payload?.funscripts_cache_error) {
         const container = document.getElementById('directory-container');
         if (!container) return;
 
@@ -34,7 +34,7 @@ function renderCacheError(payload, treeContainer) {
             errEl.id = 'funscript-cache-error';
             container.insertBefore(errEl, treeContainer);
         }
-        errEl.textContent = payload.funscript_cache_error;
+        errEl.textContent = payload.funscripts_cache_error;
     } else {
         document.getElementById('funscript-cache-error')?.remove();
     }

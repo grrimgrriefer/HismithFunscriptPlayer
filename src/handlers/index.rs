@@ -8,7 +8,7 @@
 //! average/peak intensity statistics for each funscript file.
 
 use crate::directory_browser::{self, FileNode, VariantStat};
-use crate::funscript_cache;
+use crate::funscripts_cache;
 use crate::handlers::video_stats::{self, VideoStatsMap};
 use actix_files::NamedFile;
 use actix_web::{HttpResponse, Responder, Result};
@@ -51,10 +51,10 @@ pub async fn get_directory_tree() -> impl Responder {
         }
     };
 
-    let (mut funscript_cache, funscript_cache_error) = load_funscript_cache().await;
+    let (mut funscripts_cache, funscripts_cache_error) = load_funscripts_cache().await;
     let user_stats = video_stats::read_video_stats().await;
 
-    if let Some(cache_obj) = funscript_cache.as_object_mut() {
+    if let Some(cache_obj) = funscripts_cache.as_object_mut() {
         apply_cache_fallbacks(cache_obj, &video_base);
         populate_and_sort_tree(&mut directory_tree, cache_obj, &user_stats);
     } else {
@@ -64,8 +64,8 @@ pub async fn get_directory_tree() -> impl Responder {
 
     HttpResponse::Ok().json(json!({
         "tree": directory_tree,
-        "funscripts": funscript_cache,
-        "funscript_cache_error": funscript_cache_error
+        "funscripts": funscripts_cache,
+        "funscripts_cache_error": funscripts_cache_error
     }))
 }
 
@@ -193,13 +193,13 @@ fn required_env_path(key: &str) -> Result<PathBuf, HttpResponse> {
     })
 }
 
-async fn load_funscript_cache() -> (Value, Option<String>) {
+async fn load_funscripts_cache() -> (Value, Option<String>) {
     let base = match env::var(FUNSCRIPT_SHARE_ENV) {
         Ok(path) => path,
         Err(_) => return (json!({}), None), // Optional feature: no env var means no cache data.
     };
 
-    match funscript_cache::get_cache_for_base(&PathBuf::from(base)).await {
+    match funscripts_cache::get_cache_for_base(&PathBuf::from(base)).await {
         Ok(cache_map) => (json!(cache_map), None),
         Err(e) => {
             warn!("Funscript cache build failed: {}", e);

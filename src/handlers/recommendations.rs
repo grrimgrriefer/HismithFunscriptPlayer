@@ -7,7 +7,7 @@
 
 use crate::directory_browser::{self, FileNode};
 use crate::handlers::video_stats;
-use crate::funscript_cache;
+use crate::funscripts_cache;
 use actix_web::{HttpResponse, Responder, web};
 use rand::seq::IndexedRandom;
 use serde::{Deserialize, Serialize};
@@ -73,7 +73,7 @@ pub async fn get_next_recommendations(query: web::Query<NextQuery>) -> impl Resp
 
     let funscript_base = env::var(FUNSCRIPT_SHARE_ENV).map(PathBuf::from).ok();
     let cache = if let Some(ref fb) = funscript_base {
-        funscript_cache::get_cache_for_base(fb).await.unwrap_or_default()
+        funscripts_cache::get_cache_for_base(fb).await.unwrap_or_default()
     } else {
         std::collections::HashMap::new()
     };
@@ -181,7 +181,7 @@ pub async fn get_folder_start_recommendations(query: web::Query<FolderStartQuery
 
     let funscript_base = env::var(FUNSCRIPT_SHARE_ENV).map(PathBuf::from).ok();
     let cache = if let Some(ref fb) = funscript_base {
-        funscript_cache::get_cache_for_base(fb).await.unwrap_or_default()
+        funscripts_cache::get_cache_for_base(fb).await.unwrap_or_default()
     } else {
         std::collections::HashMap::new()
     };
@@ -299,7 +299,7 @@ fn get_videos_in_folder(tree: &FileNode, folder_path: &str) -> Vec<FileNode> {
 
 fn get_stats_for_video(
     file_path: &str,
-    cache: &funscript_cache::FunscriptCache,
+    cache: &funscripts_cache::FunscriptCache,
 ) -> Option<(f64, f64, f64, u64)> {
     let stem_path = Path::new(file_path).with_extension("");
     let stem_str = stem_path.to_string_lossy();

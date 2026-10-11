@@ -244,7 +244,7 @@ _(device used for baselines is my HISMITH without any attachment)_
 
 ### Server Permission Denied (Cache / Saving Errors)
 - **Symptom:** Red error banner appears in the file tree: *"Server cannot write to the funscripts directory; caching disabled..."*
-- The server process lacks write permissions to `FUNSCRIPT_SHARE_PATH`. Write access is required to generate intensity caches (`.funscript_cache.json`), thumbnails (`.thumbnails/`), calibration profiles (`.calibration_profiles.json`), and save funscripts.
+- The server process lacks write permissions to `FUNSCRIPT_SHARE_PATH`. Write access is required to generate intensity caches (`.funscripts_cache.json`), thumbnails (`.thumbnails/`), calibration profiles (`.calibration_profiles.json`), and save funscripts.
 - **Solution:** Ensure the process or Docker container user owns or has write access to the funscript folder. (or specify a specific user that has the right permissions in the Docker run command)
 
 ### Device Connection Failures
@@ -264,12 +264,12 @@ _(device used for baselines is my HISMITH without any attachment)_
 │   ├── main.rs                     # Entry point, env loading, Actix server setup
 │   ├── lib.rs                      # Module declarations & documentation
 │   ├── routes.rs                   # Endpoint routing (/site, /api, /ws)
-│   ├── intiface_socket.rs          # WebSocket actor receiving client device commands
+│   ├── client_socket.rs            # WebSocket receiving client's device-commands
 │   ├── directory_browser.rs        # Video directory tree scanner
-│   ├── funscript_cache.rs          # Funscript intensity hashing & caching
-│   ├── buttplug/
+│   ├── funscript.rs                # Funscript parsing, interpolation, & intensity math
+│   ├── funscripts_cache.rs         # Funscript intensity hashing & caching
+│   ├── device/
 │   │   ├── device_manager.rs       # Buttplug connection, scanning, & motor loop
-│   │   └── funscript_utils.rs      # Funscript parsing, interpolation, & intensity math
 │   └── handlers/
 │       ├── index.rs                # Main index page & directory tree JSON API
 │       ├── video.rs                # Video streaming handler (HTTP Range support)

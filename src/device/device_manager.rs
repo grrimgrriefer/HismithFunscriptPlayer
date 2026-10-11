@@ -1,4 +1,4 @@
-// src/buttplug/device_manager.rs
+// src/device/device_manager.rs
 
 //! Device connection and control module
 //!
@@ -72,7 +72,7 @@ impl DeviceManager {
 
         let max_limit = self.max_limit.load(std::sync::atomic::Ordering::Relaxed);        
         let final_osc = raw_osc.min(max_limit).clamp(0.0, 1.0);
-        let final_vib = raw_vib; // .min(max_limit).clamp(0.0, 1.0);
+        let final_vib = raw_vib;
 
         if let Some(ref dev) = devices.oscillator {
             if let Err(e) = dev.run_output(&ClientDeviceOutputCommand::Oscillate(final_osc.into())).await {
@@ -146,8 +146,9 @@ pub async fn initialize() -> Result<(), ButtplugClientError> {
     let c = client.clone();
     tokio::spawn(async move {
         loop {
-            let connector = ButtplugRemoteClientConnector::<ButtplugWebsocketClientTransport,ButtplugClientJSONSerializer,
-                >::new(ButtplugWebsocketClientTransport::new_insecure_connector(&server_url));
+            let connector = ButtplugRemoteClientConnector::<ButtplugWebsocketClientTransport, ButtplugClientJSONSerializer>::new(
+                ButtplugWebsocketClientTransport::new_insecure_connector(&server_url),
+            );
             match c.connect(connector).await {
                 Ok(_) => {
                     info!("Connected to Intiface server at {}", server_url);

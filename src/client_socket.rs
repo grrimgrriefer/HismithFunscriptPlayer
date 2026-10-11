@@ -1,16 +1,8 @@
-// src/intiface_socket.rs
+// src/client_socket.rs
 
-//! WebSocket handler for device control via the Buttplug protocol.
+//! WebSocket handler that forwards hardware requests (o, v) from the client (/ws endpoint) to the device manager.
 
-
-
-
-
-
-
-
-
-use crate::buttplug::device_manager;
+use crate::device::device_manager;
 
 use actix_web::{Error, HttpRequest, HttpResponse, web};
 use actix_ws::Message;
@@ -18,76 +10,11 @@ use futures::StreamExt;
 use log::{debug, error, info};
 use serde::Deserialize;
 
-
-
-
 #[derive(Deserialize)]
 struct ControlCommand {
     o: Option<f64>,
     v: Option<f64>,
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 pub async fn handle_ws_start(
     req: HttpRequest,

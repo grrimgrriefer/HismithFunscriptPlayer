@@ -1,13 +1,13 @@
-// src/funscript_cache.rs
+// src/funscripts_cache.rs
 
 //! Funscript cache utilities
 //!
 //! This module provides a lightweight cache for precomputing intensity statistics
 //! for funscript files under a base directory. The cache is stored as a JSON file
-//! (.funscript_cache.json) beside the funscript base and maps relative file paths
+//! (.funscripts_cache.json) beside the funscript base and maps relative file paths
 //! to computed entries (sha256, average/peak intensity, sample counts, timestamp).
 
-use crate::buttplug::funscript_utils::{self, FunscriptData };
+use crate::funscript::{self, FunscriptData};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -85,9 +85,9 @@ fn build_entry(content: &str, sha256: String) -> Result<FunscriptCacheEntry, Str
     }
 
     let actions = data.actions.clone();
-    let intensity = funscript_utils::actions_to_intensity_curve(&actions, &[]);
-    let (average_intensity, peak_intensity) = funscript_utils::calculate_intensity_stats(&intensity);
-    let volatility = funscript_utils::calculate_volatility(&actions);
+    let intensity = funscript::actions_to_intensity_curve(&actions, &[]);
+    let (average_intensity, peak_intensity) = funscript::calculate_intensity_stats(&intensity);
+    let volatility = funscript::calculate_volatility(&actions);
 
     Ok(FunscriptCacheEntry {
         sha256,
@@ -189,6 +189,6 @@ pub async fn scan_and_update_cache(
 }
 
 pub async fn get_cache_for_base(funscript_base: &Path) -> Result<FunscriptCache, String> {
-    let cache_path = funscript_base.join(".funscript_cache.json");
+    let cache_path = funscript_base.join(".funscripts_cache.json");
     scan_and_update_cache(funscript_base, &cache_path).await
 }

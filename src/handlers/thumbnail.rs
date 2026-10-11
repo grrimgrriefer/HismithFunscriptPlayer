@@ -1,5 +1,6 @@
 // src/handlers/thumbnail.rs
 
+use crate::utils;
 use actix_files::NamedFile;
 use actix_web::{
     Error, HttpRequest, HttpResponse,
@@ -26,8 +27,8 @@ pub async fn handle_thumbnail(
         .map(|p| PathBuf::from(p).join(".thumbnails"))
         .map_err(|_| ErrorInternalServerError("FUNSCRIPT_SHARE_PATH not set"))?;
 
-    let video_full_path = safe_resolve(&video_root, video_rel_path)?;
-    let thumb_full_path = safe_resolve(&thumb_root, &requested)?;
+    let video_full_path = utils::resolve_safe_path(&video_root, video_rel_path)?;
+    let thumb_full_path = utils::resolve_safe_path(&thumb_root, &requested)?;
 
     if thumb_full_path.exists() {
         return serve_file(thumb_full_path, &req).await;
@@ -57,17 +58,6 @@ pub async fn handle_thumbnail(
     }
 
     serve_file(thumb_full_path, &req).await
-}
-
-fn safe_resolve(root: &Path, requested: &str) -> Result<PathBuf, Error> {
-    let mut relative = PathBuf::new();
-    for component in Path::new(requested).components() {
-        match component {
-            Component::Normal(part) => relative.push(part),
-            _ => return Err(ErrorBadRequest("Invalid path components")),
-        }
-    }
-    Ok(root.join(relative))
 }
 
 async fn serve_file(path: PathBuf, req: &HttpRequest) -> Result<HttpResponse, Error> {

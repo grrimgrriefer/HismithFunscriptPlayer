@@ -11,6 +11,7 @@
 use crate::device::device_manager;
 use crate::funscript::{self, FunscriptData};
 use crate::funscripts_cache;
+use crate::utils;
 use actix_files::NamedFile;
 use actix_web::{Error, HttpResponse, Responder, web};
 use serde::Deserialize;
@@ -82,7 +83,7 @@ pub async fn save_funscript(payload: web::Json<SaveFunscriptPayload>) -> impl Re
     };
 
     let relative_video_path = PathBuf::from(&request.video_path);
-    if !is_safe_relative_path(&relative_video_path) {
+    if !utils::is_safe_relative_path(&relative_video_path) {
         log::warn!("Rejected unsafe video path: {}", request.video_path);
         return HttpResponse::BadRequest().json("Invalid video path.");
     }
@@ -131,10 +132,6 @@ fn read_share_path() -> Result<PathBuf, String> {
     env::var("FUNSCRIPT_SHARE_PATH")
         .map(PathBuf::from)
         .map_err(|err| format!("Server configuration error: FUNSCRIPT_SHARE_PATH not set ({err})"))
-}
-
-fn is_safe_relative_path(path: &Path) -> bool {
-    !path.is_absolute() && path.components().all(|c| matches!(c, Component::Normal(_)))
 }
 
 fn normalize_variant(variant: Option<&str>) -> Result<Option<String>, &'static str> {

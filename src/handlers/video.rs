@@ -6,6 +6,7 @@
 //! functionality to serve video files from a configured directory with proper
 //! HTTP headers for streaming and caching.
 
+use crate::utils;
 use actix_files::NamedFile;
 use actix_web::{
     Error, HttpRequest, HttpResponse,
@@ -25,7 +26,14 @@ pub async fn handle_video(
     path: web::Path<String>,
 ) -> Result<HttpResponse, Error> {
     let requested = path.into_inner();
-    let full_path = resolve_video_path(&requested)?;
+    let root = env::var("VIDEO_SHARE_PATH")
+        .map(PathBuf::from)
+        .map_err(|e| {
+            error!("VIDEO_SHARE_PATH not set: {}", e);
+            ErrorInternalServerError("Server configuration error")
+        })?;
+
+    let full_path = utils::resolve_safe_path(&root, &requested)?;
 
     info!("Serving video: {}", full_path.display());
 
@@ -48,36 +56,4 @@ pub async fn handle_video(
     );
 
     Ok(response)
-}
-
-/// Converts a requested route path into a safe path under VIDEO_SHARE_PATH.
-fn resolve_video_path(requested: &str) -> Result<PathBuf, Error> {
-    let root = env::var("VIDEO_SHARE_PATH")
-        .map(PathBuf::from)
-        .map_err(|e| {
-            error!("VIDEO_SHARE_PATH not set: {}", e);
-            ErrorInternalServerError("Server configuration error")
-        })?;
-
-    let trimmed = requested.trim_start_matches(['/', '\\']);
-    if trimmed.is_empty() {
-        return Err(ErrorBadRequest("Missing video path"));
-    }
-
-    let mut relative = PathBuf::new();
-    for component in Path::new(trimmed).components() {
-        match component {
-            Component::Normal(part) => relative.push(part),
-            Component::CurDir => {}
-            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
-                return Err(ErrorBadRequest("Invalid video path"));
-            }
-        }
-    }
-
-    if relative.as_os_str().is_empty() {
-        return Err(ErrorBadRequest("Invalid video path"));
-    }
-
-    Ok(root.join(relative))
 }

@@ -38,6 +38,7 @@ pub mod directory_browser;
 pub mod funscripts_cache;
 pub mod client_socket;
 pub mod funscript;
+pub mod utils;
 
 pub mod device {
     pub mod device_manager;

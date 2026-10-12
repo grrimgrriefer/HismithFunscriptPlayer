@@ -5,6 +5,7 @@
 //! Provides endpoints for next-video and folder-start recommendations
 //! by analyzing peak/average intensity statistics of videos in the directory tree.
 
+use crate::AppConfig;
 use crate::directory_browser::{self, FileNode};
 use crate::handlers::video_stats;
 use crate::funscripts_cache;
@@ -12,11 +13,7 @@ use actix_web::{HttpResponse, Responder, web};
 use rand::seq::IndexedRandom;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use std::env;
-use std::path::{Path, PathBuf};
-
-const VIDEO_SHARE_ENV: &str = "VIDEO_SHARE_PATH";
-const FUNSCRIPT_SHARE_ENV: &str = "FUNSCRIPT_SHARE_PATH";
+use std::path::Path;
 
 #[derive(Deserialize)]
 pub struct NextQuery {
@@ -65,20 +62,16 @@ pub struct FolderStartRecommendationsResponse {
 }
 
 /// GET /api/recommendations/next?video=...&exclude=...
-pub async fn get_next_recommendations(query: web::Query<NextQuery>) -> impl Responder {
-    let video_base = match env::var(VIDEO_SHARE_ENV) {
-        Ok(p) => PathBuf::from(p),
-        Err(_) => return HttpResponse::InternalServerError().body("VIDEO_SHARE_PATH not set"),
-    };
+pub async fn get_next_recommendations(
+    config: web::Data<AppConfig>,
+    query: web::Query<NextQuery>,
+) -> impl Responder {
+    let video_base = &config.video_share_path;
+    let cache = funscripts_cache::get_cache_for_base(&config.funscript_share_path)
+        .await
+        .unwrap_or_default();
 
-    let funscript_base = env::var(FUNSCRIPT_SHARE_ENV).map(PathBuf::from).ok();
-    let cache = if let Some(ref fb) = funscript_base {
-        funscripts_cache::get_cache_for_base(fb).await.unwrap_or_default()
-    } else {
-        std::collections::HashMap::new()
-    };
-
-    let tree = match directory_browser::build_directory_tree(&video_base, "") {
+    let tree = match directory_browser::build_directory_tree(video_base, "") {
         Ok(t) => t,
         Err(_) => return HttpResponse::InternalServerError().body("Failed to build directory tree"),
     };
@@ -99,7 +92,7 @@ pub async fn get_next_recommendations(query: web::Query<NextQuery>) -> impl Resp
         .unwrap_or_default();
 
     let sibling_videos = get_videos_in_folder(&tree, &parent_path);
-    let user_stats = video_stats::read_video_stats().await;
+    let user_stats = video_stats::read_video_stats(&config.funscript_share_path).await;
 
     let mut videos_with_stats = Vec::new();
     let mut current_video_peak = None;
@@ -173,26 +166,22 @@ pub async fn get_next_recommendations(query: web::Query<NextQuery>) -> impl Resp
 }
 
 /// GET /api/recommendations/folder-start?folder=...
-pub async fn get_folder_start_recommendations(query: web::Query<FolderStartQuery>) -> impl Responder {
-    let video_base = match env::var(VIDEO_SHARE_ENV) {
-        Ok(p) => PathBuf::from(p),
-        Err(_) => return HttpResponse::InternalServerError().body("VIDEO_SHARE_PATH not set"),
-    };
+pub async fn get_folder_start_recommendations(
+    config: web::Data<AppConfig>,
+    query: web::Query<FolderStartQuery>,
+) -> impl Responder {
+    let video_base = &config.video_share_path;
+    let cache = funscripts_cache::get_cache_for_base(&config.funscript_share_path)
+        .await
+        .unwrap_or_default();
 
-    let funscript_base = env::var(FUNSCRIPT_SHARE_ENV).map(PathBuf::from).ok();
-    let cache = if let Some(ref fb) = funscript_base {
-        funscripts_cache::get_cache_for_base(fb).await.unwrap_or_default()
-    } else {
-        std::collections::HashMap::new()
-    };
-
-    let tree = match directory_browser::build_directory_tree(&video_base, "") {
+    let tree = match directory_browser::build_directory_tree(video_base, "") {
         Ok(t) => t,
         Err(_) => return HttpResponse::InternalServerError().body("Failed to build directory tree"),
     };
 
     let folder_videos = get_videos_in_folder(&tree, &query.folder);
-    let user_stats = video_stats::read_video_stats().await;
+    let user_stats = video_stats::read_video_stats(&config.funscript_share_path).await;
 
     let mut videos_with_stats = Vec::new();
     for v in folder_videos {

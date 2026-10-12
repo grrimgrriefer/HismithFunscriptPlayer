@@ -7,20 +7,16 @@
 //! precomputed funscript cache data (from FUNSCRIPT_SHARE_PATH) including
 //! average/peak intensity statistics for each funscript file.
 
+use crate::AppConfig;
 use crate::directory_browser::{self, FileNode, VariantStat};
 use crate::funscripts_cache;
 use crate::handlers::video_stats::{self, VideoStatsMap};
 use actix_files::NamedFile;
-use actix_web::{HttpResponse, Responder, Result};
+use actix_web::{HttpResponse, Responder, Result, web};
 use log::{error, info, warn};
 use serde_json::{Value, json};
-use std::{
-    env,
-    path::{Path, PathBuf},
-};
+use std::path::Path;
 
-const VIDEO_SHARE_ENV: &str = "VIDEO_SHARE_PATH";
-const FUNSCRIPT_SHARE_ENV: &str = "FUNSCRIPT_SHARE_PATH";
 const FUNSCRIPT_PERMISSION_ERROR: &str = "Server cannot write to the funscripts directory; caching disabled. \
 Please ensure the server process has write permissions to the FUNSCRIPT_SHARE_PATH.";
 
@@ -35,15 +31,12 @@ pub async fn handle_index() -> Result<impl Responder> {
 ///
 /// Builds the directory tree from `VIDEO_SHARE_PATH` and optionally includes
 /// funscript cache data from `FUNSCRIPT_SHARE_PATH`.
-pub async fn get_directory_tree() -> impl Responder {
+pub async fn get_directory_tree(config: web::Data<AppConfig>) -> impl Responder {
     info!("Building directory tree for API request.");
 
-    let video_base = match required_env_path(VIDEO_SHARE_ENV) {
-        Ok(path) => path,
-        Err(response) => return response,
-    };
+    let video_base = &config.video_share_path;
 
-    let mut directory_tree = match directory_browser::build_directory_tree(&video_base, "") {
+    let mut directory_tree = match directory_browser::build_directory_tree(video_base, "") {
         Ok(tree) => tree,
         Err(e) => {
             error!("Failed to read video directory: {}", e);
@@ -51,11 +44,11 @@ pub async fn get_directory_tree() -> impl Responder {
         }
     };
 
-    let (mut funscripts_cache, funscripts_cache_error) = load_funscripts_cache().await;
-    let user_stats = video_stats::read_video_stats().await;
+    let (mut funscripts_cache, funscripts_cache_error) = load_funscripts_cache(&config.funscript_share_path).await;
+    let user_stats = video_stats::read_video_stats(&config.funscript_share_path).await;
 
     if let Some(cache_obj) = funscripts_cache.as_object_mut() {
-        apply_cache_fallbacks(cache_obj, &video_base);
+        apply_cache_fallbacks(cache_obj, video_base);
         populate_and_sort_tree(&mut directory_tree, cache_obj, &user_stats);
     } else {
         let empty_cache = serde_json::Map::new();
@@ -185,21 +178,8 @@ fn sort_file_nodes(children: &mut [FileNode]) {
     });
 }
 
-fn required_env_path(key: &str) -> Result<PathBuf, HttpResponse> {
-    env::var(key).map(PathBuf::from).map_err(|e| {
-        error!("{key} not set: {e}");
-        HttpResponse::InternalServerError()
-            .body(format!("Server configuration error: {key} not set"))
-    })
-}
-
-async fn load_funscripts_cache() -> (Value, Option<String>) {
-    let base = match env::var(FUNSCRIPT_SHARE_ENV) {
-        Ok(path) => path,
-        Err(_) => return (json!({}), None), // Optional feature: no env var means no cache data.
-    };
-
-    match funscripts_cache::get_cache_for_base(&PathBuf::from(base)).await {
+async fn load_funscripts_cache(base: &Path) -> (Value, Option<String>) {
+    match funscripts_cache::get_cache_for_base(base).await {
         Ok(cache_map) => (json!(cache_map), None),
         Err(e) => {
             warn!("Funscript cache build failed: {}", e);

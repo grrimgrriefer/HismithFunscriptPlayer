@@ -7,11 +7,12 @@
 //! (.calibration_profiles.json) under FUNSCRIPT_SHARE_PATH and map named
 //! profiles to per-range intensity actual measured BPMs.
 
+use crate::AppConfig;
 use actix_files::NamedFile;
 use actix_web::{Error, HttpResponse, Responder, web};
 use log::{error, info};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, env, io::ErrorKind, path::PathBuf};
+use std::{collections::HashMap, io::ErrorKind, path::{Path, PathBuf}};
 use tokio::fs;
 
 type ProfileBpms = HashMap<String, f64>;
@@ -26,13 +27,12 @@ pub struct SaveProfilePayload {
     pub bpms: ProfileBpms,
 }
 
-fn profile_store_path() -> PathBuf {
-    let base_dir = env::var("FUNSCRIPT_SHARE_PATH").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(base_dir).join(CALIBRATION_FILE_NAME)
+fn profile_store_path(base_dir: &Path) -> PathBuf {
+    base_dir.join(CALIBRATION_FILE_NAME)
 }
 
-async fn read_profiles_file() -> Result<CalibrationProfiles, String> {
-    let path = profile_store_path();
+async fn read_profiles_file(base_dir: &Path) -> Result<CalibrationProfiles, String> {
+    let path = profile_store_path(base_dir);
 
     match fs::read_to_string(&path).await {
         Ok(raw_json) => serde_json::from_str(&raw_json)
@@ -45,8 +45,8 @@ async fn read_profiles_file() -> Result<CalibrationProfiles, String> {
     }
 }
 
-async fn write_profiles_file(profiles: &CalibrationProfiles) -> Result<(), String> {
-    let path = profile_store_path();
+async fn write_profiles_file(base_dir: &Path, profiles: &CalibrationProfiles) -> Result<(), String> {
+    let path = profile_store_path(base_dir);
     let json = serde_json::to_string_pretty(profiles)
         .map_err(|e| format!("Failed to serialize calibration profiles: {e}"))?;
 
@@ -83,8 +83,8 @@ pub async fn get_bpm_mapping() -> impl Responder {
     HttpResponse::Ok().json(BpmMappingResponse { points, lut })
 }
 
-pub async fn get_profiles() -> impl Responder {
-    match read_profiles_file().await {
+pub async fn get_profiles(config: web::Data<AppConfig>) -> impl Responder {
+    match read_profiles_file(&config.funscript_share_path).await {
         Ok(profiles) => HttpResponse::Ok().json(profiles),
         Err(e) => {
             error!("Failed to load calibration profiles: {e}");
@@ -93,13 +93,16 @@ pub async fn get_profiles() -> impl Responder {
     }
 }
 
-pub async fn save_profile(payload: web::Json<SaveProfilePayload>) -> impl Responder {
+pub async fn save_profile(
+    config: web::Data<AppConfig>,
+    payload: web::Json<SaveProfilePayload>,
+) -> impl Responder {
     let profile_name = payload.name.trim();
     if profile_name.is_empty() {
         return HttpResponse::BadRequest().body("Profile name cannot be empty");
     }
 
-    let mut profiles = match read_profiles_file().await {
+    let mut profiles = match read_profiles_file(&config.funscript_share_path).await {
         Ok(p) => p,
         Err(e) => {
             error!("Failed to load existing calibration profiles before save: {e}");
@@ -109,7 +112,7 @@ pub async fn save_profile(payload: web::Json<SaveProfilePayload>) -> impl Respon
 
     profiles.insert(profile_name.to_string(), payload.bpms.clone());
 
-    match write_profiles_file(&profiles).await {
+    match write_profiles_file(&config.funscript_share_path, &profiles).await {
         Ok(()) => {
             info!("Saved calibration profile: {profile_name}");
             HttpResponse::Ok().json(serde_json::json!({ "ok": true }))

@@ -1,8 +1,9 @@
 // src/handlers/video_stats.rs
 
+use crate::AppConfig;
 use actix_web::{HttpResponse, Responder, web};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, env, io::ErrorKind, path::PathBuf};
+use std::{collections::HashMap, io::ErrorKind, path::{Path, PathBuf}};
 use tokio::fs;
 
 const VIDEO_STATS_FILE: &str = ".video_stats.json";
@@ -43,13 +44,12 @@ where
 
 pub type VideoStatsMap = HashMap<String, VideoUserStats>;
 
-fn stats_file_path() -> PathBuf {
-    let base = env::var("FUNSCRIPT_SHARE_PATH").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(base).join(VIDEO_STATS_FILE)
+fn stats_file_path(base_dir: &Path) -> PathBuf {
+    base_dir.join(VIDEO_STATS_FILE)
 }
 
-pub async fn read_video_stats() -> VideoStatsMap {
-    let path = stats_file_path();
+pub async fn read_video_stats(base_dir: &Path) -> VideoStatsMap {
+    let path = stats_file_path(base_dir);
     match fs::read_to_string(&path).await {
         Ok(json) => serde_json::from_str(&json).unwrap_or_default(),
         Err(e) if e.kind() == ErrorKind::NotFound => HashMap::new(),
@@ -60,8 +60,8 @@ pub async fn read_video_stats() -> VideoStatsMap {
     }
 }
 
-async fn write_video_stats(stats: &VideoStatsMap) -> Result<(), String> {
-    let path = stats_file_path();
+async fn write_video_stats(base_dir: &Path, stats: &VideoStatsMap) -> Result<(), String> {
+    let path = stats_file_path(base_dir);
     let json = serde_json::to_string_pretty(stats)
         .map_err(|e| format!("Failed to serialize stats: {e}"))?;
 
@@ -79,18 +79,21 @@ pub struct VideoActionPayload {
     pub video_path: String,
 }
 
-pub async fn get_stats() -> impl Responder {
-    let stats = read_video_stats().await;
+pub async fn get_stats(config: web::Data<AppConfig>) -> impl Responder {
+    let stats = read_video_stats(&config.funscript_share_path).await;
     HttpResponse::Ok().json(stats)
 }
 
-pub async fn record_view(payload: web::Json<VideoActionPayload>) -> impl Responder {
+pub async fn record_view(
+    config: web::Data<AppConfig>,
+    payload: web::Json<VideoActionPayload>,
+) -> impl Responder {
     let path = payload.video_path.trim().to_string();
     if path.is_empty() {
         return HttpResponse::BadRequest().body("Missing video path");
     }
 
-    let mut stats = read_video_stats().await;
+    let mut stats = read_video_stats(&config.funscript_share_path).await;
     let entry = stats.entry(path).or_default();
     entry.views += 1;
     entry.last_watched = Some(
@@ -101,7 +104,7 @@ pub async fn record_view(payload: web::Json<VideoActionPayload>) -> impl Respond
     );
 
     let updated_entry = entry.clone();
-    if let Err(e) = write_video_stats(&stats).await {
+    if let Err(e) = write_video_stats(&config.funscript_share_path, &stats).await {
         log::error!("Failed to save view count: {}", e);
         return HttpResponse::InternalServerError().body("Failed to persist stats");
     }
@@ -109,18 +112,21 @@ pub async fn record_view(payload: web::Json<VideoActionPayload>) -> impl Respond
     HttpResponse::Ok().json(updated_entry)
 }
 
-pub async fn record_like(payload: web::Json<VideoActionPayload>) -> impl Responder {
+pub async fn record_like(
+    config: web::Data<AppConfig>,
+    payload: web::Json<VideoActionPayload>,
+) -> impl Responder {
     let path = payload.video_path.trim().to_string();
     if path.is_empty() {
         return HttpResponse::BadRequest().body("Missing video path");
     }
 
-    let mut stats = read_video_stats().await;
+    let mut stats = read_video_stats(&config.funscript_share_path).await;
     let entry = stats.entry(path).or_default();
     entry.likes += 1;
 
     let updated_entry = entry.clone();
-    if let Err(e) = write_video_stats(&stats).await {
+    if let Err(e) = write_video_stats(&config.funscript_share_path, &stats).await {
         log::error!("Failed to save like count: {}", e);
         return HttpResponse::InternalServerError().body("Failed to persist stats");
     }

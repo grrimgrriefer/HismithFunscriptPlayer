@@ -3,12 +3,10 @@
 //! Analysis handlers for checking video/funscript duration gaps and funscript volatility.
 //! TODO: get this in the front end (maybe button in settings menu?)
 
+use crate::AppConfig;
 use crate::funscript::FunscriptData;
-use actix_web::{HttpResponse, Responder};
-use std::{
-    env,
-    path::{Path, PathBuf},
-};
+use actix_web::{HttpResponse, Responder, web};
+use std::path::Path;
 use walkdir::WalkDir;
 
 // ── Duration Analysis ──────────────────────────────────────────────────
@@ -51,20 +49,14 @@ fn get_script_duration_sec(script_path: &Path) -> Option<u64> {
     Some(last_action.at / 1000)
 }
 
-pub async fn handle_check_durations() -> impl Responder {
-    let video_dir = match env::var("VIDEO_SHARE_PATH") {
-        Ok(v) => PathBuf::from(v),
-        Err(_) => return HttpResponse::InternalServerError().body("VIDEO_SHARE_PATH not set"),
-    };
-    let funscript_dir = match env::var("FUNSCRIPT_SHARE_PATH") {
-        Ok(f) => PathBuf::from(f),
-        Err(_) => return HttpResponse::InternalServerError().body("FUNSCRIPT_SHARE_PATH not set"),
-    };
+pub async fn handle_check_durations(config: web::Data<AppConfig>) -> impl Responder {
+    let video_dir = &config.video_share_path;
+    let funscript_dir = &config.funscript_share_path;
 
     let video_extensions = ["mp4", "mkv", "avi", "mov"];
     let mut results = Vec::new();
 
-    let walker = WalkDir::new(&video_dir)
+    let walker = WalkDir::new(video_dir)
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().is_file());
@@ -81,7 +73,7 @@ pub async fn handle_check_durations() -> impl Responder {
             continue;
         }
 
-        let rel_path = match path.strip_prefix(&video_dir) {
+        let rel_path = match path.strip_prefix(video_dir) {
             Ok(p) => p,
             Err(_) => continue,
         };

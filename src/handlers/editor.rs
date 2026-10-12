@@ -8,6 +8,7 @@
 //! the resulting .funscript file under FUNSCRIPT_SHARE_PATH. Triggers a
 //! background cache refresh after successful writes.
 
+use crate::AppConfig;
 use crate::device::device_manager;
 use crate::funscript::{self, FunscriptData};
 use crate::funscripts_cache;
@@ -15,10 +16,7 @@ use crate::utils;
 use actix_files::NamedFile;
 use actix_web::{Error, HttpResponse, Responder, web};
 use serde::Deserialize;
-use std::{
-    env,
-    path::{Component, Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 use tokio::fs;
 
 /// Serve the in-browser funscript editor page (static HTML).
@@ -71,16 +69,12 @@ pub struct SaveFunscriptPayload {
     pub variant: Option<String>,
 }
 
-pub async fn save_funscript(payload: web::Json<SaveFunscriptPayload>) -> impl Responder {
+pub async fn save_funscript(
+    config: web::Data<AppConfig>,
+    payload: web::Json<SaveFunscriptPayload>,
+) -> impl Responder {
     let request = payload.into_inner();
-
-    let share_path = match read_share_path() {
-        Ok(path) => path,
-        Err(msg) => {
-            log::error!("{msg}");
-            return HttpResponse::InternalServerError().json(msg);
-        }
-    };
+    let share_path = &config.funscript_share_path;
 
     let relative_video_path = PathBuf::from(&request.video_path);
     if !utils::is_safe_relative_path(&relative_video_path) {
@@ -93,7 +87,7 @@ pub async fn save_funscript(payload: web::Json<SaveFunscriptPayload>) -> impl Re
         Err(msg) => return HttpResponse::BadRequest().json(msg),
     };
 
-    let output_path = build_funscript_path(&share_path, &relative_video_path, variant.as_deref());
+    let output_path = build_funscript_path(share_path, &relative_video_path, variant.as_deref());
 
     let actions = funscript::generate_funscript_actions_from_taps(&request.taps);
     let funscript_data = FunscriptData {
@@ -122,16 +116,10 @@ pub async fn save_funscript(payload: web::Json<SaveFunscriptPayload>) -> impl Re
         return HttpResponse::InternalServerError().json("Failed to save funscript file.");
     }
 
-    refresh_cache_in_background(share_path);
+    refresh_cache_in_background(share_path.clone());
 
     log::info!("Saved funscript to {:?}", output_path);
     HttpResponse::Ok().json("Funscript saved successfully.")
-}
-
-fn read_share_path() -> Result<PathBuf, String> {
-    env::var("FUNSCRIPT_SHARE_PATH")
-        .map(PathBuf::from)
-        .map_err(|err| format!("Server configuration error: FUNSCRIPT_SHARE_PATH not set ({err})"))
 }
 
 fn normalize_variant(variant: Option<&str>) -> Result<Option<String>, &'static str> {

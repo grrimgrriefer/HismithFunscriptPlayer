@@ -34,6 +34,9 @@ pub mod handlers {
     pub mod video_stats;
 }
 
+pub mod config;
+pub use config::AppConfig;
+
 pub mod directory_browser;
 pub mod funscripts_cache;
 pub mod client_socket;

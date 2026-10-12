@@ -10,9 +10,9 @@
 //! controlled by HOST_IP and SERVER_PORT environment variables
 
 use actix_cors::Cors;
-use actix_web::{App, HttpServer, middleware::Logger};
+use actix_web::{App, HttpServer, middleware::Logger, web};
 use env_logger::Env;
-use hismith_player_site::{device::device_manager, routes};
+use hismith_player_site::{AppConfig, device::device_manager, routes};
 use log::{error, info};
 use std::env;
 
@@ -21,16 +21,16 @@ async fn main() -> std::io::Result<()> {
     dotenvy::dotenv().ok();
     env_logger::init_from_env(Env::default().default_filter_or("info"));
 
+    let config = AppConfig::from_env().expect("Failed to load application configuration");
+
     info!("Starting background cache");
-    if let Ok(f) = env::var("FUNSCRIPT_SHARE_PATH") {
-        let base = std::path::PathBuf::from(f);
-        tokio::spawn(async move {
-            match hismith_player_site::funscripts_cache::get_cache_for_base(&base).await {
-                Ok(_) => info!("Funscript cache ready"),
-                Err(e) => error!("Funscript cache error: {}", e),
-            }
-        });
-    }
+    let cache_base = config.funscript_share_path.clone();
+    tokio::spawn(async move {
+        match hismith_player_site::funscripts_cache::get_cache_for_base(&cache_base).await {
+            Ok(_) => info!("Funscript cache ready"),
+            Err(e) => error!("Funscript cache error: {}", e),
+        }
+    });
 
     info!("Starting intiface initialization...");
     tokio::spawn(async {
@@ -48,9 +48,12 @@ async fn main() -> std::io::Result<()> {
         .parse::<u16>()
         .expect("SERVER_PORT must be a valid port number (0-65535)");
 
+    let config_data = web::Data::new(config);
+
     info!("Starting HTTP server on {}:{}...", host_ip, port);
     HttpServer::new(move || {
         App::new()
+            .app_data(config_data.clone())
             .wrap(Logger::default())
             .wrap(
                 Cors::default()

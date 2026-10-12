@@ -6,17 +6,15 @@
 //! data for videos. It loads the original funscript and generates real-time intensity
 //! data used for device control.
 
+use crate::AppConfig;
 use crate::device::device_manager;
 use crate::funscript::{self, FunscriptData};
 use actix_web::{HttpResponse, web};
-use log::{error, info, warn};
+use log::{info, warn};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fs as stdfs;
-use std::{
-    env,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 use tokio::fs;
 
 #[derive(Serialize, Debug)]
@@ -30,21 +28,15 @@ pub struct FunscriptResponse {
 }
 
 pub async fn handle_funscript(
+    config: web::Data<AppConfig>,
     path: web::Path<String>,
     query: web::Query<HashMap<String, String>>,
 ) -> HttpResponse {
     let video_path = path.into_inner();
-
-    let base_path = match env::var("FUNSCRIPT_SHARE_PATH") {
-        Ok(p) => p,
-        Err(_) => {
-            error!("FUNSCRIPT_SHARE_PATH not set");
-            return HttpResponse::InternalServerError().finish();
-        }
-    };
+    let base_path = &config.funscript_share_path;
 
     if query.contains_key("list") {
-        let variants = list_variants(&base_path, &video_path);
+        let variants = list_variants(base_path, &video_path);
         return HttpResponse::Ok().json(serde_json::json!({ "variants": variants }));
     }
 
@@ -53,12 +45,12 @@ pub async fn handle_funscript(
         .map(|s| s.as_str())
         .unwrap_or("original");
 
-    let funscript_path = build_funscript_path(&video_path, &base_path, variant);
+    let funscript_path = build_funscript_path(&video_path, base_path, variant);
 
     let mut original_res = read_funscript(&funscript_path).await;
 
     if original_res.is_err() {
-        if let Some(parent_path) = build_parent_funscript_path(&video_path, &base_path, variant) {
+        if let Some(parent_path) = build_parent_funscript_path(&video_path, base_path, variant) {
             if let Ok(data) = read_funscript(&parent_path).await {
                 original_res = Ok(data);
             }
@@ -116,24 +108,24 @@ pub async fn handle_funscript(
     })
 }
 
-fn list_variants(base_path: &str, video_path: &str) -> Vec<String> {
+fn list_variants(base_path: &Path, video_path: &str) -> Vec<String> {
     let v_path = Path::new(video_path);
     let stem = v_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
     let mut variants = Vec::new();
 
-    let primary_dir = PathBuf::from(base_path)
+    let primary_dir = base_path
         .join(v_path)
         .parent()
-        .unwrap_or(Path::new(base_path))
+        .unwrap_or(base_path)
         .to_path_buf();
     variants.extend(collect_variants_from_disk(&primary_dir, stem));
 
     if let Some(p) = v_path.parent() {
         if !p.as_os_str().is_empty() {
-            let parent_dir = PathBuf::from(base_path)
+            let parent_dir = base_path
                 .join(p)
                 .parent()
-                .unwrap_or(Path::new(base_path))
+                .unwrap_or(base_path)
                 .to_path_buf();
             variants.extend(collect_variants_from_disk(&parent_dir, stem));
         }
@@ -167,8 +159,8 @@ fn collect_variants_from_disk(dir: &Path, stem: &str) -> Vec<String> {
     variants
 }
 
-fn build_funscript_path(video_path: &str, base_path: &str, variant: &str) -> PathBuf {
-    let full_path = PathBuf::from(base_path).join(video_path);
+fn build_funscript_path(video_path: &str, base_path: &Path, variant: &str) -> PathBuf {
+    let full_path = base_path.join(video_path);
     if variant.is_empty() || variant == "original" {
         full_path.with_extension("funscript")
     } else {
@@ -176,14 +168,14 @@ fn build_funscript_path(video_path: &str, base_path: &str, variant: &str) -> Pat
     }
 }
 
-fn build_parent_funscript_path(video_path: &str, base_path: &str, variant: &str) -> Option<PathBuf> {
+fn build_parent_funscript_path(video_path: &str, base_path: &Path, variant: &str) -> Option<PathBuf> {
     let v_path = Path::new(video_path);
 
     let parent_dir = v_path.parent()?;
     let grandparent_dir = parent_dir.parent()?;
     let file_name = v_path.file_name()?;
 
-    let base = PathBuf::from(base_path)
+    let base = base_path
         .join(grandparent_dir)
         .join(file_name);
 

@@ -410,17 +410,17 @@ pub fn double_beat_actions(actions: &[Action]) -> Vec<Action> {
     result
 }
 
-pub fn half_beat_actions(actions: &[Action]) -> Vec<Action> {
-    if actions.len() < 2 {
+/// Subsamples funscript actions by taking every `step`-th timestamp while assigning
+/// sequential position values. Keeps beats anchored to the video at a reduced frequency.
+pub fn subsample_beat_actions(actions: &[Action], step: usize) -> Vec<Action> {
+    if actions.len() < 2 || step <= 1 {
         return actions.to_vec();
     }
 
-    let mut result = Vec::with_capacity(actions.len() / 2 + 2);
+    let mut result = Vec::with_capacity(actions.len() / step + 2);
     let mut pos_idx = 0;
 
-    // Take every 2nd timestamp, but assign them the sequential positions.
-    // This halves the frequency but keeps the beats perfectly anchored to the video.
-    for i in (0..actions.len()).step_by(2) {
+    for i in (0..actions.len()).step_by(step) {
         if pos_idx < actions.len() {
             result.push(Action {
                 at: actions[i].at,
@@ -445,39 +445,12 @@ pub fn half_beat_actions(actions: &[Action]) -> Vec<Action> {
     result
 }
 
+pub fn half_beat_actions(actions: &[Action]) -> Vec<Action> {
+    subsample_beat_actions(actions, 2)
+}
+
 pub fn quarter_beat_actions(actions: &[Action]) -> Vec<Action> {
-    if actions.len() < 2 {
-        return actions.to_vec();
-    }
-
-    let mut result = Vec::with_capacity(actions.len() / 4 + 2);
-    let mut pos_idx = 0;
-
-    // Take every 4th timestamp, but assign them the sequential positions.
-    // This quarter-times the frequency while staying anchored.
-    for i in (0..actions.len()).step_by(4) {
-        if pos_idx < actions.len() {
-            result.push(Action {
-                at: actions[i].at,
-                pos: actions[pos_idx].pos,
-            });
-            pos_idx += 1;
-        }
-    }
-
-    let end_time = actions.last().unwrap().at;
-    if let Some(last) = result.last().cloned() {
-        if last.at < end_time {
-            result.push(Action {
-                at: end_time,
-                pos: last.pos,
-            });
-        }
-    }
-
-    merge_same_position_runs(&mut result, 2);
-
-    result
+    subsample_beat_actions(actions, 4)
 }
 
 pub fn intensity_to_bpm(intensity: f64) -> f64 {

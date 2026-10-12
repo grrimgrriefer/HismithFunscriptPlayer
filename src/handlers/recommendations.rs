@@ -290,16 +290,10 @@ fn get_stats_for_video(
     file_path: &str,
     cache: &funscripts_cache::FunscriptCache,
 ) -> Option<(f64, f64, f64, u64)> {
-    let stem_path = Path::new(file_path).with_extension("");
-    let stem_str = stem_path.to_string_lossy();
-    let exact_match = format!("{stem_str}.funscript");
-    let variant_prefix = format!("{stem_str}.");
+    let (exact_match, variant_prefix) = funscripts_cache::get_cache_match_keys(file_path);
 
     for (key, val) in cache {
-        let is_exact = key == &exact_match;
-        let is_variant = key.starts_with(&variant_prefix) && key.ends_with(".funscript");
-
-        if is_exact || is_variant {
+        if funscripts_cache::is_matching_key(key, &exact_match, &variant_prefix) {
             return Some((val.peak_intensity, val.average_intensity, val.volatility, val.duration));
         }
     }

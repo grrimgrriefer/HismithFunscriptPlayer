@@ -192,3 +192,17 @@ pub async fn get_cache_for_base(funscript_base: &Path) -> Result<FunscriptCache,
     let cache_path = funscript_base.join(".funscripts_cache.json");
     scan_and_update_cache(funscript_base, &cache_path).await
 }
+
+/// Returns the exact match key and variant prefix for a given file path.
+pub fn get_cache_match_keys(file_path: &str) -> (String, String) {
+    let stem_path = Path::new(file_path).with_extension("");
+    let stem_str = stem_path.to_string_lossy();
+    let exact_match = format!("{stem_str}.funscript");
+    let variant_prefix = format!("{stem_str}.");
+    (exact_match, variant_prefix)
+}
+
+/// Helper to check if a cache key matches a file path.
+pub fn is_matching_key(key: &str, exact_match: &str, variant_prefix: &str) -> bool {
+    key == exact_match || (key.starts_with(variant_prefix) && key.ends_with(".funscript"))
+}

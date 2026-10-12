@@ -8,12 +8,12 @@
 //! profiles to per-range intensity actual measured BPMs.
 
 use crate::AppConfig;
+use crate::utils;
 use actix_files::NamedFile;
 use actix_web::{Error, HttpResponse, Responder, web};
 use log::{error, info};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, io::ErrorKind, path::{Path, PathBuf}};
-use tokio::fs;
+use std::{collections::HashMap, path::{Path, PathBuf}};
 
 type ProfileBpms = HashMap<String, f64>;
 pub type CalibrationProfiles = HashMap<String, ProfileBpms>;
@@ -32,33 +32,11 @@ fn profile_store_path(base_dir: &Path) -> PathBuf {
 }
 
 async fn read_profiles_file(base_dir: &Path) -> Result<CalibrationProfiles, String> {
-    let path = profile_store_path(base_dir);
-
-    match fs::read_to_string(&path).await {
-        Ok(raw_json) => serde_json::from_str(&raw_json)
-            .map_err(|e| format!("Failed to parse calibration profile JSON: {e}")),
-        Err(e) if e.kind() == ErrorKind::NotFound => Ok(HashMap::new()),
-        Err(e) => Err(format!(
-            "Failed to read calibration profile file {:?}: {e}",
-            path
-        )),
-    }
+    utils::read_json_file(&profile_store_path(base_dir)).await
 }
 
 async fn write_profiles_file(base_dir: &Path, profiles: &CalibrationProfiles) -> Result<(), String> {
-    let path = profile_store_path(base_dir);
-    let json = serde_json::to_string_pretty(profiles)
-        .map_err(|e| format!("Failed to serialize calibration profiles: {e}"))?;
-
-    if let Some(parent_dir) = path.parent() {
-        fs::create_dir_all(parent_dir)
-            .await
-            .map_err(|e| format!("Failed to create directory {:?}: {e}", parent_dir))?;
-    }
-
-    fs::write(&path, json)
-        .await
-        .map_err(|e| format!("Failed to write calibration profile file {:?}: {e}", path))
+    utils::write_json_file(&profile_store_path(base_dir), profiles).await
 }
 
 pub async fn handle_calibration_page() -> Result<impl Responder, Error> {

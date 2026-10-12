@@ -1,9 +1,12 @@
-// src/path_utils.rs
+// src/utils.rs
 
 //! Utility functions that are used across many different handlers.
 
-use actix_web::error::{ErrorBadRequest, Error};
+use actix_web::error::{Error, ErrorBadRequest};
+use serde::{de::DeserializeOwned, Serialize};
+use std::io::ErrorKind;
 use std::path::{Component, Path, PathBuf};
+use tokio::fs;
 
 /// Checks if a path is a safe relative path (no absolute components, parent directories, etc.).
 pub fn is_safe_relative_path(path: &Path) -> bool {
@@ -32,4 +35,41 @@ pub fn resolve_safe_path(base_dir: &Path, requested: &str) -> Result<PathBuf, Er
     }
 
     Ok(base_dir.join(relative))
+}
+
+/// Asynchronously reads and deserializes a JSON file.
+///
+/// If the file does not exist, returns `Ok(T::default())`.
+/// Returns an error string if reading fails or JSON parsing fails.
+pub async fn read_json_file<T>(path: &Path) -> Result<T, String>
+where
+    T: DeserializeOwned + Default,
+{
+    match fs::read_to_string(path).await {
+        Ok(raw_json) => serde_json::from_str(&raw_json)
+            .map_err(|e| format!("Failed to parse JSON file {:?}: {e}", path)),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(T::default()),
+        Err(e) => Err(format!("Failed to read JSON file {:?}: {e}", path)),
+    }
+}
+
+/// Asynchronously serializes data to pretty JSON and writes it to a file.
+///
+/// Ensures any missing parent directories are created first.
+pub async fn write_json_file<T>(path: &Path, data: &T) -> Result<(), String>
+where
+    T: Serialize + ?Sized,
+{
+    let json = serde_json::to_string_pretty(data)
+        .map_err(|e| format!("Failed to serialize data for {:?}: {e}", path))?;
+
+    if let Some(parent_dir) = path.parent() {
+        fs::create_dir_all(parent_dir)
+            .await
+            .map_err(|e| format!("Failed to create directory {:?}: {e}", parent_dir))?;
+    }
+
+    fs::write(path, json)
+        .await
+        .map_err(|e| format!("Failed to write file {:?}: {e}", path))
 }

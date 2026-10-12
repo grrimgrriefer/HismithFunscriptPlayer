@@ -1,10 +1,10 @@
 // src/handlers/video_stats.rs
 
 use crate::AppConfig;
+use crate::utils;
 use actix_web::{HttpResponse, Responder, web};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, io::ErrorKind, path::{Path, PathBuf}};
-use tokio::fs;
+use std::{collections::HashMap, path::{Path, PathBuf}};
 
 const VIDEO_STATS_FILE: &str = ".video_stats.json";
 
@@ -50,9 +50,8 @@ fn stats_file_path(base_dir: &Path) -> PathBuf {
 
 pub async fn read_video_stats(base_dir: &Path) -> VideoStatsMap {
     let path = stats_file_path(base_dir);
-    match fs::read_to_string(&path).await {
-        Ok(json) => serde_json::from_str(&json).unwrap_or_default(),
-        Err(e) if e.kind() == ErrorKind::NotFound => HashMap::new(),
+    match utils::read_json_file::<VideoStatsMap>(&path).await {
+        Ok(stats) => stats,
         Err(e) => {
             log::warn!("Failed to read video stats file {:?}: {}", path, e);
             HashMap::new()
@@ -61,17 +60,7 @@ pub async fn read_video_stats(base_dir: &Path) -> VideoStatsMap {
 }
 
 async fn write_video_stats(base_dir: &Path, stats: &VideoStatsMap) -> Result<(), String> {
-    let path = stats_file_path(base_dir);
-    let json = serde_json::to_string_pretty(stats)
-        .map_err(|e| format!("Failed to serialize stats: {e}"))?;
-
-    if let Some(parent) = path.parent() {
-        let _ = fs::create_dir_all(parent).await;
-    }
-
-    fs::write(&path, json)
-        .await
-        .map_err(|e| format!("Failed to write stats file: {e}"))
+    utils::write_json_file(&stats_file_path(base_dir), stats).await
 }
 
 #[derive(Deserialize)]

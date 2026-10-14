@@ -30,6 +30,17 @@ pub struct Action {
     pub pos: f64,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
+pub struct FunscriptStats {
+    #[serde(alias = "peak_intensity")]
+    pub peak: f64,
+    #[serde(alias = "average_intensity")]
+    pub avg: f64,
+    pub volatility: f64,
+    #[serde(default)]
+    pub duration: u64,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FunscriptData {
     pub actions: Vec<Action>,

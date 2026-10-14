@@ -6,23 +6,15 @@
 //! a tree structure representing the file system hierarchy. It's primarily used
 //! to display video files in the web interface.
 
-use serde::{Deserialize, Serialize};
+use crate::handlers::video_stats::VideoUserStats;
+use crate::funscript::FunscriptStats;
+use serde::{Serialize};
 use std::collections::HashMap;
 use std::{
     fs, io,
     path::{Path, PathBuf},
 };
 use walkdir::WalkDir;
-use crate::handlers::video_stats::VideoUserStats;
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct VariantStat {
-    pub peak: f64,
-    pub avg: f64,
-    pub volatility: f64,
-    #[serde(default)]
-    pub duration: u64,
-}
 
 #[derive(Serialize, Debug, Clone)]
 pub struct FileNode {
@@ -30,7 +22,7 @@ pub struct FileNode {
     pub path: String,
     pub is_dir: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub stats: Option<Vec<VariantStat>>,
+    pub stats: Option<Vec<FunscriptStats>>,
     pub user_stats: Option<VideoUserStats>,
     pub children: Option<Vec<FileNode>>,
 }

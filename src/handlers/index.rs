@@ -8,9 +8,10 @@
 //! average/peak intensity statistics for each funscript file.
 
 use crate::AppConfig;
-use crate::directory_browser::{self, FileNode, VariantStat};
+use crate::directory_browser::{self, FileNode};
 use crate::funscripts_cache;
 use crate::handlers::video_stats::{self, VideoStatsMap};
+use crate::funscript::FunscriptStats;
 use actix_files::NamedFile;
 use actix_web::{HttpResponse, Responder, Result, web};
 use log::{error, info, warn};
@@ -79,37 +80,23 @@ fn populate_and_sort_tree(node: &mut FileNode, cache: &serde_json::Map<String, s
 fn extract_stats_for_file(
     file_path: &str,
     cache: &serde_json::Map<String, serde_json::Value>,
-) -> Option<Vec<VariantStat>> {
+) -> Option<Vec<FunscriptStats>> {
     let (exact_match, variant_prefix) = funscripts_cache::get_cache_match_keys(file_path);
     let mut stats = Vec::new();
 
     for (key, val) in cache {
         if funscripts_cache::is_matching_key(key, &exact_match, &variant_prefix) {
-            let peak = val
-                .get("peak_intensity")
-                .or_else(|| val.get("peak"))
-                .and_then(|v| v.as_f64())
-                .unwrap_or(0.0);
-            let avg = val
-                .get("average_intensity")
-                .or_else(|| val.get("avg"))
-                .and_then(|v| v.as_f64())
-                .unwrap_or(0.0);
-            let volatility = val
-                .get("volatility")
-                .and_then(|v| v.as_f64())
-                .unwrap_or(0.0);
-            let duration = val
-                .get("duration")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0);
+            let peak = val.get("peak").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let avg = val.get("avg").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let volatility = val.get("volatility").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let duration = val.get("duration").and_then(|v| v.as_u64()).unwrap_or(0);
 
             if peak.is_finite() || avg.is_finite() {
                 // Rounding required by JS badges
                 let rounded_peak = if peak.is_finite() { peak.round() } else { f64::NAN };
                 let rounded_avg = if avg.is_finite() { avg.round() } else { f64::NAN };
                 let rounded_vol = if volatility.is_finite() { (volatility * 10.0).round() / 10.0 } else { f64::NAN };
-                stats.push(VariantStat {
+                stats.push(FunscriptStats {
                     peak: rounded_peak,
                     avg: rounded_avg,
                     volatility: rounded_vol,

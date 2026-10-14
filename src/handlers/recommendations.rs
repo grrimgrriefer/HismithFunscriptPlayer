@@ -7,8 +7,9 @@
 
 use crate::AppConfig;
 use crate::directory_browser::{self, FileNode};
-use crate::handlers::video_stats;
+use crate::funscript::FunscriptStats;
 use crate::funscripts_cache;
+use crate::handlers::video_stats;
 use actix_web::{HttpResponse, Responder, web};
 use rand::seq::IndexedRandom;
 use serde::{Deserialize, Serialize};
@@ -30,11 +31,8 @@ pub struct FolderStartQuery {
 pub struct RecommendedVideo {
     pub path: String,
     pub name: String,
-    pub peak: f64,
-    pub avg: f64,
-    pub volatility: f64,
-    #[serde(default)]
-    pub duration: u64,
+    #[serde(flatten)]
+    pub stats: FunscriptStats,
     #[serde(default)]
     pub views: u32,
     #[serde(default)]
@@ -100,11 +98,11 @@ pub async fn get_next_recommendations(
     let mut current_video_volatility = None;
 
     for v in sibling_videos {
-        if let Some((peak, avg, volatility, duration)) = get_stats_for_video(&v.path, &cache) {
+        if let Some(stats) = get_stats_for_video(&v.path, &cache) {
             if v.path == *target_path {
-                current_video_peak = Some(peak);
-                current_video_avg = Some(avg);
-                current_video_volatility = Some(volatility);
+                current_video_peak = Some(stats.peak);
+                current_video_avg = Some(stats.avg);
+                current_video_volatility = Some(stats.volatility);
             }
             let (views, likes) = user_stats
                 .get(&v.path)
@@ -114,10 +112,7 @@ pub async fn get_next_recommendations(
             videos_with_stats.push(RecommendedVideo {
                 path: v.path,
                 name: v.name,
-                peak,
-                avg,
-                volatility,
-                duration,
+                stats,
                 views,
                 likes,
                 delta_peak: None,
@@ -142,19 +137,19 @@ pub async fn get_next_recommendations(
 
     if let (Some(cp), Some(ca), Some(cv)) = (current_video_peak, current_video_avg, current_video_volatility) {
         if let Some(ref mut r) = lower {
-            r.delta_peak = Some(r.peak - cp);
-            r.delta_avg = Some(r.avg - ca);
-            r.delta_volatility = Some(r.volatility - cv);
+            r.delta_peak = Some(r.stats.peak - cp);
+            r.delta_avg = Some(r.stats.avg - ca);
+            r.delta_volatility = Some(r.stats.volatility - cv);
         }
         if let Some(ref mut r) = similar {
-            r.delta_peak = Some(r.peak - cp);
-            r.delta_avg = Some(r.avg - ca);
-            r.delta_volatility = Some(r.volatility - cv);
+            r.delta_peak = Some(r.stats.peak - cp);
+            r.delta_avg = Some(r.stats.avg - ca);
+            r.delta_volatility = Some(r.stats.volatility - cv);
         }
         if let Some(ref mut r) = higher {
-            r.delta_peak = Some(r.peak - cp);
-            r.delta_avg = Some(r.avg - ca);
-            r.delta_volatility = Some(r.volatility - cv);
+            r.delta_peak = Some(r.stats.peak - cp);
+            r.delta_avg = Some(r.stats.avg - ca);
+            r.delta_volatility = Some(r.stats.volatility - cv);
         }
     }
 
@@ -185,7 +180,7 @@ pub async fn get_folder_start_recommendations(
 
     let mut videos_with_stats = Vec::new();
     for v in folder_videos {
-        if let Some((peak, avg, volatility, duration)) = get_stats_for_video(&v.path, &cache) {
+        if let Some(stats) = get_stats_for_video(&v.path, &cache) {
             let (views, likes) = user_stats
                 .get(&v.path)
                 .map(|s| (s.views, s.likes))
@@ -194,10 +189,7 @@ pub async fn get_folder_start_recommendations(
             videos_with_stats.push(RecommendedVideo {
                 path: v.path,
                 name: v.name,
-                peak,
-                avg,
-                volatility,
-                duration,
+                stats,
                 views,
                 likes,
                 delta_peak: None,
@@ -215,9 +207,8 @@ pub async fn get_folder_start_recommendations(
         });
     }
 
-    // Sort videos by avg intensity ascending
     videos_with_stats.sort_by(|a, b| {
-        a.avg.partial_cmp(&b.avg).unwrap_or(std::cmp::Ordering::Equal)
+        a.stats.avg.partial_cmp(&b.stats.avg).unwrap_or(std::cmp::Ordering::Equal)
     });
 
     let total = videos_with_stats.len();
@@ -289,12 +280,12 @@ fn get_videos_in_folder(tree: &FileNode, folder_path: &str) -> Vec<FileNode> {
 fn get_stats_for_video(
     file_path: &str,
     cache: &funscripts_cache::FunscriptCache,
-) -> Option<(f64, f64, f64, u64)> {
+) -> Option<FunscriptStats> {
     let (exact_match, variant_prefix) = funscripts_cache::get_cache_match_keys(file_path);
 
     for (key, val) in cache {
         if funscripts_cache::is_matching_key(key, &exact_match, &variant_prefix) {
-            return Some((val.peak_intensity, val.average_intensity, val.volatility, val.duration));
+            return Some(val.stats);
         }
     }
     None
@@ -314,7 +305,7 @@ fn find_random_video(
         .iter()
         .filter(|v| v.path != current_path && !excluded.contains(&v.path))
         .filter(|v| {
-            let diff = v.peak - current_peak;
+            let diff = v.stats.peak - current_peak;
             diff >= min_diff && diff <= max_diff
         })
         .collect();
@@ -327,7 +318,7 @@ fn find_random_video(
         .iter()
         .filter(|v| v.path != current_path)
         .filter(|v| {
-            let diff = v.peak - current_peak;
+            let diff = v.stats.peak - current_peak;
             diff >= min_diff && diff <= max_diff
         })
         .collect();
@@ -345,8 +336,8 @@ fn find_closest_video(
         .iter()
         .filter(|v| v.path != current_path && !excluded.contains(&v.path))
         .min_by(|a, b| {
-            let diff_a = (a.peak - current_peak).abs();
-            let diff_b = (b.peak - current_peak).abs();
+            let diff_a = (a.stats.peak - current_peak).abs();
+            let diff_b = (b.stats.peak - current_peak).abs();
             diff_a.partial_cmp(&diff_b).unwrap_or(std::cmp::Ordering::Equal)
         })
         .cloned()

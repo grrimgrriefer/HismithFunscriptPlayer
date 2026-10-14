@@ -7,7 +7,7 @@
 //! (.funscripts_cache.json) beside the funscript base and maps relative file paths
 //! to computed entries (sha256, average/peak intensity, sample counts, timestamp).
 
-use crate::funscript::{self, FunscriptData};
+use crate::funscript::{self, FunscriptData, FunscriptStats};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -16,7 +16,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::fs;
 use walkdir::WalkDir;
 
-const CURRENT_CACHE_VERSION: u32 = 3;
+const CURRENT_CACHE_VERSION: u32 = 4;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FunscriptCacheFile {
@@ -27,12 +27,8 @@ pub struct FunscriptCacheFile {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FunscriptCacheEntry {
     pub sha256: String,
-    pub average_intensity: f64,
-    pub peak_intensity: f64,
-    #[serde(default)]
-    pub volatility: f64,
-    #[serde(default)]
-    pub duration: u64, // in seconds
+    #[serde(flatten)]
+    pub stats: FunscriptStats,
     pub sample_count: usize,
     pub last_updated: u64,
 }
@@ -75,10 +71,12 @@ fn build_entry(content: &str, sha256: String) -> Result<FunscriptCacheEntry, Str
     if data.actions.len() < 2 {
         return Ok(FunscriptCacheEntry {
             sha256,
-            average_intensity: 0.0,
-            peak_intensity: 0.0,
-            volatility: 0.0,
-            duration,
+            stats: FunscriptStats {
+                peak: 0.0,
+                avg: 0.0,
+                volatility: 0.0,
+                duration,
+            },
             sample_count: 0,
             last_updated: unix_now_secs(),
         });
@@ -86,15 +84,17 @@ fn build_entry(content: &str, sha256: String) -> Result<FunscriptCacheEntry, Str
 
     let actions = data.actions.clone();
     let intensity = funscript::actions_to_intensity_curve(&actions, &[]);
-    let (average_intensity, peak_intensity) = funscript::calculate_intensity_stats(&intensity);
+    let (avg, peak) = funscript::calculate_intensity_stats(&intensity);
     let volatility = funscript::calculate_volatility(&actions);
 
     Ok(FunscriptCacheEntry {
         sha256,
-        average_intensity,
-        peak_intensity,
-        volatility,
-        duration,
+        stats: FunscriptStats {
+            peak,
+            avg,
+            volatility,
+            duration,
+        },
         sample_count: intensity.len(),
         last_updated: unix_now_secs(),
     })

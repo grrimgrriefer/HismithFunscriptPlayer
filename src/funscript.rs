@@ -537,42 +537,8 @@ pub fn calculate_volatility(actions: &[Action]) -> f64 {
         .map(|a| (a.at as f64 / 1000.0, a.pos))
         .collect();
 
-    // Section calculation logic (same as in analysis.rs)
     let sections = compute_sections(&curve);
-    if sections.is_empty() {
-        return 0.0;
-    }
-
-    let total_duration_sec: f64 = sections.iter().map(|s| s.duration).sum();
-    let num_sections = sections.len();
-    if total_duration_sec <= 0.0 || num_sections == 0 {
-        return 0.0;
-    }
-
-    let avg_section_duration = total_duration_sec / num_sections as f64;
-    let mut jumps = Vec::new();
-    for i in 0..num_sections - 1 {
-        jumps.push((sections[i + 1].mean_intensity - sections[i].mean_intensity).abs());
-    }
-    let avg_intensity_jump = if !jumps.is_empty() {
-        jumps.iter().sum::<f64>() / jumps.len() as f64
-    } else {
-        0.0
-    };
-
-    let variance = sections
-        .iter()
-        .map(|s| (s.duration - avg_section_duration).powi(2))
-        .sum::<f64>()
-        / num_sections as f64;
-    let std_dev_section_duration = variance.sqrt();
-
-    let avg_duration_norm = (1.0 - (avg_section_duration - 5.0) / 25.0).clamp(0.0, 1.0);
-    let avg_jump_norm = ((avg_intensity_jump - 5.0) / 35.0).clamp(0.0, 1.0);
-    let std_dev_norm = (std_dev_section_duration / 15.0).clamp(0.0, 1.0);
-
-    let raw_score = 0.50 * avg_duration_norm + 0.30 * avg_jump_norm + 0.20 * std_dev_norm;
-    ((raw_score * 9.0 + 1.0).clamp(1.0, 10.0) * 10.0).round() / 10.0
+    calculate_volatility_from_sections(&sections)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -731,6 +697,43 @@ fn compute_sections(curve: &[(f64, f64)]) -> Vec<Section> {
     sections
 }
 
+fn calculate_volatility_from_sections(sections: &[Section]) -> f64 {
+    if sections.is_empty() {
+        return 0.0;
+    }
+
+    let total_duration_sec: f64 = sections.iter().map(|s| s.duration).sum();
+    let num_sections = sections.len();
+    if total_duration_sec <= 0.0 || num_sections == 0 {
+        return 0.0;
+    }
+
+    let avg_section_duration = total_duration_sec / num_sections as f64;
+    let mut jumps = Vec::new();
+    for i in 0..num_sections - 1 {
+        jumps.push((sections[i + 1].mean_intensity - sections[i].mean_intensity).abs());
+    }
+    let avg_intensity_jump = if !jumps.is_empty() {
+        jumps.iter().sum::<f64>() / jumps.len() as f64
+    } else {
+        0.0
+    };
+
+    let variance = sections
+        .iter()
+        .map(|s| (s.duration - avg_section_duration).powi(2))
+        .sum::<f64>()
+        / num_sections as f64;
+    let std_dev_section_duration = variance.sqrt();
+
+    let avg_duration_norm = (1.0 - (avg_section_duration - 5.0) / 25.0).clamp(0.0, 1.0);
+    let avg_jump_norm = ((avg_intensity_jump - 5.0) / 35.0).clamp(0.0, 1.0);
+    let std_dev_norm = (std_dev_section_duration / 15.0).clamp(0.0, 1.0);
+
+    let raw_score = 0.50 * avg_duration_norm + 0.30 * avg_jump_norm + 0.20 * std_dev_norm;
+    ((raw_score * 9.0 + 1.0).clamp(1.0, 10.0) * 10.0).round() / 10.0
+}
+
 pub fn calculate_volatility_with_sections(actions: &[Action]) -> (f64, Vec<SectionInfo>) {
     if actions.len() < 2 {
         return (0.0, Vec::new());
@@ -751,7 +754,7 @@ pub fn calculate_volatility_with_sections(actions: &[Action]) -> (f64, Vec<Secti
         return (0.0, Vec::new());
     }
 
-    let score = calculate_volatility(actions); // or reuse internal section score calc
+    let score = calculate_volatility_from_sections(&sections);
 
     let section_infos = sections
         .into_iter()

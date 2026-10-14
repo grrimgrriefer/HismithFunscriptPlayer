@@ -22,6 +22,37 @@ use std::cmp::min;
 pub const INTENSITY_STEP_MS: u64 = 50;
 pub const INTENSITY_WINDOW_MS: u64 = 500;
 
+/// Piecewise-linear BPM-to-intensity calibration table.
+/// Each entry is (bpm_threshold, intensity_percent).
+pub const BPM_TO_INTENSITY: [(f64, f64); 11] = [
+    (0.0, 0.0),
+    (42.0, 10.0),
+    (66.0, 20.0),
+    (90.0, 30.0),
+    (116.0, 40.0),
+    (140.0, 50.0),
+    (160.0, 60.0),
+    (182.0, 70.0),
+    (218.0, 80.0),
+    (245.0, 90.0),
+    (270.0, 100.0),
+];
+
+/// Inverse mapping table: (intensity_percent, bpm_threshold).
+pub const INTENSITY_TO_BPM: [(f64, f64); 11] = [
+    (0.0, 0.0),
+    (10.0, 42.0),
+    (20.0, 66.0),
+    (30.0, 90.0),
+    (40.0, 116.0),
+    (50.0, 140.0),
+    (60.0, 160.0),
+    (70.0, 182.0),
+    (80.0, 218.0),
+    (90.0, 245.0),
+    (100.0, 270.0),
+];
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Action {
     #[serde(rename = "at")]
@@ -73,26 +104,34 @@ impl Default for FunscriptData {
     }
 }
 
-/// Piecewise-linear BPM-to-intensity calibration table.
-/// Each entry is (bpm_threshold, intensity_percent).
-pub const BPM_TO_INTENSITY: [(f64, f64); 11] = [
-    (0.0, 0.0),
-    (42.0, 10.0),
-    (66.0, 20.0),
-    (90.0, 30.0),
-    (116.0, 40.0),
-    (140.0, 50.0),
-    (160.0, 60.0),
-    (182.0, 70.0),
-    (218.0, 80.0),
-    (245.0, 90.0),
-    (270.0, 100.0),
-];
-
 #[derive(Debug, Clone, Serialize)]
 pub struct BpmIntensityPoint {
     pub bpm: f64,
     pub intensity: f64,
+}
+
+/// Evaluates piecewise-linear interpolation over an `(x, y)` table.
+/// Assumes `table` is sorted ascending by `x`. Clamps out-of-range values to endpoints.
+pub fn interpolate_table(table: &[(f64, f64)], x: f64) -> f64 {
+    if !x.is_finite() || table.is_empty() || x <= table[0].0 {
+        return table.first().map(|p| p.1).unwrap_or(0.0);
+    }
+    if x >= table.last().unwrap().0 {
+        return table.last().unwrap().1;
+    }
+    for window in table.windows(2) {
+        let (x0, y0) = window[0];
+        let (x1, y1) = window[1];
+        if x <= x1 {
+            let dx = x1 - x0;
+            if dx.abs() < f64::EPSILON {
+                return y1;
+            }
+            let t = (x - x0) / dx;
+            return y0 + (y1 - y0) * t;
+        }
+    }
+    0.0
 }
 
 pub fn get_bpm_intensity_mapping() -> Vec<BpmIntensityPoint> {
@@ -216,26 +255,12 @@ fn merge_same_position_runs(actions: &mut Vec<Action>, max_gap_ms: u64) {
     *actions = result;
 }
 
-/// Piecewise-linear lookup: BPM → intensity (0..100). Clamps to table bounds.
 fn bpm_to_intensity(bpm: f64) -> f64 {
-    if !bpm.is_finite() || bpm <= 0.0 {
-        return 0.0;
-    }
+    interpolate_table(&BPM_TO_INTENSITY, bpm)
+}
 
-    let table = &BPM_TO_INTENSITY;
-    if bpm >= table.last().unwrap().0 {
-        return table.last().unwrap().1;
-    }
-
-    for pair in table.windows(2) {
-        let (b0, i0) = pair[0];
-        let (b1, i1) = pair[1];
-        if bpm <= b1 {
-            let t = (bpm - b0) / (b1 - b0);
-            return i0 + (i1 - i0) * t;
-        }
-    }
-    0.0
+pub fn intensity_to_bpm(intensity: f64) -> f64 {
+    interpolate_table(&INTENSITY_TO_BPM, intensity)
 }
 
 /// Sum absolute position changes within [win_start, win_end], convert to BPM,
@@ -464,28 +489,8 @@ pub fn quarter_beat_actions(actions: &[Action]) -> Vec<Action> {
     subsample_beat_actions(actions, 4)
 }
 
-pub fn intensity_to_bpm(intensity: f64) -> f64 {
-    let val = intensity.clamp(0.0, 100.0);
-    if val <= 0.0 {
-        return 0.0;
-    }
-    if val >= 100.0 {
-        return 270.0;
-    }
-
-    for pair in BPM_TO_INTENSITY.windows(2) {
-        let (b0, i0) = pair[0];
-        let (b1, i1) = pair[1];
-        if val >= i0 && val <= i1 {
-            let t = (val - i0) / (i1 - i0);
-            return b0 + t * (b1 - b0);
-        }
-    }
-    0.0
-}
-
 /// Applies piecewise linear calibration interpolation on a raw intensity (0..100).
-/// `cal_points` must be sorted by BPM: `[(bpm, intensity), ...]`
+/// `cal_points` must be sorted by BPM: `[(bpm, intensity), ...]`.
 pub fn get_calibrated_intensity(raw_intensity: f64, cal_points: &[(f64, f64)]) -> f64 {
     if cal_points.len() <= 1 {
         return raw_intensity;
@@ -496,60 +501,18 @@ pub fn get_calibrated_intensity(raw_intensity: f64, cal_points: &[(f64, f64)]) -
         return 0.0;
     }
 
-    if bpm <= cal_points[1].0 {
-        let (b0, i0) = cal_points[0];
-        let (b1, i1) = cal_points[1];
-        if (b1 - b0).abs() < f64::EPSILON {
-            return i1;
-        }
-        let t = (bpm - b0) / (b1 - b0);
-        return i0 + t * (i1 - i0);
-    }
-
-    let last_idx = cal_points.len() - 1;
-    if bpm >= cal_points[last_idx].0 {
-        let (b0, i0) = cal_points[last_idx];
-        let b1 = 270.0;
-        let i1 = 100.0;
-        if bpm >= b1 {
-            return 100.0;
-        }
-        let t = (bpm - b0) / (b1 - b0);
-        return i0 + t * (i1 - i0);
-    }
-
-    for window in cal_points.windows(2) {
-        let (b0, i0) = window[0];
-        let (b1, i1) = window[1];
-        if bpm >= b0 && bpm <= b1 {
-            if (b1 - b0).abs() < f64::EPSILON {
-                return i1;
-            }
-            let t = (bpm - b0) / (b1 - b0);
-            return i0 + t * (i1 - i0);
+    // Extrapolate to 270 BPM / 100% intensity if calibration table does not reach it
+    if let Some(&(last_bpm, last_intensity)) = cal_points.last() {
+        if last_bpm < 270.0 && bpm > last_bpm {
+            return interpolate_table(&[(last_bpm, last_intensity), (270.0, 100.0)], bpm);
         }
     }
 
-    raw_intensity
+    interpolate_table(cal_points, bpm)
 }
 
 pub fn calculate_volatility(actions: &[Action]) -> f64 {
-    if actions.len() < 2 {
-        return 0.0;
-    }
-
-    let curve_actions = actions_to_intensity_curve(actions, &[]);
-    if curve_actions.is_empty() {
-        return 0.0;
-    }
-
-    let curve: Vec<(f64, f64)> = curve_actions
-        .iter()
-        .map(|a| (a.at as f64 / 1000.0, a.pos))
-        .collect();
-
-    let sections = compute_sections(&curve);
-    calculate_volatility_from_sections(&sections)
+    calculate_volatility_with_sections(actions).0
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -580,6 +543,22 @@ fn get_bucket(intensity: f64) -> String {
     format!("{}-{}", lower, lower + 10)
 }
 
+fn make_section(slice: &[(f64, f64)]) -> Option<Section> {
+    let first = slice.first()?;
+    let last = slice.last()?;
+    let duration = last.0 - first.0;
+    let peak = slice.iter().map(|p| p.1).fold(0.0, f64::max);
+    let mean = slice.iter().map(|p| p.1).sum::<f64>() / slice.len() as f64;
+    Some(Section {
+        start: first.0,
+        end: last.0,
+        duration,
+        peak_intensity: peak,
+        mean_intensity: mean,
+        bucket: get_bucket(mean),
+    })
+}
+
 fn compute_sections(curve: &[(f64, f64)]) -> Vec<Section> {
     if curve.is_empty() {
         return Vec::new();
@@ -607,11 +586,10 @@ fn compute_sections(curve: &[(f64, f64)]) -> Vec<Section> {
                         min_val = curve[idx].1;
                         split_idx = idx;
                     } else {
-                        break; // Stop walking back once intensity starts decreasing backward
+                        break;
                     }
                 }
             } else {
-                // Intensity is falling: walk backward from `i` to find the local maximum where the fall began
                 let mut max_val = curve[i].1;
                 for idx in (current_start_idx..=i).rev() {
                     if curve[idx].1 >= max_val {
@@ -623,47 +601,22 @@ fn compute_sections(curve: &[(f64, f64)]) -> Vec<Section> {
                 }
             }
 
-            // Ensure split_idx produces a valid end index for the preceding section
             let end_idx = if split_idx > current_start_idx {
                 split_idx
             } else {
                 current_start_idx.max(i.saturating_sub(1))
             };
 
-            let sec_curve = &curve[current_start_idx..=end_idx];
-            let sec_start = sec_curve.first().unwrap().0;
-            let sec_end = sec_curve.last().unwrap().0;
-            let sec_duration = sec_end - sec_start;
-            let sec_peak = sec_curve.iter().map(|p| p.1).fold(0.0, f64::max);
-            let sec_mean = sec_curve.iter().map(|p| p.1).sum::<f64>() / sec_curve.len() as f64;
-
-            sections.push(Section {
-                start: sec_start,
-                end: sec_end,
-                duration: sec_duration,
-                peak_intensity: sec_peak,
-                mean_intensity: sec_mean,
-                bucket: get_bucket(sec_mean),
-            });
+            if let Some(sec) = make_section(&curve[current_start_idx..=end_idx]) {
+                sections.push(sec);
+            }
 
             current_start_idx = end_idx + 1;
             i = current_start_idx;
         } else if i == curve.len() - 1 {
-            let sec_curve = &curve[current_start_idx..=i];
-            let sec_start = sec_curve.first().unwrap().0;
-            let sec_end = sec_curve.last().unwrap().0;
-            let sec_duration = sec_end - sec_start;
-            let sec_peak = sec_curve.iter().map(|p| p.1).fold(0.0, f64::max);
-            let sec_mean = sec_curve.iter().map(|p| p.1).sum::<f64>() / sec_curve.len() as f64;
-
-            sections.push(Section {
-                start: sec_start,
-                end: sec_end,
-                duration: sec_duration,
-                peak_intensity: sec_peak,
-                mean_intensity: sec_mean,
-                bucket: get_bucket(sec_mean),
-            });
+            if let Some(sec) = make_section(&curve[current_start_idx..=i]) {
+                sections.push(sec);
+            }
             i += 1;
         } else {
             i += 1;
@@ -696,7 +649,7 @@ fn compute_sections(curve: &[(f64, f64)]) -> Vec<Section> {
                 prev.duration = total_dur;
                 prev.peak_intensity = new_peak;
                 prev.mean_intensity = new_mean;
-                prev.bucket = get_bucket(new_mean); // re-bucket using time-weighted new_mean
+                prev.bucket = get_bucket(new_mean);
                 changed = true;
             } else {
                 new_sections.push(sec.clone());

@@ -74,22 +74,6 @@ async function fetchJson(url) {
     }
 }
 
-async function fetchActions(taps) {
-    try {
-        const res = await fetch('/api/funscripts/calculate-draft-intensity', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ taps })
-        });
-        if (!res.ok) return [];
-        const data = await res.json();
-        return data.actions || [];
-    } catch (e) {
-        console.error('Failed to fetch actions:', e);
-        return [];
-    }
-}
-
 function extractActionsFromResponse(data, variantName) {
     if (!data) return [];
     if (variantName && data[variantName]?.actions)
@@ -133,7 +117,9 @@ async function loadFunscript() {
         .map((a) => a.at)
         .sort((a, b) => a - b);
 
-    state.baseActions = await fetchActions(state.base);
+    const baseStats = await fetchDraftIntensity(state.base);
+    state.baseActions = baseStats?.actions || [];
+
     state.variant = [];
     if (isEditingVariant()) {
         const vdata = await fetchJson(
@@ -145,60 +131,88 @@ async function loadFunscript() {
             .filter((a) => a.pos === 100)
             .map((a) => a.at)
             .sort((a, b) => a - b);
+
+        const variantStats = await fetchDraftIntensity(state.variant);
+        applyIntensityStats(variantStats);
+    } else {
+        applyIntensityStats(baseStats);
     }
 
     state.selected.clear();
-    updateCounter();
+    updateCounter(false);
     draw();
 }
 
-// ── UI Updates ─────────────────────────────────────────────────────────
+// ── Unified Intensity Draft API Helper ─────────────────────────────────
 
-async function updateBackendIntensityStats(taps) {
+async function fetchDraftIntensity(taps) {
     try {
         const res = await fetch('/api/funscripts/calculate-draft-intensity', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ taps })
         });
-        if (!res.ok) return;
-        const stats = await res.json();
-        state.editingActions = stats.actions || [];
-
-        const peakEl = document.getElementById('editor-peak-val');
-        const avgEl = document.getElementById('editor-avg-val');
-
-        peakEl.textContent = Math.round(stats.peak);
-        peakEl.style.color = intensityToColor(stats.peak);
-        avgEl.textContent = Math.round(stats.average);
-        avgEl.style.color = intensityToColor(stats.average);
-
-        state.pendingVolatilityData = {
-            volatility: stats.volatility || 0,
-            sections: stats.sections || []
-        };
-
-        if (video.paused) {
-            applyVolatilityUI();
-        }
-
-        draw();
+        if (!res.ok) return null;
+        return await res.json();
     } catch (e) {
-        console.error('Failed to calculate backend intensity stats:', e);
+        console.error('Failed to calculate draft intensity:', e);
+        return null;
     }
 }
 
-function updateCounter() {
+function applyIntensityStats(stats) {
+    const s = stats || {
+        peak: 0,
+        average: 0,
+        volatility: 0,
+        actions: [],
+        sections: []
+    };
+    state.editingActions = s.actions || [];
+
+    const peakEl = document.getElementById('editor-peak-val');
+    const avgEl = document.getElementById('editor-avg-val');
+
+    if (peakEl) {
+        peakEl.textContent = Math.round(s.peak || 0);
+        peakEl.style.color = intensityToColor(s.peak || 0);
+    }
+    if (avgEl) {
+        avgEl.textContent = Math.round(s.average || 0);
+        avgEl.style.color = intensityToColor(s.average || 0);
+    }
+
+    state.pendingVolatilityData = {
+        volatility: s.volatility || 0,
+        sections: s.sections || []
+    };
+
+    if (video.paused) {
+        applyVolatilityUI();
+    }
+
+    draw();
+}
+
+async function updateBackendIntensityStats(taps) {
+    const stats = await fetchDraftIntensity(taps);
+    applyIntensityStats(stats);
+}
+
+// ── UI Updates ─────────────────────────────────────────────────────────
+
+function updateCounter(triggerFetch = true) {
     const editing = getEditingArray();
     counter.textContent = isEditingVariant()
         ? `Taps: ${editing.length} (variant: ${state.currentVariant}) — Original: ${state.base.length}`
         : `Taps: ${editing.length}`;
 
-    // Debounced fetch for intensity stats from Rust backend
-    clearTimeout(state.calcDebounceTimer);
-    state.calcDebounceTimer = setTimeout(() => {
-        updateBackendIntensityStats(editing);
-    }, 150);
+    if (triggerFetch) {
+        clearTimeout(state.calcDebounceTimer);
+        state.calcDebounceTimer = setTimeout(() => {
+            updateBackendIntensityStats(editing);
+        }, 150);
+    }
 }
 
 // ── Actions ────────────────────────────────────────────────────────────

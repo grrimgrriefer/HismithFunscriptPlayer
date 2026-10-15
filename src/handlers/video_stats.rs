@@ -73,52 +73,49 @@ pub async fn get_stats(config: web::Data<AppConfig>) -> impl Responder {
     HttpResponse::Ok().json(stats)
 }
 
-pub async fn record_view(
-    config: web::Data<AppConfig>,
-    payload: web::Json<VideoActionPayload>,
-) -> impl Responder {
-    let path = payload.video_path.trim().to_string();
+async fn update_video_stat<F>(
+    config: &AppConfig,
+    raw_path: &str,
+    updater: F,
+) -> Result<VideoUserStats, (actix_web::http::StatusCode, &'static str)>
+where
+    F: FnOnce(&mut VideoUserStats),
+{
+    let path = raw_path.trim().to_string();
     if path.is_empty() {
-        return HttpResponse::BadRequest().body("Missing video path");
+        return Err((actix_web::http::StatusCode::BAD_REQUEST, "Missing video path"));
     }
 
     let mut stats = read_video_stats(&config.funscript_share_path).await;
     let entry = stats.entry(path).or_default();
-    entry.views += 1;
-    entry.last_watched = Some(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0),
-    );
+    updater(entry);
+    let updated = entry.clone();
 
-    let updated_entry = entry.clone();
-    if let Err(e) = write_video_stats(&config.funscript_share_path, &stats).await {
-        log::error!("Failed to save view count: {}", e);
-        return HttpResponse::InternalServerError().body("Failed to persist stats");
-    }
+    write_video_stats(&config.funscript_share_path, &stats)
+        .await
+        .map_err(|e| {
+            log::error!("Failed to persist stats: {e}");
+            (actix_web::http::StatusCode::INTERNAL_SERVER_ERROR, "Failed to persist stats")
+        })?;
 
-    HttpResponse::Ok().json(updated_entry)
+    Ok(updated)
 }
 
-pub async fn record_like(
-    config: web::Data<AppConfig>,
-    payload: web::Json<VideoActionPayload>,
-) -> impl Responder {
-    let path = payload.video_path.trim().to_string();
-    if path.is_empty() {
-        return HttpResponse::BadRequest().body("Missing video path");
+pub async fn record_view(config: web::Data<AppConfig>, payload: web::Json<VideoActionPayload>) -> impl Responder {
+    match update_video_stat(&config, &payload.video_path, |e| {
+        e.views += 1;
+        e.last_watched = Some(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs());
+    }).await {
+        Ok(entry) => HttpResponse::Ok().json(entry),
+        Err((status, msg)) => HttpResponse::build(status).body(msg),
     }
+}
 
-    let mut stats = read_video_stats(&config.funscript_share_path).await;
-    let entry = stats.entry(path).or_default();
-    entry.likes += 1;
-
-    let updated_entry = entry.clone();
-    if let Err(e) = write_video_stats(&config.funscript_share_path, &stats).await {
-        log::error!("Failed to save like count: {}", e);
-        return HttpResponse::InternalServerError().body("Failed to persist stats");
+pub async fn record_like(config: web::Data<AppConfig>, payload: web::Json<VideoActionPayload>) -> impl Responder {
+    match update_video_stat(&config, &payload.video_path, |e| {
+        e.likes += 1;
+    }).await {
+        Ok(entry) => HttpResponse::Ok().json(entry),
+        Err((status, msg)) => HttpResponse::build(status).body(msg),
     }
-
-    HttpResponse::Ok().json(updated_entry)
 }

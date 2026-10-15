@@ -142,26 +142,21 @@ export function sortTreeNodes(node, sortBy = 'peak') {
         }
 
         if (!a.is_dir) {
-            // Sort by Likes
-            if (sortBy === 'likes') {
-                const aLikes = a.user_stats?.likes || 0;
-                const bLikes = b.user_stats?.likes || 0;
-                if (aLikes !== bLikes) return bLikes - aLikes;
+            const statsKeys = {
+                likes: ['likes', 'views'],
+                views: ['views', 'likes']
+            };
 
-                const aViews = a.user_stats?.views || 0;
-                const bViews = b.user_stats?.views || 0;
-                if (aViews !== bViews) return bViews - aViews;
-            }
-
-            // Sort by Views
-            if (sortBy === 'views') {
-                const aViews = a.user_stats?.views || 0;
-                const bViews = b.user_stats?.views || 0;
-                if (aViews !== bViews) return bViews - aViews;
-
-                const aLikes = a.user_stats?.likes || 0;
-                const bLikes = b.user_stats?.likes || 0;
-                if (aLikes !== bLikes) return bLikes - aLikes;
+            if (statsKeys[sortBy]) {
+                const [primary, secondary] = statsKeys[sortBy];
+                const diffPrimary =
+                    (b.user_stats?.[primary] || 0) -
+                    (a.user_stats?.[primary] || 0);
+                if (diffPrimary !== 0) return diffPrimary;
+                const diffSecondary =
+                    (b.user_stats?.[secondary] || 0) -
+                    (a.user_stats?.[secondary] || 0);
+                if (diffSecondary !== 0) return diffSecondary;
             }
 
             // intensity sort fallback

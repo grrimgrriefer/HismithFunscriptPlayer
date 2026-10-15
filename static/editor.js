@@ -30,7 +30,7 @@ const variantList = document.getElementById('variant-list');
 // ── State ──────────────────────────────────────────────────────────────
 
 const state = {
-    base: [],
+    baseTapsMs: [],
     variant: [],
     currentVariant: '',
     selected: new Set(),
@@ -54,11 +54,12 @@ const isEditingVariant = () =>
     state.currentVariant !== '' &&
     state.currentVariant !== 'original';
 
-const getEditingArray = () => (isEditingVariant() ? state.variant : state.base);
+const getEditingArray = () =>
+    isEditingVariant() ? state.variant : state.baseTapsMs;
 
 const setEditingArray = (arr) => {
     if (isEditingVariant()) state.variant = arr;
-    else state.base = arr;
+    else state.baseTapsMs = arr;
 };
 
 const dedupeAndSort = (arr) => Array.from(new Set(arr)).sort((a, b) => a - b);
@@ -112,12 +113,12 @@ async function loadFunscript() {
     }
 
     const baseData = await fetchJson(baseUrl);
-    state.base = (extractActionsFromResponse(baseData, 'original') || [])
+    state.baseTapsMs = (extractActionsFromResponse(baseData, 'original') || [])
         .filter((a) => a.pos === 100)
         .map((a) => a.at)
         .sort((a, b) => a - b);
 
-    const baseStats = await fetchDraftIntensity(state.base);
+    const baseStats = await fetchDraftIntensity(state.baseTapsMs);
     state.baseActions = baseStats?.actions || [];
 
     state.variant = [];
@@ -204,7 +205,7 @@ async function updateBackendIntensityStats(taps) {
 function updateCounter(triggerFetch = true) {
     const editing = getEditingArray();
     counter.textContent = isEditingVariant()
-        ? `Taps: ${editing.length} (variant: ${state.currentVariant}) — Original: ${state.base.length}`
+        ? `Taps: ${editing.length} (variant: ${state.currentVariant}) — Original: ${state.baseTapsMs.length}`
         : `Taps: ${editing.length}`;
 
     if (triggerFetch) {
@@ -281,12 +282,6 @@ async function handleSave() {
 
 // ── Volatility heatmap──────────────────────────────────────────────────
 
-function formatSec(sec) {
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
-}
-
 function updateActiveSectionHighlight(currentTimeSec) {
     if (!state.pendingVolatilityData?.sections) return;
     const sections = state.pendingVolatilityData.sections;
@@ -319,7 +314,7 @@ function updateActiveSectionHighlight(currentTimeSec) {
             const sec = sections[activeIdx];
             activeTextEl.innerHTML =
                 `<strong style="color:var(--accent-yellow)">#${activeIdx + 1}</strong> ` +
-                `(${formatSec(sec.start)}–${formatSec(sec.end)}, ` +
+                `(${formatDuration(sec.start)}–${formatDuration(sec.end)}, ` +
                 `Duration: <strong>${sec.duration.toFixed(1)}s</strong>, ` +
                 `🌡️ Avg: <strong>${Math.round(sec.mean_intensity)}</strong>, ` +
                 `🔺 Peak: <strong>${Math.round(sec.peak_intensity)}</strong>)`;
@@ -369,7 +364,7 @@ function applyVolatilityUI() {
         div.style.width = `${pct.toFixed(2)}%`;
         div.style.backgroundColor = intensityToColor(sec.mean_intensity);
 
-        const titleText = `Section #${idx + 1}: ${formatSec(sec.start)} – ${formatSec(sec.end)}\nDuration: ${sec.duration.toFixed(1)}s\n🌡️ Avg: ${Math.round(sec.mean_intensity)} | 🔺 Peak: ${Math.round(sec.peak_intensity)}`;
+        const titleText = `Section #${idx + 1}: ${formatDuration(sec.start)} – ${formatDuration(sec.end)}\nDuration: ${sec.duration.toFixed(1)}s\n🌡️ Avg: ${Math.round(sec.mean_intensity)} | 🔺 Peak: ${Math.round(sec.peak_intensity)}`;
         div.setAttribute('title', titleText);
         div.onclick = () => {
             video.currentTime = sec.start;
@@ -387,7 +382,7 @@ function applyVolatilityUI() {
             item.innerHTML = `
                 <div>
                     <span class="section-badge" style="background-color: ${avgColor}"></span>
-                    <strong>#${idx + 1}</strong> (${formatSec(sec.start)} - ${formatSec(sec.end)})
+                    <strong>#${idx + 1}</strong> (${formatDuration(sec.start)} - ${formatDuration(sec.end)})
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center;">
                     <span style="color: #bbb;">⏱ ${sec.duration.toFixed(1)}s</span>
@@ -510,10 +505,10 @@ function draw() {
         drawWave(state.editingActions, '#4CAF50');
 
     if (isEditingVariant()) {
-        drawTaps(state.base, false);
+        drawTaps(state.baseTapsMs, false);
         drawTaps(state.variant, true);
     } else {
-        drawTaps(state.base, true);
+        drawTaps(state.baseTapsMs, true);
     }
 
     // Playhead

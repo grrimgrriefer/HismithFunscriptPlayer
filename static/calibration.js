@@ -190,14 +190,7 @@ function savePoint() {
 
     buildPresetButtons();
     refreshDisplays();
-
-    const activeBpms = {};
-    for (const p of PRESETS) {
-        if (calibratedBpms[p] !== null && calibratedBpms[p] !== undefined) {
-            activeBpms[String(p)] = calibratedBpms[p];
-        }
-    }
-    syncActiveProfileToRust(activeBpms);
+    getActiveCalibratedBpms();
 }
 
 // ── Audio ──────────────────────────────────────────────────────────────
@@ -414,7 +407,7 @@ function applyProfile(name) {
     const profile = window.__calibrationProfiles?.[name];
     if (!profile) {
         resetBpms();
-        syncActiveProfileToRust({});
+        syncActiveProfile({});
         return;
     }
 
@@ -429,14 +422,7 @@ function applyProfile(name) {
         }
     }
     buildPresetButtons();
-
-    const activeBpms = {};
-    for (const p of PRESETS) {
-        if (calibratedBpms[p] !== null && calibratedBpms[p] !== undefined) {
-            activeBpms[String(p)] = calibratedBpms[p];
-        }
-    }
-    syncActiveProfileToRust(activeBpms);
+    getActiveCalibratedBpms();
 
     const first = PRESETS.find(
         (p) => calibratedBpms[p] !== undefined && calibratedBpms[p] !== null
@@ -451,6 +437,15 @@ function applyProfile(name) {
         updateInfoDisplays();
     }
     refreshDisplays();
+}
+
+function getActiveCalibratedBpms() {
+    return Object.fromEntries(
+        PRESETS.filter((p) => calibratedBpms[p] != null).map((p) => [
+            String(p),
+            calibratedBpms[p]
+        ])
+    );
 }
 
 function getProfileName() {
@@ -634,7 +629,7 @@ async function reloadActiveFunscript() {
     }
 }
 
-export async function syncActiveProfileToRust(bpms) {
+export async function syncActiveProfile(bpms) {
     try {
         await fetch('/api/calibration-activate', {
             method: 'POST',

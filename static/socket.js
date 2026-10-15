@@ -33,11 +33,11 @@ export function initWebSocket() {
     }
 }
 
-export function sendDeviceCommand(oscillate, vibrate) {
+export function sendDeviceCommand(thrustIntensity, vibrateIntensity) {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
     const maxOscillate = getAbsoluteMaximum() / 100;
-    let vibrateValue = vibrate;
+    let vibrateValue = vibrateIntensity;
 
     if (getVibrateMode() === 'Rate') {
         vibrateValue =
@@ -48,7 +48,7 @@ export function sendDeviceCommand(oscillate, vibrate) {
 
     ws.send(
         JSON.stringify({
-            o: Math.max(0, Math.min(oscillate, maxOscillate)),
+            o: Math.max(0, Math.min(thrustIntensity, maxOscillate)),
             v: Math.max(0, Math.min(vibrateValue, 1.0))
         })
     );

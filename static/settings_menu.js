@@ -22,7 +22,7 @@ import {
     showTemporaryOverlayMessage,
     updateSbsPlayingState
 } from './utils.js';
-import { updateFunscriptDisplayBox } from './funscript_display_graphs.js';
+import { renderIntensityGraphHUD } from './funscript_display_graphs.js';
 
 let initialized = false;
 
@@ -147,16 +147,16 @@ export function setSBSMode(enabled) {
 }
 
 export function isHardLimitUnlocked() {
-    const input = document.getElementById('hard-limit-input');
+    const input = document.getElementById('max-intensity-limit-input');
     return input ? !input.disabled : false;
 }
 
-async function syncMaxLimitToRust(limitValue) {
+async function syncMaxLimit(maxIntensityLimit) {
     try {
-        await fetch('/api/max-limit', {
+        await fetch('/api/max-intensity-limit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ limit: limitValue })
+            body: JSON.stringify({ max_intensity_limit: maxIntensityLimit })
         });
     } catch (err) {
         console.error('Failed to sync max limit to server:', err);
@@ -246,8 +246,8 @@ function initCalibrationButton(menu) {
 }
 
 function initHardLimit(menu) {
-    const lockBtn = menu.querySelector('#hard-limit-lock-button');
-    const input = menu.querySelector('#hard-limit-input');
+    const lockBtn = menu.querySelector('#max-intensity-limit-lock-button');
+    const input = menu.querySelector('#max-intensity-limit-input');
     if (!input) return;
 
     input.value = getAbsoluteMaximum().toString();
@@ -274,7 +274,7 @@ function initHardLimit(menu) {
         const value = parseInt(input.value, 10);
         if (value >= 0 && value <= 100) {
             setAbsoluteMaximum(value);
-            syncMaxLimitToRust(value);
+            syncMaxLimit(value);
         } else {
             showTemporaryOverlayMessage(
                 'Please enter a value between 0 and 100.'
@@ -403,7 +403,7 @@ function bindOverlayClose(overlay) {
         updateIntensityDisplay();
         const videoEl = document.querySelector('#video-player video');
         if (videoEl) {
-            updateFunscriptDisplayBox(videoEl.currentTime * 1000);
+            renderIntensityGraphHUD(videoEl.currentTime * 1000);
         }
 
         document.body.style.overflow = '';

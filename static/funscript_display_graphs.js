@@ -17,7 +17,7 @@ const CANVAS_HEIGHT_RATIO = 0.1;
 
 let flashIntensity = 0;
 
-export function createFunscriptDisplayBox() {
+export function initIntensityGraphHUD() {
     let box = document.getElementById('funscript-box');
     if (box) return;
 
@@ -55,7 +55,7 @@ function resizeCanvas(canvas) {
     canvas.style.backgroundColor = 'rgba(0, 0, 0, 0)';
 }
 
-export function updateFunscriptDisplayBox(currentTime) {
+export function renderIntensityGraphHUD(currentTime) {
     const canvas = document.getElementById('funscript-canvas');
     if (!canvas || !funscriptActions || !intensityActions) return;
 

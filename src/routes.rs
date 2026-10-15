@@ -26,7 +26,7 @@ pub fn setup_routes(cfg: &mut web::ServiceConfig) {
                 .route("/calibration-profiles", web::get().to(calibration::get_profiles))
                 .route("/calibration-profiles", web::post().to(calibration::save_profile))
                 .route("/calibration-activate", web::post().to(calibration::set_active_profile))
-                .route("/max-limit", web::post().to(calibration::set_max_limit))
+                .route("/max-intensity-limit", web::post().to(calibration::set_max_intensity_limit))
                 .route("/recommendations/next", web::get().to(recommendations::get_next_recommendations))
                 .route("/recommendations/folder-start", web::get().to(recommendations::get_folder_start_recommendations))
                 .route("/video-stats", web::get().to(video_stats::get_stats))

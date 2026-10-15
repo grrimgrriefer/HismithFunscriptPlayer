@@ -10,8 +10,8 @@ import {
     getFunscriptDuration
 } from './funscript_handler.js';
 import {
-    createFunscriptDisplayBox,
-    updateFunscriptDisplayBox
+    initIntensityGraphHUD,
+    renderIntensityGraphHUD
 } from './funscript_display_graphs.js';
 import { sendDeviceCommand } from './socket.js';
 import {
@@ -61,7 +61,7 @@ const state = {
     autoLikeRecorded: false
 };
 
-function computeOscillateValue(intensity, progress) {
+function computeThrustIntensity(intensity, progress) {
     if (intensity === undefined) return 0;
     return lerp(0, intensity / 100, progress);
 }
@@ -93,7 +93,7 @@ function updateProgressBars(videoElement) {
 
     const currentTime = videoElement.currentTime * 1000;
     const intensity = getCurrentIntensity(currentTime);
-    updateFunscriptDisplayBox(currentTime);
+    renderIntensityGraphHUD(currentTime);
 
     const elapsed = Date.now() - state.transitionStartTime;
     const progress = Math.abs(
@@ -101,7 +101,7 @@ function updateProgressBars(videoElement) {
     );
 
     sendDeviceCommand(
-        computeOscillateValue(intensity, progress),
+        computeThrustIntensity(intensity, progress),
         computeVibrateValue(currentTime, intensity, progress)
     );
 
@@ -328,7 +328,7 @@ export async function playVideo(
     if (sel) sel.value = 'original';
 
     const funscriptPromise = loadFunscript(funscriptUrl);
-    createFunscriptDisplayBox();
+    initIntensityGraphHUD();
 
     videoElement.onloadeddata = async () => {
         if (spinner) spinner.style.display = 'none';
@@ -360,7 +360,7 @@ export async function playVideo(
 
         await funscriptPromise;
         updateIntensityDisplay();
-        updateFunscriptDisplayBox(0);
+        renderIntensityGraphHUD(0);
         updateProgressBars(videoElement);
         refreshVariantsForCurrentVideo();
         spinner.style.display = 'none';

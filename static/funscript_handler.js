@@ -4,7 +4,7 @@ export let funscriptActions = [];
 export let intensityActions = [];
 
 let currentVideoRawMaxIntensity = 0;
-let absoluteMax = 60;
+let maxIntensityLimit = 60;
 let vibrateMode = 'Rate';
 let selectedVariant = 'original';
 let selectedSpeed = 'normal';
@@ -92,11 +92,11 @@ export function getVibrateMode() {
 }
 
 export function setAbsoluteMaximum(max) {
-    absoluteMax = max;
+    maxIntensityLimit = max;
 }
 
 export function getAbsoluteMaximum() {
-    return absoluteMax;
+    return maxIntensityLimit;
 }
 
 export function getCurrentVideoRawMaxIntensity() {

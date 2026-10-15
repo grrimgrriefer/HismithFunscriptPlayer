@@ -124,11 +124,11 @@ pub async fn set_active_profile(payload: web::Json<SetActiveProfilePayload>) -> 
 
 #[derive(Deserialize)]
 pub struct SetMaxLimitPayload {
-    pub limit: f64,
+    pub max_intensity_limit: f64,
 }
 
-pub async fn set_max_limit(payload: web::Json<SetMaxLimitPayload>) -> impl Responder {
-    let normalized_limit = (payload.limit / 100.0).clamp(0.0, 1.0);
-    crate::device::device_manager::set_max_limit(normalized_limit);
+pub async fn set_max_intensity_limit(payload: web::Json<SetMaxLimitPayload>) -> impl Responder {
+    let normalized_limit = (payload.max_intensity_limit / 100.0).clamp(0.0, 1.0);
+    crate::device::device_manager::set_max_intensity_limit(normalized_limit);
     HttpResponse::Ok().json(serde_json::json!({ "ok": true }))
 }

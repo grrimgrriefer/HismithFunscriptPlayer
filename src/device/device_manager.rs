@@ -39,7 +39,7 @@ struct DeviceManager {
     devices: Arc<Mutex<DevicePair>>,
     oscillate_intensity: AtomicF64,
     vibrate_intensity: AtomicF64,
-    max_limit: AtomicF64,
+    max_intensity_limit: AtomicF64,
     active_calibration_points: RwLock<Vec<(f64, f64)>>, // [(bpm, intensity)]
 }
 
@@ -52,7 +52,7 @@ impl DeviceManager {
             })),
             oscillate_intensity: AtomicF64::new(0.0),
             vibrate_intensity: AtomicF64::new(0.0),
-            max_limit: AtomicF64::new(1.0),
+            max_intensity_limit: AtomicF64::new(1.0),
             active_calibration_points: RwLock::new(vec![(0.0, 0.0)]),
         })
     }
@@ -69,8 +69,8 @@ impl DeviceManager {
             .load(std::sync::atomic::Ordering::Relaxed)
             .clamp(0.0, 1.0);
 
-        let max_limit = self.max_limit.load(std::sync::atomic::Ordering::Relaxed);        
-        let final_osc = raw_osc.min(max_limit).clamp(0.0, 1.0);
+        let max_intensity_limit = self.max_intensity_limit.load(std::sync::atomic::Ordering::Relaxed);        
+        let final_osc = raw_osc.min(max_intensity_limit).clamp(0.0, 1.0);
         let final_vib = raw_vib;
 
         if let Some(ref dev) = devices.oscillator {
@@ -243,8 +243,8 @@ pub fn get_active_calibration_points() -> Vec<(f64, f64)> {
     }
 }
 
-pub fn set_max_limit(limit: f64) {
+pub fn set_max_intensity_limit(limit: f64) {
     if let Some(m) = MANAGER.get() {
-        m.max_limit.store(limit.clamp(0.0, 1.0), std::sync::atomic::Ordering::Relaxed);
+        m.max_intensity_limit.store(limit.clamp(0.0, 1.0), std::sync::atomic::Ordering::Relaxed);
     }
 }

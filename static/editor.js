@@ -1,7 +1,8 @@
 // static/editor.js
 
 import {
-    toFunscriptPath,
+    toVideoUrl,
+    toFunscriptUrl,
     isTextInput,
     intensityToColor,
     volatilityToColor,
@@ -114,7 +115,7 @@ function pxToMs(px) {
 
 async function loadFunscript() {
     state.currentVariant = variantInput?.value.trim() ?? '';
-    const baseUrl = `/site/funscripts/${toFunscriptPath(state.videoPath)}`;
+    const baseUrl = toFunscriptUrl(state.videoPath);
 
     const listData = await fetchJson(`${baseUrl}?list=1`);
     if (listData?.variants && variantList) {
@@ -686,7 +687,7 @@ async function init() {
         variantInput.value = params.get('variant');
     }
 
-    video.src = `/site/video/${state.videoPath}`;
+    video.src = toVideoUrl(state.videoPath);
     await loadFunscript();
     bind();
     resizeCanvas();

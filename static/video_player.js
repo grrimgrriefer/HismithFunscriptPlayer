@@ -22,6 +22,8 @@ import {
 } from './settings_menu.js';
 import {
     lerp,
+    toVideoUrl,
+    toFunscriptUrl,
     toFunscriptPath,
     getFunscriptStats,
     showTemporaryOverlayMessage,
@@ -393,8 +395,8 @@ function startNextVideo(videoNode) {
 
     hideNextVideoOverlay();
     playVideo(
-        `/site/video/${videoNode.path}`,
-        `/site/funscripts/${toFunscriptPath(videoNode.path)}`,
+        toVideoUrl(videoNode.path),
+        toFunscriptUrl(videoNode.path),
         videoNode.path,
         true
     );

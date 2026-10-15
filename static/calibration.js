@@ -2,7 +2,7 @@
 
 import { sendDeviceCommand } from './socket.js';
 import { loadFunscript } from './funscript_handler.js';
-import { clamp, toFunscriptPath } from './utils.js';
+import { clamp, getCurrentFunscriptUrl } from './utils.js';
 
 // ── Constants ──────────────────────────────────────────────────────────
 const PRESETS = [10, 20, 30, 40, 50];
@@ -627,16 +627,8 @@ function getCalibratedPoints() {
 
 // ── Public API ─────────────────────────────────────────────────────────
 
-function getCurrentVideoBaseUrl() {
-    const videoEl = document.querySelector('#video-player video');
-    if (!videoEl?.src) return null;
-    const url = new URL(videoEl.src, window.location.origin);
-    const match = url.pathname.match(/\/site\/video\/(.+)/);
-    return match ? `/site/funscripts/${toFunscriptPath(match[1])}` : null;
-}
-
 async function reloadActiveFunscript() {
-    const baseUrl = getCurrentVideoBaseUrl();
+    const baseUrl = getCurrentFunscriptUrl();
     if (baseUrl) {
         await loadFunscript(baseUrl);
     }

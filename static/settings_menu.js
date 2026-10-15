@@ -14,6 +14,8 @@ import {
 } from './funscript_handler.js';
 import {
     toFunscriptPath,
+    getCurrentVideoPath,
+    getCurrentFunscriptUrl,
     intensityToColor,
     volatilityToColor,
     formatDuration,
@@ -161,23 +163,6 @@ async function syncMaxLimitToRust(limitValue) {
     }
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────
-
-function getCurrentVideoPath() {
-    const videoEl = document.querySelector('#video-player video');
-    if (!videoEl?.src) return null;
-
-    const url = new URL(videoEl.src, window.location.origin);
-    const match = url.pathname.match(/\/site\/video\/(.+)/);
-    return match ? match[1] : url.pathname;
-}
-
-function getBaseFunscriptUrl() {
-    const videoPath = getCurrentVideoPath();
-    if (!videoPath) return null;
-    return `/site/funscripts/${toFunscriptPath(videoPath)}`;
-}
-
 // ── Initialization ─────────────────────────────────────────────────────
 
 function ensureInit() {
@@ -241,7 +226,7 @@ function initVariantSelect(menu) {
 
         select.addEventListener('change', async () => {
             setSelectedFunscriptVariant(select.value);
-            const baseUrl = getBaseFunscriptUrl();
+            const baseUrl = getCurrentFunscriptUrl();
             if (baseUrl) {
                 await loadFunscript(baseUrl);
                 updateIntensityDisplay();
@@ -333,7 +318,7 @@ function initSpeedMode(menu) {
     select.value = getSelectedSpeed() || 'normal';
     select.addEventListener('change', async () => {
         setSelectedSpeed(select.value);
-        const baseUrl = getBaseFunscriptUrl();
+        const baseUrl = getCurrentFunscriptUrl();
         if (baseUrl) {
             await loadFunscript(baseUrl);
             updateIntensityDisplay();

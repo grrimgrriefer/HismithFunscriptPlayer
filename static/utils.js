@@ -158,3 +158,25 @@ export async function lockPortrait() {
         console.warn('Failed to lock screen orientation to portrait:', err);
     }
 }
+
+export function toVideoUrl(videoPath) {
+    return `/site/video/${videoPath}`;
+}
+
+export function toFunscriptUrl(videoPath) {
+    return `/site/funscripts/${toFunscriptPath(videoPath)}`;
+}
+
+export function getCurrentVideoPath(selector = '#video-player video') {
+    const videoEl = document.querySelector(selector);
+    if (!videoEl?.src) return null;
+
+    const url = new URL(videoEl.src, window.location.origin);
+    const match = url.pathname.match(/\/site\/video\/(.+)/);
+    return match ? match[1] : url.pathname;
+}
+
+export function getCurrentFunscriptUrl(selector = '#video-player video') {
+    const path = getCurrentVideoPath(selector);
+    return path ? toFunscriptUrl(path) : null;
+}

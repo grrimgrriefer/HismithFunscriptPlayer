@@ -2,7 +2,8 @@
 
 import { playVideo, showFolderStartOverlay } from './video_player.js';
 import {
-    toFunscriptPath,
+    toVideoUrl,
+    toFunscriptUrl,
     intensityToColor,
     volatilityToColor,
     formatDuration
@@ -109,8 +110,8 @@ function renderTree(node, parent, openFolders = new Set()) {
         link.onclick = (e) => {
             e.preventDefault();
             playVideo(
-                `/site/video/${node.path}`,
-                `/site/funscripts/${toFunscriptPath(node.path)}`,
+                toVideoUrl(node.path),
+                toFunscriptUrl(node.path),
                 node.path,
                 false
             );

@@ -14,7 +14,6 @@ use actix_web::{App, HttpServer, middleware::Logger, web};
 use env_logger::Env;
 use hismith_player_site::{AppConfig, device::device_manager, routes};
 use log::{error, info};
-use std::env;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {

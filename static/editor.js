@@ -5,9 +5,9 @@ import {
     toFunscriptUrl,
     isTextInput,
     intensityToColor,
-    volatilityToColor,
-    showTemporaryOverlayMessage
+    volatilityToColor
 } from './utils.js';
+import { showTemporaryOverlayMessage } from './utils_ui.js';
 
 // ── Constants ──────────────────────────────────────────────────────────
 

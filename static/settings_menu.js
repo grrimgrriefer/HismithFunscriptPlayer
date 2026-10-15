@@ -19,9 +19,9 @@ import {
     intensityToColor,
     volatilityToColor,
     formatDuration,
-    showTemporaryOverlayMessage,
     updateSbsPlayingState
 } from './utils.js';
+import { showTemporaryOverlayMessage } from './utils_ui.js';
 import { renderIntensityGraphHUD } from './funscript_display_graphs.js';
 
 let initialized = false;

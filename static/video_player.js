@@ -26,7 +26,6 @@ import {
     toFunscriptUrl,
     toFunscriptPath,
     getFunscriptStats,
-    showTemporaryOverlayMessage,
     intensityToColor,
     volatilityToColor,
     relativeIntensityToColor,
@@ -35,6 +34,7 @@ import {
     lockLandscape,
     lockPortrait
 } from './utils.js';
+import { showTemporaryOverlayMessage } from './utils_ui.js';
 
 const urlParams = new URLSearchParams(window.location.search);
 const DISABLE_FULLSCREEN = ['1', 'true', 'yes'].includes(

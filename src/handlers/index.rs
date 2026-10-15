@@ -12,6 +12,7 @@ use crate::directory_browser::{self, FileNode};
 use crate::funscripts_cache;
 use crate::handlers::video_stats::{self, VideoStatsMap};
 use crate::funscript::FunscriptStats;
+use crate::utils;
 use actix_files::NamedFile;
 use actix_web::{HttpResponse, Responder, Result, web};
 use log::{error, info, warn};
@@ -201,23 +202,20 @@ fn apply_cache_fallbacks(cache: &mut serde_json::Map<String, serde_json::Value>,
         }
 
         // Fallback: /Path/To/Video.mp4 -> /Path/Video.funscript (and all variants)
-        if let (Some(parent), Some(stem)) = (rel_video.parent(), rel_video.file_stem()) {
-            if let Some(grandparent) = parent.parent() {
-                let stem_str = stem.to_string_lossy();
-                let fallback_base = grandparent.join(&*stem_str).to_string_lossy().to_string();
+        if let Some(fallback_path) = utils::get_parent_fallback_path(rel_video) {
+            let fallback_base = fallback_path.with_extension("").to_string_lossy().to_string();
 
-                let exact_match = format!("{}.funscript", fallback_base);
-                let variant_prefix = format!("{}.", fallback_base);
+            let exact_match = format!("{}.funscript", fallback_base);
+            let variant_prefix = format!("{}.", fallback_base);
 
-                for (cache_key, stats) in cache.iter() {
-                    let is_exact = cache_key == &exact_match;
-                    let is_variant = cache_key.starts_with(&variant_prefix) && cache_key.ends_with(".funscript");
+            for (cache_key, stats) in cache.iter() {
+                let is_exact = cache_key == &exact_match;
+                let is_variant = cache_key.starts_with(&variant_prefix) && cache_key.ends_with(".funscript");
 
-                    if is_exact || is_variant {
-                        let suffix = &cache_key[fallback_base.len()..];
-                        let alias_key = format!("{}{}", video_stem_str, suffix);
-                        aliases.push((alias_key, stats.clone()));
-                    }
+                if is_exact || is_variant {
+                    let suffix = &cache_key[fallback_base.len()..];
+                    let alias_key = format!("{}{}", video_stem_str, suffix);
+                    aliases.push((alias_key, stats.clone()));
                 }
             }
         }

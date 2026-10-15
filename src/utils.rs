@@ -8,6 +8,15 @@ use std::io::ErrorKind;
 use std::path::{Component, Path, PathBuf};
 use tokio::fs;
 
+/// Returns the fallback relative path by moving one level up to the grandparent directory.
+/// E.g. `category/nested/clip.mp4` -> `category/clip.mp4`
+pub fn get_parent_fallback_path(rel_path: &Path) -> Option<PathBuf> {
+    let parent = rel_path.parent()?;
+    let grandparent = parent.parent()?;
+    let file_name = rel_path.file_name()?;
+    Some(grandparent.join(file_name))
+}
+
 /// Checks if a path is a safe relative path (no absolute components, parent directories, etc.).
 pub fn is_safe_relative_path(path: &Path) -> bool {
     !path.is_absolute() && path.components().all(|c| matches!(c, Component::Normal(_)))

@@ -21,12 +21,11 @@ use buttplug_core::message::OutputType;
 use futures::StreamExt;
 use log::{error, info, warn};
 use once_cell::sync::OnceCell;
-use std::{sync::{Arc, RwLock}, time::Duration, env};
+use std::{sync::{Arc, RwLock}, time::Duration};
 use tokio::sync::Mutex;
 
 static MANAGER: OnceCell<Arc<DeviceManager>> = OnceCell::new();
 
-const DEFAULT_SERVER_URL: &str = "ws://127.0.0.1:12345/buttplug";
 const CONTROL_INTERVAL_MS: u64 = 100;
 const SCAN_INTERVAL_SECS: u64 = 5;
 const RECONNECT_DELAY_SECS: u64 = 5;
@@ -135,12 +134,12 @@ impl DeviceManager {
     }
 }
 
-pub async fn initialize() -> Result<(), ButtplugClientError> {
+pub async fn initialize(server_url: &str) -> Result<(), ButtplugClientError> {
     let mgr = DeviceManager::new();
     MANAGER.set(mgr.clone()).ok();
 
     let client = Arc::new(ButtplugClient::new("Video Player"));
-    let server_url = env::var("INTIFACE_SERVER_URL").unwrap_or_else(|_| DEFAULT_SERVER_URL.to_string());
+    let server_url = server_url.to_string();
 
     // Connect with retries
     let c = client.clone();

@@ -33,24 +33,19 @@ async fn main() -> std::io::Result<()> {
     });
 
     info!("Starting intiface initialization...");
-    tokio::spawn(async {
-        if let Err(e) = device_manager::initialize().await {
+    let intiface_url = config.intiface_server_url.clone();
+    tokio::spawn(async move {
+        if let Err(e) = device_manager::initialize(&intiface_url).await {
             error!("Intiface initialization error: {}", e);
         } else {
             info!("Intiface initialization completed");
         }
     });
 
-    // LAN configuration
-    let host_ip = env::var("HOST_IP").expect("HOST_IP environment variable must be set");
-    let port = env::var("SERVER_PORT")
-        .expect("SERVER_PORT environment variable must be set")
-        .parse::<u16>()
-        .expect("SERVER_PORT must be a valid port number (0-65535)");
-
+    let bind_address = config.bind_address();
     let config_data = web::Data::new(config);
 
-    info!("Starting HTTP server on {}:{}...", host_ip, port);
+    info!("Starting HTTP server on {}...", bind_address);
     HttpServer::new(move || {
         App::new()
             .app_data(config_data.clone())
@@ -64,7 +59,7 @@ async fn main() -> std::io::Result<()> {
             )
             .configure(routes::setup_routes)
     })
-    .bind(format!("{}:{}", host_ip, port))?
+    .bind(&bind_address)?
     .run()
     .await
 }

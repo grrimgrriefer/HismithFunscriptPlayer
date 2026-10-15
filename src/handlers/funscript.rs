@@ -9,6 +9,7 @@
 use crate::AppConfig;
 use crate::device::device_manager;
 use crate::funscript::{self, FunscriptData};
+use crate::utils;
 use actix_web::{HttpResponse, web};
 use log::{info, warn};
 use serde::Serialize;
@@ -120,15 +121,13 @@ fn list_variants(base_path: &Path, video_path: &str) -> Vec<String> {
         .to_path_buf();
     variants.extend(collect_variants_from_disk(&primary_dir, stem));
 
-    if let Some(p) = v_path.parent() {
-        if !p.as_os_str().is_empty() {
-            let parent_dir = base_path
-                .join(p)
-                .parent()
-                .unwrap_or(base_path)
-                .to_path_buf();
-            variants.extend(collect_variants_from_disk(&parent_dir, stem));
-        }
+    if let Some(fallback_rel) = utils::get_parent_fallback_path(v_path) {
+        let parent_dir = base_path
+            .join(fallback_rel)
+            .parent()
+            .unwrap_or(base_path)
+            .to_path_buf();
+        variants.extend(collect_variants_from_disk(&parent_dir, stem));
     }
 
     variants.sort();
@@ -169,21 +168,8 @@ fn build_funscript_path(video_path: &str, base_path: &Path, variant: &str) -> Pa
 }
 
 fn build_parent_funscript_path(video_path: &str, base_path: &Path, variant: &str) -> Option<PathBuf> {
-    let v_path = Path::new(video_path);
-
-    let parent_dir = v_path.parent()?;
-    let grandparent_dir = parent_dir.parent()?;
-    let file_name = v_path.file_name()?;
-
-    let base = base_path
-        .join(grandparent_dir)
-        .join(file_name);
-
-    if variant.is_empty() || variant == "original" {
-        Some(base.with_extension("funscript"))
-    } else {
-        Some(base.with_extension(format!("{}.funscript", variant)))
-    }
+    let fallback_rel = utils::get_parent_fallback_path(Path::new(video_path))?;
+    Some(build_funscript_path(&fallback_rel.to_string_lossy(), base_path, variant))
 }
 
 async fn read_funscript(path: &Path) -> Result<FunscriptData, String> {

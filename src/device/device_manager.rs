@@ -1,0 +1,250 @@
+// src/device/device_manager.rs
+
+//! Device connection and control module
+//!
+//! This module manages communication with hardware devices through the Buttplug protocol.
+//! It coordinates scanning, connects compatible devices (oscillate/vibrate), and runs a
+//! small control loop that periodically sends the latest intensity values to connected devices.
+//!
+//! The module exposes a global singleton managed by a OnceCell and convenience async wrappers
+//! for setting current intensities from other parts of the application.
+
+use atomic_float::AtomicF64;
+use buttplug_client::{
+    ButtplugClient, ButtplugClientDevice, ButtplugClientError, ButtplugClientEvent, 
+    connector::ButtplugRemoteClientConnector,
+    serializer::ButtplugClientJSONSerializer,
+    device::ClientDeviceOutputCommand
+};
+use buttplug_transport_websocket_tungstenite::ButtplugWebsocketClientTransport;
+use buttplug_core::message::OutputType;
+use futures::StreamExt;
+use log::{error, info, warn};
+use once_cell::sync::OnceCell;
+use std::{sync::{Arc, RwLock}, time::Duration};
+use tokio::sync::Mutex;
+
+static MANAGER: OnceCell<Arc<DeviceManager>> = OnceCell::new();
+
+const CONTROL_INTERVAL_MS: u64 = 100;
+const SCAN_INTERVAL_SECS: u64 = 5;
+const RECONNECT_DELAY_SECS: u64 = 5;
+
+struct DevicePair {
+    oscillator: Option<ButtplugClientDevice>,
+    vibrator: Option<ButtplugClientDevice>,
+}
+
+struct DeviceManager {
+    devices: Arc<Mutex<DevicePair>>,
+    oscillate_intensity: AtomicF64,
+    vibrate_intensity: AtomicF64,
+    max_intensity_limit: AtomicF64,
+    active_calibration_points: RwLock<Vec<(f64, f64)>>, // [(bpm, intensity)]
+}
+
+impl DeviceManager {
+    fn new() -> Arc<Self> {
+        Arc::new(Self {
+            devices: Arc::new(Mutex::new(DevicePair {
+                oscillator: None,
+                vibrator: None,
+            })),
+            oscillate_intensity: AtomicF64::new(0.0),
+            vibrate_intensity: AtomicF64::new(0.0),
+            max_intensity_limit: AtomicF64::new(1.0),
+            active_calibration_points: RwLock::new(vec![(0.0, 0.0)]),
+        })
+    }
+
+    async fn send_commands(&self) {
+        let devices = self.devices.lock().await;
+
+        let raw_osc = self
+            .oscillate_intensity
+            .load(std::sync::atomic::Ordering::Relaxed)
+            .clamp(0.0, 1.0);
+        let raw_vib = self
+            .vibrate_intensity
+            .load(std::sync::atomic::Ordering::Relaxed)
+            .clamp(0.0, 1.0);
+
+        let max_intensity_limit = self.max_intensity_limit.load(std::sync::atomic::Ordering::Relaxed);        
+        let final_osc = raw_osc.min(max_intensity_limit).clamp(0.0, 1.0);
+        let final_vib = raw_vib;
+
+        if let Some(ref dev) = devices.oscillator {
+            if let Err(e) = dev.run_output(&ClientDeviceOutputCommand::Oscillate(final_osc.into())).await {
+                error!("Failed to send oscillate command: {}", e);
+            }
+        }
+
+        if let Some(ref dev) = devices.vibrator {
+            if let Err(e) = dev.run_output(&ClientDeviceOutputCommand::Vibrate(final_vib.into())).await {
+                error!("Failed to send vibrate command: {}", e);
+            }
+        }
+    }
+
+    fn has_both(pair: &DevicePair) -> bool {
+        pair.oscillator.is_some() && pair.vibrator.is_some()
+    }
+
+    async fn assign_device(&self, device: ButtplugClientDevice) {
+        let mut devices = self.devices.lock().await;
+
+        if device.output_available(OutputType::Oscillate) {
+            info!("Assigned oscillator: {}", device.name());
+            devices.oscillator = Some(device.clone());
+        }
+
+        if device.output_available(OutputType::Vibrate) {
+            info!("Assigned vibrator: {}", device.name());
+            devices.vibrator = Some(device);
+        }
+    }
+
+    async fn remove_device(&self, device_index: u32) {
+        let mut devices = self.devices.lock().await;
+
+        if devices
+            .oscillator
+            .as_ref()
+            .map(|d| d.index() == device_index)
+            .unwrap_or(false)
+        {
+            info!("Oscillator disconnected");
+            devices.oscillator = None;
+        }
+
+        if devices
+            .vibrator
+            .as_ref()
+            .map(|d| d.index() == device_index)
+            .unwrap_or(false)
+        {
+            info!("Vibrator disconnected");
+            devices.vibrator = None;
+        }
+    }
+
+    async fn needs_scan(&self) -> bool {
+        let devices = self.devices.lock().await;
+        !Self::has_both(&devices)
+    }
+}
+
+pub async fn initialize(server_url: &str) -> Result<(), ButtplugClientError> {
+    let mgr = DeviceManager::new();
+    MANAGER.set(mgr.clone()).ok();
+
+    let client = Arc::new(ButtplugClient::new("Video Player"));
+    let server_url = server_url.to_string();
+
+    // Connect with retries
+    let c = client.clone();
+    tokio::spawn(async move {
+        loop {
+            let connector = ButtplugRemoteClientConnector::<ButtplugWebsocketClientTransport, ButtplugClientJSONSerializer>::new(
+                ButtplugWebsocketClientTransport::new_insecure_connector(&server_url),
+            );
+            match c.connect(connector).await {
+                Ok(_) => {
+                    info!("Connected to Intiface server at {}", server_url);
+                    break;
+                }
+                Err(e) => {
+                    warn!(
+                        "Failed to connect to Intiface (retrying in {}s): {}",
+                        RECONNECT_DELAY_SECS, e
+                    );
+                    tokio::time::sleep(Duration::from_secs(RECONNECT_DELAY_SECS)).await;
+                }
+            }
+        }
+    });
+
+    // Event stream handler
+    let m = mgr.clone();
+    let mut events = client.event_stream();
+    tokio::spawn(async move {
+        while let Some(event) = events.next().await {
+            match event {
+                ButtplugClientEvent::DeviceAdded(dev) => {
+                    m.assign_device(dev).await;
+                }
+                ButtplugClientEvent::DeviceRemoved(dev) => {
+                    m.remove_device(dev.index()).await;
+                }
+                ButtplugClientEvent::ServerDisconnect => {
+                    warn!("Intiface server disconnected");
+                }
+                _ => {}
+            }
+        }
+    });
+
+    // Control loop
+    let m = mgr.clone();
+    tokio::spawn(async move {
+        loop {
+            m.send_commands().await;
+            tokio::time::sleep(Duration::from_millis(CONTROL_INTERVAL_MS)).await;
+        }
+    });
+
+    // Periodic re-scan when devices are missing
+    let m = mgr.clone();
+    let c = client.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(SCAN_INTERVAL_SECS)).await;
+            if m.needs_scan().await {
+                if let Err(e) = c.start_scanning().await {
+                    warn!("Scan failed: {}", e);
+                }
+            }
+        }
+    });
+
+    Ok(())
+}
+
+pub fn set_oscillate(value: f64) {
+    if let Some(m) = MANAGER.get() {
+        m.oscillate_intensity
+            .store(value.clamp(0.0, 1.0), std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+pub fn set_vibrate(value: f64) {
+    if let Some(m) = MANAGER.get() {
+        m.vibrate_intensity
+            .store(value.clamp(0.0, 1.0), std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+pub fn set_active_calibration_points(points: Vec<(f64, f64)>) {
+    if let Some(m) = MANAGER.get() {
+        if let Ok(mut guard) = m.active_calibration_points.write() {
+            *guard = points;
+        }
+    }
+}
+
+pub fn get_active_calibration_points() -> Vec<(f64, f64)> {
+    if let Some(m) = MANAGER.get() {
+        m.active_calibration_points
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    } else {
+        vec![(0.0, 0.0)]
+    }
+}
+
+pub fn set_max_intensity_limit(limit: f64) {
+    if let Some(m) = MANAGER.get() {
+        m.max_intensity_limit.store(limit.clamp(0.0, 1.0), std::sync::atomic::Ordering::Relaxed);
+    }
+}

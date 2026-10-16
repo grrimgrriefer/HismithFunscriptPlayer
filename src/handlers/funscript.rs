@@ -1,0 +1,215 @@
+// src/handlers/funscript.rs
+
+//! Funscript request handler module
+//!
+//! This module handles requests for funscript files, which contain synchronized motion
+//! data for videos. It loads the original funscript and generates real-time intensity
+//! data used for device control.
+
+use crate::AppConfig;
+use crate::device::device_manager;
+use crate::funscript::{self, structs::FunscriptData};
+use crate::utils;
+use actix_web::{HttpResponse, web};
+use log::{info, warn};
+use serde::Serialize;
+use std::collections::HashMap;
+use std::fs as stdfs;
+use std::path::Path;
+use tokio::fs;
+
+#[derive(Serialize, Debug)]
+pub struct FunscriptResponse {
+    pub original: Option<FunscriptData>,
+    pub intensity: Option<FunscriptData>,
+    pub peak: f64,
+    pub average: f64,
+    pub volatility: f64,
+    pub duration: u64,
+}
+
+fn is_valid_variant(variant: &str) -> bool {
+    variant.is_empty()
+        || variant == "original"
+        || variant
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
+pub async fn handle_funscript(
+    config: web::Data<AppConfig>,
+    path: web::Path<String>,
+    query: web::Query<HashMap<String, String>>,
+) -> HttpResponse {
+    let video_path = path.into_inner();
+    let base_path = &config.funscript_share_path;
+
+    // Sanitize the relative path against the base share directory
+    let safe_video_path = match utils::resolve_safe_path(base_path, &video_path) {
+        Ok(p) => p,
+        Err(_) => {
+            return HttpResponse::BadRequest().body("Invalid video path");
+        }
+    };
+
+    let rel_path = match safe_video_path.strip_prefix(base_path) {
+        Ok(p) => p,
+        Err(_) => {
+            return HttpResponse::BadRequest().body("Invalid video path");
+        }
+    };
+
+    let variant = query
+        .get("variant")
+        .map(|s| s.as_str())
+        .unwrap_or("original");
+
+    if !is_valid_variant(variant) {
+        return HttpResponse::BadRequest().body("Invalid variant parameter");
+    }
+
+    if query.contains_key("list") {
+        let variants = list_variants(base_path, &safe_video_path);
+        return HttpResponse::Ok().json(serde_json::json!({ "variants": variants }));
+    }
+
+    let funscript_path = utils::build_funscript_path(base_path, rel_path, Some(variant));
+
+    let mut original_res = read_funscript(&funscript_path).await;
+
+    if original_res.is_err() {
+        if let Some(parent_path) = utils::build_parent_funscript_path(base_path, rel_path, Some(variant)) {
+            if let Ok(data) = read_funscript(&parent_path).await {
+                original_res = Ok(data);
+            }
+        }
+    }
+
+    let mut original = match original_res {
+        Ok(data) => data,
+        Err(e) => {
+            info!("Funscript not found for {} (tried primary and parent): {}", video_path, e);
+            return HttpResponse::NotFound().json(FunscriptResponse {
+                original: None,
+                intensity: None,
+                volatility: f64::NAN,
+                peak: f64::NAN,
+                average: f64::NAN,
+                duration: 0,
+            });
+        }
+    };
+
+    let speed = query.get("speed").map(|s| s.as_str()).unwrap_or("normal");
+    if speed == "halfbeat" {
+        original.actions = funscript::generation::half_beat_actions(&original.actions);
+    } else if speed == "quarterbeat" {
+        original.actions = funscript::generation::quarter_beat_actions(&original.actions);
+    } else if speed == "doublebeat" {
+        original.actions = funscript::generation::double_beat_actions(&original.actions);
+    }
+
+    let cal_points = device_manager::get_active_calibration_points();
+    let intensity = match generate_intensity(&original, &cal_points) {
+        Ok(data) => Some(data),
+        Err(e) => {
+            warn!("Could not generate intensity for {}: {}", video_path, e);
+            None
+        }
+    };
+
+    let (average, peak) = intensity
+        .as_ref()
+        .map(|i| funscript::curves::calculate_intensity_stats(&i.actions))
+        .unwrap_or((0.0, 0.0));
+
+    let volatility = funscript::volatility::calculate_volatility(&original.actions);
+    let duration = original.actions.last().map(|a| a.at / 1000).unwrap_or(0);
+
+    HttpResponse::Ok().json(FunscriptResponse {
+        original: Some(original),
+        intensity,
+        peak,
+        average,
+        volatility,
+        duration,
+    })
+}
+
+fn list_variants(base_path: &Path, safe_video_path: &Path) -> Vec<String> {
+    let stem = safe_video_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+    let mut variants = Vec::new();
+
+    let primary_dir = safe_video_path
+        .parent()
+        .unwrap_or(base_path);
+    variants.extend(collect_variants_from_disk(primary_dir, stem));
+
+    if let Ok(rel_path) = safe_video_path.strip_prefix(base_path) {
+        if let Some(fallback_rel) = utils::get_parent_fallback_path(rel_path) {
+            let parent_dir = base_path.join(fallback_rel);
+            if let Some(dir) = parent_dir.parent() {
+                variants.extend(collect_variants_from_disk(dir, stem));
+            }
+        }
+    }
+
+    variants.sort();
+    variants.dedup();
+    variants
+}
+
+fn collect_variants_from_disk(dir: &Path, stem: &str) -> Vec<String> {
+    let mut variants = Vec::new();
+    let Ok(entries) = stdfs::read_dir(dir) else {
+        return variants;
+    };
+
+    for entry in entries.filter_map(Result::ok) {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("funscript") {
+            continue;
+        }
+        let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        if file_stem == stem {
+            variants.push("original".to_string());
+        } else if let Some(suffix) = file_stem.strip_prefix(&format!("{}.", stem)) {
+            variants.push(suffix.to_string());
+        }
+    }
+    variants
+}
+
+async fn read_funscript(path: &Path) -> Result<FunscriptData, String> {
+    let content = fs::read_to_string(path)
+        .await
+        .map_err(|e| format!("Read error {:?}: {}", path, e))?;
+    serde_json::from_str(&content).map_err(|e| format!("Parse error {:?}: {}", path, e))
+}
+
+fn generate_intensity(original: &FunscriptData, cal_points: &[(f64, f64)]) -> Result<FunscriptData, String> {
+    if original.actions.len() < 2 {
+        return Err("Funscript has fewer than 2 actions".to_string());
+    }
+
+    let actions = original.actions.clone();
+    let intensity_actions = funscript::curves::actions_to_intensity_curve(&actions, cal_points);
+
+    if intensity_actions.is_empty() {
+        return Err(
+            "Could not generate intensity curve. \
+             The funscript may not be a binary (0/100) script or has insufficient data."
+                .to_string(),
+        );
+    }
+
+    Ok(FunscriptData {
+        actions: intensity_actions,
+        ..Default::default()
+    })
+}

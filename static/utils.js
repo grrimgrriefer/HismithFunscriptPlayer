@@ -1,0 +1,137 @@
+// static/utils.js
+
+export function lerp(start, end, progress) {
+    return start + (end - start) * progress;
+}
+
+export function mixHue(h1, h2, t) {
+    const d = ((((h2 - h1) % 360) + 540) % 360) - 180;
+    return (h1 + d * t + 360) % 360;
+}
+
+export function hueDistance(a, b) {
+    const d = Math.abs(a - b) % 360;
+    return d > 180 ? 360 - d : d;
+}
+
+export function intensityToColor(v) {
+    const val = Math.max(0, Math.min(100, Number(v) || 0));
+    let hue;
+    if (val <= 20) hue = 120;
+    else if (val <= 40) hue = mixHue(120, 0, (val - 20) / 20);
+    else if (val <= 60) hue = mixHue(0, 330, (val - 40) / 20);
+    else if (val <= 80) hue = mixHue(330, 180, (val - 60) / 20);
+    else hue = 180;
+
+    const redBoost =
+        hueDistance(hue, 0) <= 60 ? (1 - hueDistance(hue, 0) / 60) * 12 : 0;
+    const blueBoost =
+        hueDistance(hue, 240) <= 40 ? (1 - hueDistance(hue, 240) / 40) * 18 : 0;
+    const lightness = Math.min(90, 50 + redBoost + blueBoost);
+
+    return `hsl(${hue.toFixed(1)}, 100%, ${lightness.toFixed(1)}%)`;
+}
+
+export function relativeIntensityToColor(d) {
+    return d > 5
+        ? '#ff4444'
+        : d > 0
+          ? '#ffbb33'
+          : d < -5
+            ? '#00C851'
+            : d < 0
+              ? '#99cc00'
+              : '#fff';
+}
+
+export function volatilityToColor(v) {
+    const val = Math.max(0, Math.min(10, Number(v) || 0));
+    return intensityToColor(val * 10);
+}
+
+export function clamp(v, min, max) {
+    return Math.min(max, Math.max(min, v));
+}
+
+export function formatDuration(sec) {
+    if (!sec || !isFinite(sec) || sec <= 0) return '—';
+    const totalSec = Math.round(sec);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = Math.floor(totalSec % 60);
+    const paddedS = s < 10 ? `0${s}` : s;
+
+    if (h > 0) {
+        const paddedM = m < 10 ? `0${m}` : m;
+        return `${h}:${paddedM}:${paddedS}`;
+    }
+    return `${m}:${paddedS}`;
+}
+
+export function toFunscriptPath(videoPath) {
+    return videoPath.replace(/\.[^/.]+$/, '.funscript');
+}
+
+export function isTextInput(target) {
+    const tag = target?.tagName?.toUpperCase() ?? '';
+    return tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable;
+}
+
+export function updateSbsPlayingState() {
+    const isSbs = document
+        .getElementById('video-container')
+        ?.classList.contains('sbs-mode');
+    const video = document.querySelector('#video-player video');
+    const isPlaying = video && !video.paused;
+
+    if (isSbs && isPlaying) {
+        document.body.classList.add('sbs-playing');
+    } else {
+        document.body.classList.remove('sbs-playing');
+    }
+}
+
+export async function lockLandscape() {
+    if (!window.screen || !window.screen.orientation) return;
+    if (window.innerWidth > 768) return;
+
+    try {
+        await window.screen.orientation.lock('landscape');
+    } catch (err) {
+        console.warn('Failed to lock screen orientation to landscape:', err);
+    }
+}
+
+export async function lockPortrait() {
+    if (!window.screen || !window.screen.orientation) return;
+    if (window.innerWidth > 768) return;
+
+    try {
+        await window.screen.orientation.lock('portrait');
+        window.screen.orientation.unlock();
+    } catch (err) {
+        console.warn('Failed to lock screen orientation to portrait:', err);
+    }
+}
+
+export function toVideoUrl(videoPath) {
+    return `/site/video/${videoPath}`;
+}
+
+export function toFunscriptUrl(videoPath) {
+    return `/site/funscripts/${toFunscriptPath(videoPath)}`;
+}
+
+export function getCurrentVideoPath(selector = '#video-player video') {
+    const videoEl = document.querySelector(selector);
+    if (!videoEl?.src) return null;
+
+    const url = new URL(videoEl.src, window.location.origin);
+    const match = url.pathname.match(/\/site\/video\/(.+)/);
+    return match ? match[1] : url.pathname;
+}
+
+export function getCurrentFunscriptUrl(selector = '#video-player video') {
+    const path = getCurrentVideoPath(selector);
+    return path ? toFunscriptUrl(path) : null;
+}

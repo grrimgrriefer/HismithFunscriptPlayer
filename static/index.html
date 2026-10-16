@@ -1,0 +1,211 @@
+<!--  static/index.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Video Player</title>
+    <link rel="stylesheet" href="/site/static/styles.css">
+</head>
+
+<body>
+    <div>
+        <div id="directory-container">
+            <h1>Video Player</h1>
+            <div class="sort-container">
+                <span class="sort-label-title">Order by:</span>
+                <div class="sort-buttons" id="sort-buttons">
+                    <button class="sort-btn" data-sort="peak" title="Sort by Peak Intensity">🔺 <span class="sort-label">Peak</span></button>
+                    <button class="sort-btn" data-sort="avg" title="Sort by Average Intensity">🌡️ <span class="sort-label">Avg</span></button>
+                    <button class="sort-btn" data-sort="volatility" title="Sort by Volatility">⚡️ <span class="sort-label">Volatility</span></button>
+                    <button class="sort-btn" data-sort="duration" title="Sort by Duration">⏱️ <span class="sort-label">Duration</span></button>
+                    <button class="sort-btn" data-sort="likes" title="Sort by Liked">❤️ <span class="sort-label">Liked</span></button>
+                    <button class="sort-btn" data-sort="views" title="Sort by Most Viewed">👁️ <span class="sort-label">Views</span></button>
+                </div>
+            </div>
+            <div id="directory-tree"></div>
+        </div>
+        <div id="video-container" class="hidden">
+            <div id="video-wrapper">
+                <div id="video-player"></div>
+                <div id="video-pause-overlay" class="video-pause-overlay hidden">
+                    <div class="pause-info-content">
+                        <div class="pause-header-row">
+                            <div class="pause-title-wrap">
+                                <span class="pause-now-watching">Now Watching</span>
+                                <h2 id="pause-video-title" class="pause-video-title"></h2>
+                            </div>
+                            <button id="pause-up-next-btn" class="btn btn-sm pause-up-next-btn" title="Show Up Next suggestions">
+                                🎲 Up Next
+                            </button>
+                        </div>
+                        <div id="pause-stats-row" class="pause-stats-row">
+                            <span class="pause-stat-badge">🔺 <span id="pause-peak-val" class="bold-val">--</span> peak</span>
+                            <span class="pause-stat-badge">🌡️ <span id="pause-avg-val" class="bold-val">--</span> avg</span>
+                            <span class="pause-stat-badge">⚡️ <span id="pause-vol-val" class="bold-val">--</span> vol</span>
+                            <span class="pause-stat-badge">⏱️ <span id="pause-dur-val" class="bold-val">--</span> dur</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="video-error-overlay" class="hidden">
+                    <div>
+                        <h3>Playback Error</h3>
+                        <p id="video-error-text"></p>
+                    </div>
+                </div>
+                <div id="next-video-overlay" class="hidden">
+                    <div class="overlay-card wide">
+                        <h3 id="next-overlay-title">Up Next</h3>
+                        <div id="next-timer">Starting random video in 6s...</div>
+
+                        <div class="next-options-row">
+                            <button id="next-lower-btn" class="next-card lower">
+                                <img class="next-thumb" src="" alt="">
+                                <div class="next-info">
+                                    <span class="next-label">Lower</span>
+                                    <span class="next-stats"></span>
+                                </div>
+                            </button>
+
+                            <button id="next-similar-btn" class="next-card similar">
+                                <img class="next-thumb" src="" alt="">
+                                <div class="next-info">
+                                    <span class="next-label">Similar</span>
+                                    <span class="next-stats"></span>
+                                </div>
+                            </button>
+
+                            <button id="next-higher-btn" class="next-card higher">
+                                <img class="next-thumb" src="" alt="">
+                                <div class="next-info">
+                                    <span class="next-label">Higher</span>
+                                    <span class="next-stats"></span>
+                                </div>
+                            </button>
+                        </div>
+
+                        <div class="overlay-footer">
+                            <button id="next-reroll-btn" class="btn btn-sm">🎲 Reroll</button>
+                            <button id="next-replay-btn" class="btn btn-sm">Replay Current</button>
+                            <button id="next-cancel-btn" class="btn btn-sm">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <button id="toggle-directory">Toggle Directory</button>
+        <button id="like-button" class="player-button btn" title="Like Video">❤️</button>
+        <button id="settings-button" class="player-button btn">Settings</button>
+
+        <div id="settings-menu" class="settings-menu" aria-hidden="true">
+            <div class="form-group">
+                <label class="settings-label">SBS 3D Mode:</label>
+                <input type="checkbox" id="sbs-toggle">
+            </div>
+            <div class="form-group">
+                <button id="loop-toggle" class="btn">Loop: Off</button>
+            </div>
+
+            <label class="settings-label">Funscript Variant:</label>
+            <div class="variant-row">
+                <select id="funscript-variant-select" class="settings-select">
+                    <option value="original">original</option>
+                </select>
+                <button id="refresh-variants-button" class="btn btn-sm">Refresh</button>
+            </div>
+
+            <div class="form-group mt-sm">
+                <button id="calibration-button" class="btn btn-sm">Calibration</button>
+            </div>
+
+            <label class="settings-label mt-sm">Max Intensity Limit:</label>
+            <div class="input-row mb-sm">
+                <button id="max-intensity-limit-lock-button" class="btn btn-sm">Unlock</button>
+                <input id="max-intensity-limit-input" class="settings-input" type="number" min="0" max="100" value="60"
+                    disabled />
+            </div>
+
+            <label class="settings-label">Vibrate Mode:</label>
+            <select id="vibrate-mode-select" class="settings-select">
+                <option value="Rate">Rate</option>
+                <option value="Beat">Beat</option>
+            </select>
+
+            <label class="settings-label">Speed Modulation:</label>
+            <select id="speed-mode-select" class="settings-select">
+                <option value="quarterbeat">Quarter-beat (0.25x)</option>
+                <option value="halfbeat">Half-beat (0.5x)</option>
+                <option value="normal">Normal (1.0x)</option>
+                <option value="doublebeat">Double-beat (2.0x)</option>
+            </select>
+
+            <div class="mt-sm">
+                <button id="open-editor-button" class="btn">Open Editor</button>
+            </div>
+        </div>
+
+        <div id="calibration-overlay" class="calibration-overlay hidden" aria-hidden="true">
+            <div class="calibration-inner">
+                <button id="calibration-close-btn" class="btn btn-sm overlay-close-btn" title="Close">✕</button>
+                <div class="card">
+                    <h2>Calibration</h2>
+                    <p class="small">Select a preset intensity, click Start, and tap along with the physical device (by tapping the
+                        spinner or using spacebar). Save each calibration point to build your profile.</p>
+
+                    <div class="preset-row" id="preset-buttons"></div>
+
+                    <div class="row row-compact mb-sm">
+                        <label class="small" for="profile-select">Profile:</label>
+                        <select id="profile-select" class="profile-select"></select>
+                        <input id="profile-name" type="text" placeholder="New name..." class="profile-name-input" />
+                    </div>
+
+                    <div id="spinner-wrap">
+                        <div class="spinner-ring" aria-hidden="true">
+                            <div class="tick"></div>
+                            <div class="tick"></div>
+                            <div class="tick"></div>
+                            <div class="tick"></div>
+                            <div class="tick"></div>
+                            <div class="tick"></div>
+                        </div>
+
+                        <div id="calibration-spinner" aria-hidden="true" tabindex="0" role="button"
+                            title="Click to reset rotation to 0">
+                            <div id="calibration-rotor" aria-hidden="true"></div>
+                        </div>
+                    </div>
+
+                    <div class="controls">
+                        <div class="row row-compact mb-sm">
+                            <span class="muted">Measured BPM:</span>
+                            <strong id="measured-bpm">—</strong>
+                            <button id="save-point-btn" class="preset-btn btn-save" disabled>Save Point</button>
+                        </div>
+
+                        <div class="row mt-sm">
+                            <button id="start-button" class="preset-btn">Start</button>
+                            <button id="stop-button" class="preset-btn">Stop</button>
+                            <button id="reset-button" class="preset-btn">Reset Taps</button>
+                        </div>
+                    </div>
+
+                    <div id="info" class="small mt-md">
+                        <div>Selected preset: <span id="selected-preset">—</span>% intensity</div>
+                        <div>Sent intensity: <span id="sent-intensity">—</span></div>
+                        <div>Theoretical BPM: <span id="theoretical-bpm">—</span></div>
+                    </div>
+
+                    <div id="mapping-list" class="small"></div>
+                    <canvas id="mapping-canvas"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="/site/static/main.js" type="module"></script>
+</body>
+
+</html>

@@ -1,0 +1,140 @@
+// src/directory_browser.rs
+
+//! File system directory browser module
+//!
+//! This module provides functionality to recursively scan directories and build
+//! a tree structure representing the file system hierarchy. It's primarily used
+//! to display video files in the web interface.
+
+use crate::handlers::video_stats::VideoUserStats;
+use crate::funscript::structs::FunscriptStats;
+use serde::Serialize;
+use std::collections::HashMap;
+use std::{
+    fs, io,
+    path::{Path, PathBuf},
+};
+use walkdir::WalkDir;
+
+#[derive(Serialize, Debug, Clone)]
+pub struct FileNode {
+    pub name: String,
+    pub path: String,
+    pub is_dir: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stats: Option<Vec<FunscriptStats>>,
+    pub user_stats: Option<VideoUserStats>,
+    pub children: Option<Vec<FileNode>>,
+}
+
+impl FileNode {
+    /// Recursively search for a node matching the specified relative path.
+    pub fn find_by_path(&self, path: &str) -> Option<&FileNode> {
+        let clean_path = path.trim_matches('/');
+        self.find_by_path_internal(clean_path)
+    }
+
+    fn find_by_path_internal(&self, path: &str) -> Option<&FileNode> {
+        if self.path == path {
+            return Some(self);
+        }
+        if let Some(ref children) = self.children {
+            for child in children {
+                if let Some(found) = child.find_by_path_internal(path) {
+                    return Some(found);
+                }
+            }
+        }
+        None
+    }
+
+    /// Recursively collect references to all non-directory (file) nodes under this node.
+    pub fn collect_files(&self) -> Vec<&FileNode> {
+        let mut files = Vec::new();
+        self.collect_files_into(&mut files);
+        files
+    }
+
+    fn collect_files_into<'a>(&'a self, files: &mut Vec<&'a FileNode>) {
+        if !self.is_dir {
+            files.push(self);
+        } else if let Some(ref children) = self.children {
+            for child in children {
+                child.collect_files_into(files);
+            }
+        }
+    }
+}
+
+fn join_relative_path(parent: &str, name: &str) -> String {
+    if parent.is_empty() {
+        name.to_string()
+    } else {
+        format!("{parent}/{name}")
+    }
+}
+
+pub fn build_directory_tree(path: &Path, relative_path: &str) -> io::Result<FileNode> {
+    let mut children = Vec::new();
+
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let name = entry.file_name().to_string_lossy().to_string();
+
+        if file_type.is_dir() && name.eq_ignore_ascii_case("funscripts") {
+            continue;
+        }
+
+        let child_relative_path = join_relative_path(relative_path, &name);
+
+        let node = if file_type.is_dir() {
+            build_directory_tree(&entry.path(), &child_relative_path)?
+        } else if file_type.is_file() {
+            FileNode {
+                name,
+                path: child_relative_path,
+                is_dir: false,
+                stats: None,
+                user_stats: None,
+                children: None,
+            }
+        } else {
+            continue;
+        };
+
+        children.push(node);
+    }
+
+    children.sort_by_cached_key(|n| (!n.is_dir, n.name.to_lowercase()));
+
+    Ok(FileNode {
+        name: path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string(),
+        path: relative_path.to_string(),
+        is_dir: true,
+        stats: None,
+        user_stats: None,
+        children: Some(children),
+    })
+}
+
+pub fn get_all_files_with_size(base_path: &Path) -> io::Result<HashMap<PathBuf, u64>> {
+    let mut file_map = HashMap::new();
+
+    let walker = WalkDir::new(base_path)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file());
+
+    for entry in walker {
+        if let Ok(meta) = entry.metadata() {
+            file_map.insert(entry.path().to_path_buf(), meta.len());
+        }
+    }
+
+    Ok(file_map)
+}

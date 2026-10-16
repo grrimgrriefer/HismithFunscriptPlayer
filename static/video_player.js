@@ -24,17 +24,25 @@ import {
     lerp,
     toVideoUrl,
     toFunscriptUrl,
-    toFunscriptPath,
-    getFunscriptStats,
-    intensityToColor,
-    volatilityToColor,
-    relativeIntensityToColor,
-    formatDuration,
     updateSbsPlayingState,
     lockLandscape,
     lockPortrait
 } from './utils.js';
 import { showTemporaryOverlayMessage } from './utils_ui.js';
+import {
+    initVideoStats,
+    recordView,
+    trackPlayTick,
+    resetPlayTick,
+    getPlayedVideos,
+    checkAndTriggerAutoLike
+} from './video_stats_tracker.js';
+import {
+    showNextVideoOverlay,
+    showFolderStartOverlay as openFolderStartOverlay,
+    hideNextVideoOverlay,
+    isOverlayVisible
+} from './recommendation_overlay.js';
 
 const urlParams = new URLSearchParams(window.location.search);
 const DISABLE_FULLSCREEN = ['1', 'true', 'yes'].includes(
@@ -50,15 +58,8 @@ const state = {
     globalTree: null,
     globalFunscriptMap: null,
     currentVideoRelativePath: null,
-    nextVideoTimer: null,
-    isOverlayVisible: false,
-    playedVideos: new Set(),
-    likedVideos: new Set(),
     funscriptEndCancelled: false,
-    videoEndedCancelled: false,
-    actualPlayTimeMs: 0,
-    lastPlayTick: null,
-    autoLikeRecorded: false
+    videoEndedCancelled: false
 };
 
 function computeThrustIntensity(intensity, progress) {
@@ -82,14 +83,7 @@ function computeVibrateValue(currentTime, intensity, progress) {
 }
 
 function updateProgressBars(videoElement) {
-    const now = Date.now();
-    if (state.lastPlayTick) {
-        const dt = Math.min(now - state.lastPlayTick, 250);
-        if (!videoElement.paused && !videoElement.seeking) {
-            state.actualPlayTimeMs += dt;
-        }
-    }
-    state.lastPlayTick = now;
+    trackPlayTick(videoElement);
 
     const currentTime = videoElement.currentTime * 1000;
     const intensity = getCurrentIntensity(currentTime);
@@ -114,17 +108,17 @@ function updateProgressBars(videoElement) {
         state.videoEndedCancelled = false;
     }
 
-    if (!state.isOverlayVisible && !videoElement.loop) {
+    if (!isOverlayVisible() && !videoElement.loop) {
         if (videoElement.ended && !state.videoEndedCancelled) {
             videoElement.pause();
-            showNextVideoOverlay();
+            triggerNextVideoOverlay(videoElement);
         } else if (
             funscriptEnd > 0 &&
             currentTime >= funscriptEnd &&
             !state.funscriptEndCancelled &&
             !videoElement.ended
         ) {
-            showNextVideoOverlay();
+            triggerNextVideoOverlay(videoElement);
         }
     }
 
@@ -134,13 +128,15 @@ function updateProgressBars(videoElement) {
 }
 
 function enterFullscreen() {
-    if (!DISABLE_FULLSCREEN)
+    if (!DISABLE_FULLSCREEN) {
         document.documentElement.requestFullscreen()?.catch(() => {});
+    }
 }
 
 function exitFullscreen() {
-    if (!DISABLE_FULLSCREEN && document.fullscreenElement)
+    if (!DISABLE_FULLSCREEN && document.fullscreenElement) {
         document.exitFullscreen()?.catch(() => {});
+    }
 }
 
 function cancelCurrentAnimation() {
@@ -150,16 +146,64 @@ function cancelCurrentAnimation() {
     }
 }
 
-function findNodeByPath(node, path) {
-    if (!node) return null;
-    if (node.path === path) return node;
-    if (node.children) {
-        for (const child of node.children) {
-            const found = findNodeByPath(child, path);
-            if (found) return found;
-        }
+function startNextVideo(videoNode) {
+    if (!videoNode) {
+        showTemporaryOverlayMessage(
+            'No similar video found in the specified intensity range.'
+        );
+        return;
     }
-    return null;
+
+    const currentVideoEl = document.querySelector('#video-player video');
+    checkAndTriggerAutoLike(
+        currentVideoEl,
+        state.currentVideoRelativePath,
+        state.globalTree
+    );
+
+    hideNextVideoOverlay();
+    playVideo(
+        toVideoUrl(videoNode.path),
+        toFunscriptUrl(videoNode.path),
+        videoNode.path,
+        true
+    );
+}
+
+function triggerNextVideoOverlay(videoElement) {
+    exitFullscreen();
+    showNextVideoOverlay({
+        currentVideoRelativePath: state.currentVideoRelativePath,
+        playedVideos: getPlayedVideos(),
+        globalTree: state.globalTree,
+        onSelectVideo: (candidate) => startNextVideo(candidate),
+        onReplay: () => {
+            if (videoElement) {
+                videoElement.currentTime = 0;
+                videoElement.play();
+            }
+        },
+        onCancel: () => {
+            if (videoElement?.ended) {
+                state.videoEndedCancelled = true;
+            } else {
+                state.funscriptEndCancelled = true;
+            }
+        }
+    });
+}
+
+export function showFolderStartOverlay(folderPath) {
+    openFolderStartOverlay(folderPath, {
+        globalTree: state.globalTree,
+        onSelectVideo: (candidate) => startNextVideo(candidate),
+        onCancel: () => {}
+    });
+}
+
+export function setPlaybackData(tree, map) {
+    state.globalTree = tree;
+    state.globalFunscriptMap = map;
 }
 
 export async function playVideo(
@@ -169,60 +213,19 @@ export async function playVideo(
     autoplay = false
 ) {
     state.currentVideoRelativePath = relativePath;
-    state.playedVideos.add(relativePath);
     state.funscriptEndCancelled = false;
     state.videoEndedCancelled = false;
-    state.viewRecorded = false;
-    state.actualPlayTimeMs = 0;
-    state.lastPlayTick = null;
-
-    const alreadyLikedThisSession = state.likedVideos.has(relativePath);
-    state.autoLikeRecorded = alreadyLikedThisSession;
 
     hideNextVideoOverlay();
 
     const errorOverlay = document.getElementById('video-error-overlay');
-    const errorText = document.getElementById('video-error-text');
     if (errorOverlay) errorOverlay.classList.add('hidden');
 
     cancelCurrentAnimation();
     sendDeviceCommand(0, 0);
     updateSbsPlayingState();
 
-    const likeBtn = document.getElementById('like-button');
-    if (likeBtn) {
-        likeBtn.style.display = 'block';
-        likeBtn.style.right = '110px';
-
-        const currentNode = findNodeByPath(state.globalTree, relativePath);
-        const currentLikes = currentNode?.user_stats?.likes ?? 0;
-        likeBtn.textContent = `❤️ ${currentLikes}`;
-        likeBtn.disabled = alreadyLikedThisSession;
-        likeBtn.title = alreadyLikedThisSession
-            ? 'Already liked this session'
-            : 'Like Video';
-
-        likeBtn.onclick = async () => {
-            if (state.likedVideos.has(relativePath)) {
-                showTemporaryOverlayMessage(
-                    'Already liked this session!',
-                    1000
-                );
-                return;
-            }
-
-            state.autoLikeRecorded = true;
-            likeBtn.disabled = true;
-
-            const updated = await recordLike(relativePath);
-            if (updated) {
-                showTemporaryOverlayMessage(
-                    `Liked ❤️ (${updated.likes})`,
-                    1000
-                );
-            }
-        };
-    }
+    initVideoStats(relativePath, state.globalTree);
 
     const videoPlayer = document.getElementById('video-player');
     const videoElement = document.createElement('video');
@@ -234,7 +237,6 @@ export async function playVideo(
     videoPlayer.innerHTML = '';
     videoPlayer.appendChild(videoElement);
 
-    // Loading spinner
     let spinner = document.getElementById('loading-spinner');
     if (!spinner) {
         spinner = document.createElement('div');
@@ -264,22 +266,7 @@ export async function playVideo(
         }
         cancelCurrentAnimation();
 
-        state.lastPlayTick = Date.now();
-
-        if (!state.viewRecorded) {
-            state.viewRecorded = true;
-            fetch('/api/video-stats/view', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ video_path: relativePath })
-            })
-                .then((res) => res.json())
-                .then((updated) => {
-                    const node = findNodeByPath(state.globalTree, relativePath);
-                    if (node) node.user_stats = updated;
-                })
-                .catch((err) => console.error('Failed to record view', err));
-        }
+        recordView(relativePath, state.globalTree);
 
         state.transitionStartTime = Date.now();
         state.transitionTargetValue = 0;
@@ -293,7 +280,7 @@ export async function playVideo(
     };
 
     videoElement.onpause = () => {
-        state.lastPlayTick = null;
+        resetPlayTick();
         state.cancelAnimationTimeout = setTimeout(
             cancelCurrentAnimation,
             TRANSITION_DURATION + 100
@@ -309,10 +296,9 @@ export async function playVideo(
 
     videoElement.onerror = () => {
         if (spinner) spinner.style.display = 'none';
+        const errorText = document.getElementById('video-error-text');
         if (errorOverlay && errorText) {
             let msg = 'An unknown error occurred while loading the video.';
-
-            // 4 = MEDIA_ERR_SRC_NOT_SUPPORTED
             if (videoElement.error && videoElement.error.code === 4) {
                 msg =
                     'Unsupported video codec. This browser requires H.264/AVC. Please transcode the file on the backend.';
@@ -322,35 +308,27 @@ export async function playVideo(
         }
     };
 
-    // Reset variant
     setSelectedFunscriptVariant('original');
-    const sel = document.getElementById('funscript-variant-select');
-    if (sel) sel.value = 'original';
+    const variantSelect = document.getElementById('funscript-variant-select');
+    if (variantSelect) variantSelect.value = 'original';
 
     const funscriptPromise = loadFunscript(funscriptUrl);
     initIntensityGraphHUD();
 
     videoElement.onloadeddata = async () => {
         if (spinner) spinner.style.display = 'none';
-        console.log(
-            `Video metadata loaded. Dimensions: ${videoElement.videoWidth}x${videoElement.videoHeight}`
-        );
 
-        // autotrigger SBS for 32:9 ratios
         if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
             const ratio = videoElement.videoWidth / videoElement.videoHeight;
             const is32to9 = Math.abs(ratio - 32 / 9) < 0.1;
             setSBSMode(is32to9);
         }
 
-        // Audio plays but video is unsupported
         if (
             videoElement.videoWidth === 0 &&
             videoUrl.toLowerCase().endsWith('.mp4')
         ) {
-            console.error(
-                'Video width is 0. Possible codec incompatibility (HEVC/H.265).'
-            );
+            const errorText = document.getElementById('video-error-text');
             if (errorOverlay && errorText) {
                 errorText.textContent =
                     'Warning: The video track is not visible, it likely uses an unsupported codec like HEVC/H.265.';
@@ -363,7 +341,6 @@ export async function playVideo(
         renderIntensityGraphHUD(0);
         updateProgressBars(videoElement);
         refreshVariantsForCurrentVideo();
-        spinner.style.display = 'none';
 
         if (autoplay) {
             videoElement
@@ -375,303 +352,4 @@ export async function playVideo(
     document.getElementById('directory-container').classList.add('hidden');
     document.getElementById('video-container').classList.remove('hidden');
     document.getElementById('settings-button').style.display = 'block';
-}
-
-export function setPlaybackData(tree, map) {
-    state.globalTree = tree;
-    state.globalFunscriptMap = map;
-}
-
-function startNextVideo(videoNode) {
-    if (!videoNode) {
-        showTemporaryOverlayMessage(
-            'No similar video found in the specified intensity range.'
-        );
-        return;
-    }
-
-    const currentVideoEl = document.querySelector('#video-player video');
-    checkAndTriggerAutoLike(currentVideoEl);
-
-    hideNextVideoOverlay();
-    playVideo(
-        toVideoUrl(videoNode.path),
-        toFunscriptUrl(videoNode.path),
-        videoNode.path,
-        true
-    );
-}
-
-async function showNextVideoOverlay() {
-    if (state.isOverlayVisible) return;
-    state.isOverlayVisible = true;
-    if (state.nextVideoTimer) clearTimeout(state.nextVideoTimer);
-
-    const overlay = document.getElementById('next-video-overlay');
-    const timerEl = document.getElementById('next-timer');
-    if (!overlay) return;
-
-    overlay.classList.remove('hidden');
-    exitFullscreen();
-
-    const played = Array.from(state.playedVideos).join(',');
-    let candidates = { lower: null, similar: null, higher: null };
-
-    try {
-        const resp = await fetch(
-            `/api/recommendations/next?video=${encodeURIComponent(state.currentVideoRelativePath)}&exclude=${encodeURIComponent(played)}`
-        );
-        if (resp.ok) {
-            candidates = await resp.json();
-        }
-    } catch (err) {
-        console.error('Failed to fetch next recommendations:', err);
-    }
-
-    updateOverlayButtons(
-        candidates,
-        ['Lower', 'Similar', 'Higher'],
-        'relative'
-    );
-
-    const replayBtn = document.getElementById('next-replay-btn');
-    if (replayBtn) {
-        replayBtn.style.display = 'inline-block';
-        replayBtn.onclick = () => {
-            const video = document.querySelector('#video-player video');
-            if (video) {
-                video.currentTime = 0;
-                video.play();
-            }
-            hideNextVideoOverlay();
-        };
-    }
-
-    document.getElementById('next-cancel-btn').onclick = hideNextVideoOverlay;
-
-    const fallbackVideo =
-        candidates.similar || candidates.higher || candidates.lower;
-    let timeLeft = 6;
-    const updateTimer = () => {
-        if (!state.isOverlayVisible) return;
-        timerEl.innerHTML = `Starting random video in ${timeLeft}s...`;
-        if (timeLeft <= 0) {
-            if (fallbackVideo) startNextVideo(fallbackVideo);
-            else hideNextVideoOverlay();
-            return;
-        }
-        timeLeft--;
-        state.nextVideoTimer = setTimeout(updateTimer, 1000);
-    };
-    updateTimer();
-}
-
-function hideNextVideoOverlay() {
-    state.isOverlayVisible = false;
-    clearTimeout(state.nextVideoTimer);
-    document.getElementById('next-video-overlay')?.classList.add('hidden');
-
-    const videoElement = document.querySelector('#video-player video');
-    if (videoElement?.ended) {
-        state.videoEndedCancelled = true;
-    } else {
-        state.funscriptEndCancelled = true;
-    }
-
-    const settingsBtn = document.getElementById('settings-button');
-    if (settingsBtn) settingsBtn.style.display = 'block';
-}
-
-// ── Folder Start Selection Helpers ─────────────────────────────────────
-
-export async function showFolderStartOverlay(folderPath) {
-    let candidates = { low: null, med: null, high: null };
-
-    try {
-        const resp = await fetch(
-            `/api/recommendations/folder-start?folder=${encodeURIComponent(folderPath)}`
-        );
-        if (resp.ok) {
-            candidates = await resp.json();
-        }
-    } catch (err) {
-        console.error('Failed to fetch folder start recommendations:', err);
-    }
-
-    if (!candidates.low && !candidates.med && !candidates.high) return;
-
-    state.isOverlayVisible = true;
-    const overlay = document.getElementById('next-video-overlay');
-    if (!overlay) return;
-
-    overlay.classList.remove('hidden');
-    document.getElementById('video-container').classList.remove('hidden');
-
-    exitFullscreen();
-
-    updateOverlayButtons(
-        {
-            lower: candidates.low,
-            similar: candidates.med,
-            higher: candidates.high
-        },
-        ['Low', 'Medium', 'High'],
-        'absolute'
-    );
-
-    document.getElementById('next-timer').innerHTML =
-        'Select a starting intensity to begin...';
-    document.getElementById('next-replay-btn').style.display = 'none';
-    document.getElementById('next-cancel-btn').onclick = () => {
-        hideNextVideoOverlay();
-        const activeVideo = document.querySelector('#video-player video');
-        if (!activeVideo?.src)
-            document.getElementById('video-container').classList.add('hidden');
-    };
-}
-
-// --- Shared Overlay Helpers ---
-
-function getStats(v) {
-    if (!v) return { peak: 0, avg: 0 };
-    return getFunscriptStats(state.globalFunscriptMap[toFunscriptPath(v.path)]);
-}
-
-function getStatHtml(candidate, mode = 'relative') {
-    if (!candidate) return '';
-
-    const durText = candidate.duration
-        ? formatDuration(candidate.duration)
-        : '—';
-
-    const node = findNodeByPath(state.globalTree, candidate.path);
-    const views = node?.user_stats?.views ?? candidate.views ?? 0;
-    const likes = node?.user_stats?.likes ?? candidate.likes ?? 0;
-
-    const userHtml = `<span style="color:#ff4081" title="${likes} likes">❤️ ${likes}</span> <span style="color:#aaa" title="${views} views">👁️ ${views}</span>`;
-
-    if (mode === 'absolute') {
-        const peakColor = intensityToColor(candidate.peak);
-        const avgColor = intensityToColor(candidate.avg);
-        const volColor = volatilityToColor(candidate.volatility);
-
-        return (
-            `<span style="color:${peakColor}">🔺 ${candidate.peak.toFixed(1)} Peak</span><br>` +
-            `<span style="color:${avgColor}">🌡️ ${candidate.avg.toFixed(1)} Avg</span><br>` +
-            `<span style="color:${volColor}">⚡️ ${candidate.volatility.toFixed(1)} Vol</span><br>` +
-            `<span style="color:rgba(255,255,255,0.85)">⏱️ ${durText}</span><br>` +
-            `<span>${userHtml}</span>`
-        );
-    }
-
-    const dPeak = candidate.delta_peak ?? 0;
-    const dAvg = candidate.delta_avg ?? 0;
-    const dVol = candidate.delta_volatility ?? 0;
-
-    const peakPrefix = dPeak > 0 ? '+' : '';
-    const avgPrefix = dAvg > 0 ? '+' : '';
-    const volPrefix = dVol > 0 ? '+' : '';
-
-    const peakColor = relativeIntensityToColor(dPeak);
-    const avgColor = relativeIntensityToColor(dAvg);
-    const volColor = relativeIntensityToColor(dVol);
-
-    return (
-        `<span style="color:${peakColor}">🔺 ${peakPrefix}${dPeak.toFixed(1)} Peak</span><br>` +
-        `<span style="color:${avgColor}">🌡️ ${avgPrefix}${dAvg.toFixed(1)} Avg</span><br>` +
-        `<span style="color:${volColor}">⚡️ ${volPrefix}${dVol.toFixed(1)} Vol</span><br>` +
-        `<span style="color:rgba(255,255,255,0.85)">⏱️ ${durText}</span><br>` +
-        `<span>${userHtml}</span>`
-    );
-}
-
-function updateOverlayButtons(candidates, labels, statMode = 'relative') {
-    document.querySelector('#next-lower-btn .next-label').textContent =
-        labels[0];
-    document.querySelector('#next-similar-btn .next-label').textContent =
-        labels[1];
-    document.querySelector('#next-higher-btn .next-label').textContent =
-        labels[2];
-
-    const formatBtn = (id, candidate) => {
-        const btn = document.getElementById(id);
-        const thumbImg = btn.querySelector('.next-thumb');
-        const statsEl = btn.querySelector('.next-stats');
-        if (!candidate) {
-            btn.disabled = true;
-            statsEl.textContent = 'N/A';
-            if (thumbImg) thumbImg.style.display = 'none';
-            return;
-        }
-        btn.disabled = false;
-        if (thumbImg) {
-            thumbImg.style.display = 'block';
-            thumbImg.src = `/site/thumbnails/${candidate.path}.jpg`;
-        }
-        statsEl.innerHTML = getStatHtml(candidate, statMode);
-        btn.onclick = () => startNextVideo(candidate);
-    };
-
-    formatBtn('next-lower-btn', candidates.lower);
-    formatBtn('next-similar-btn', candidates.similar);
-    formatBtn('next-higher-btn', candidates.higher);
-}
-
-async function recordLike(relativePath) {
-    if (state.likedVideos.has(relativePath)) return null;
-    state.likedVideos.add(relativePath);
-
-    try {
-        const res = await fetch('/api/video-stats/like', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ video_path: relativePath })
-        });
-        if (res.ok) {
-            const updated = await res.json();
-            const node = findNodeByPath(state.globalTree, relativePath);
-            if (node) node.user_stats = updated;
-
-            const likeBtn = document.getElementById('like-button');
-            if (likeBtn && state.currentVideoRelativePath === relativePath) {
-                likeBtn.textContent = `❤️ ${updated.likes}`;
-                likeBtn.disabled = true;
-                likeBtn.title = 'Already liked this session';
-            }
-            return updated;
-        }
-    } catch (err) {
-        console.error('Failed to record like', err);
-    }
-    return null;
-}
-
-function checkAndTriggerAutoLike(videoElement) {
-    if (
-        state.autoLikeRecorded ||
-        !state.currentVideoRelativePath ||
-        state.likedVideos.has(state.currentVideoRelativePath)
-    ) {
-        return;
-    }
-
-    const durationMs =
-        videoElement?.duration && isFinite(videoElement.duration)
-            ? videoElement.duration * 1000
-            : getFunscriptDuration();
-
-    const minThresholdMs =
-        durationMs > 0 ? Math.min(durationMs * 0.4, 30000) : 15000;
-
-    if (state.actualPlayTimeMs >= minThresholdMs) {
-        state.autoLikeRecorded = true;
-        recordLike(state.currentVideoRelativePath).then((updated) => {
-            if (updated) {
-                showTemporaryOverlayMessage(
-                    `Auto-liked ❤️ (${updated.likes})`,
-                    1200
-                );
-            }
-        });
-    }
 }

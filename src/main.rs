@@ -12,7 +12,13 @@
 use actix_cors::Cors;
 use actix_web::{App, HttpServer, middleware::Logger, web};
 use env_logger::Env;
-use hismith_player_site::{AppConfig, device::device_manager, routes};
+use hismith_player_site::{
+    AppConfig, 
+    device::device_manager, 
+    routes, 
+    handlers::video_stats::{self, StatsQueue}
+};
+use tokio::sync::mpsc;
 use log::{error, info};
 
 #[actix_web::main]
@@ -44,10 +50,19 @@ async fn main() -> std::io::Result<()> {
     let bind_address = config.bind_address();
     let config_data = web::Data::new(config);
 
+    info!("Starting stats worker...");
+    let (stats_tx, stats_rx) = mpsc::channel(256);
+    let stats_queue = web::Data::new(StatsQueue::new(stats_tx));
+    let stats_base = config_data.funscript_share_path.clone();
+    tokio::spawn(async move {
+        video_stats::run_stats_worker(stats_base, stats_rx).await;
+    });
+
     info!("Starting HTTP server on {}...", bind_address);
     HttpServer::new(move || {
         App::new()
             .app_data(config_data.clone())
+            .app_data(stats_queue.clone())
             .wrap(Logger::default())
             .wrap(
                 Cors::default()

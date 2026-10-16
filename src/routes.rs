@@ -1,0 +1,57 @@
+// src/routes.rs
+
+//! Route configuration for the Video Player web server.
+//!
+//! Registers endpoints used by the frontend and API:
+//! - /ws -> WebSocket handshake to client_socket::handle_ws_start
+//! - /api/* -> REST API endpoints (directory-tree, funscripts, calibration)
+//! - /site/* -> UI pages and static assets; /site/static serves files from ./static
+//!   with a Cache-Control: no-cache header applied.
+
+use crate::{
+    handlers::{analysis, calibration, editor, funscript, index, recommendations, thumbnail, video, video_stats},
+    client_socket,
+};
+use actix_files::Files;
+use actix_web::{middleware::DefaultHeaders, web};
+
+pub fn setup_routes(cfg: &mut web::ServiceConfig) {
+    cfg.service(web::resource("/ws").route(web::get().to(client_socket::handle_ws_start)))
+        .service(
+            web::scope("/api")
+                .route("/directory-tree", web::get().to(index::get_directory_tree))
+                .route("/funscripts", web::post().to(editor::save_funscript))
+                .route("/funscripts/calculate-draft-intensity", web::post().to(editor::calculate_draft_intensity))
+                .route("/calibration-mapping", web::get().to(calibration::get_bpm_mapping))
+                .route("/calibration-profiles", web::get().to(calibration::get_profiles))
+                .route("/calibration-profiles", web::post().to(calibration::save_profile))
+                .route("/calibration-activate", web::post().to(calibration::set_active_profile))
+                .route("/max-intensity-limit", web::post().to(calibration::set_max_intensity_limit))
+                .route("/recommendations/next", web::get().to(recommendations::get_next_recommendations))
+                .route("/recommendations/folder-start", web::get().to(recommendations::get_folder_start_recommendations))
+                .route("/video-stats", web::get().to(video_stats::get_stats))
+                .route("/video-stats/view", web::post().to(video_stats::record_view))
+                .route("/video-stats/like", web::post().to(video_stats::record_like))
+                .route("/video-stats/unlike", web::post().to(video_stats::record_unlike))
+        )
+        .service(
+            web::scope("/site")
+                .route("/", web::get().to(index::handle_index))
+                .route("/analysis/durations", web::get().to(analysis::handle_check_durations))
+                .route("/editor", web::get().to(editor::handle_editor_page))
+                .route("/calibration", web::get().to(calibration::handle_calibration_page))
+                .route("/video/{filename:.*}", web::get().to(video::handle_video))
+                .route("/funscripts/{filename:.*}", web::get().to(funscript::handle_funscript))
+                .route("/thumbnails/{filename:.*}", web::get().to(thumbnail::handle_thumbnail))
+                .service(
+                    web::scope("/static")
+                        .wrap(DefaultHeaders::new().add(("Cache-Control", "no-cache")))
+                        .default_service(
+                            Files::new("", "./static")
+                                .show_files_listing()
+                                .use_last_modified(true)
+                                .prefer_utf8(true),
+                        ),
+                ),
+        );
+}

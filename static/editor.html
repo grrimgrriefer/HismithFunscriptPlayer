@@ -1,0 +1,65 @@
+<!--  static/editor.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Funscript Editor</title>
+    <link rel="stylesheet" href="/site/static/styles.css">
+</head>
+
+<body>
+    <div id="editor-container">
+        <div id="video-section">
+            <video id="editor-video" controls></video>
+            <canvas id="editor-canvas"></canvas>
+        </div>
+        <div id="controls-section">
+            <h1>Funscript Editor</h1>
+            <p>Play the video. Tap (Spacebar) for thrusts. Click/drag on the timeline to edit.</p>
+            <label class="control-label">Variant (optional)</label>
+            <input id="variant-input" list="variant-list" type="text" placeholder="e.g. low, high" class="variant-input-field" />
+            <datalist id="variant-list"></datalist>
+            <button id="tap-button" class="btn">Tap Thrust</button>
+            <button id="undo-button" class="btn">Undo Last Tap</button>
+            <button id="delete-button" class="btn">Delete Selected</button>
+            <button id="save-button" class="btn">Save Funscript</button>
+            <a href="/site/" id="back-link">Back to Player</a>
+            <div id="action-counter">Taps: 0</div>
+            <div id="intensity-display">
+                <div>
+                    Intensity values: 
+                    <span id="editor-peak-val" class="highlight-val">0</span> peak,
+                    <span id="editor-avg-val" class="highlight-val">0</span> avg
+                </div>
+            </div>
+
+            <div id="volatility-container">
+                <div class="volatility-header">
+                    <span>Volatility: <span id="editor-vol-val" class="highlight-val">0.0</span></span>
+                    <span id="volatility-status" class="volatility-status-text">(updates when paused)</span>
+                </div>
+                <div class="volatility-summary-text">
+                    Total Sections: <span id="editor-sections-count" class="bold-val">0</span>
+                </div>
+                <div id="volatility-heatmap-wrapper" title="Section intensity breakdown (Minimap)">
+                    <div id="volatility-heatmap"></div>
+                </div>
+                <div id="active-section-info" class="active-section-card">
+                    Current Section: <span id="active-sec-text">—</span>
+                </div>
+                <div id="sections-list-container">
+                    <div class="sections-list-header">
+                        <span>Section Breakdown</span>
+                    </div>
+                    <div id="volatility-sections-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="/site/static/editor.js" type="module"></script>
+</body>
+
+</html>

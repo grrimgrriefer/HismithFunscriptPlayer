@@ -133,6 +133,64 @@
                 <button id="open-editor-button" class="btn">Open Editor</button>
             </div>
         </div>
+
+        <div id="calibration-overlay" class="calibration-overlay hidden" aria-hidden="true">
+            <div class="calibration-inner">
+                <button id="calibration-close-btn" class="btn btn-sm overlay-close-btn" title="Close">✕</button>
+                <div class="card">
+                    <h2>Calibration</h2>
+                    <p class="small">Select a preset intensity, click Start, and tap along with the physical device (by tapping the
+                        spinner or using spacebar). Save each calibration point to build your profile.</p>
+
+                    <div class="preset-row" id="preset-buttons"></div>
+
+                    <div class="row row-compact mb-sm">
+                        <label class="small" for="profile-select">Profile:</label>
+                        <select id="profile-select" class="profile-select"></select>
+                        <input id="profile-name" type="text" placeholder="New name..." class="profile-name-input" />
+                    </div>
+
+                    <div id="spinner-wrap">
+                        <div class="spinner-ring" aria-hidden="true">
+                            <div class="tick"></div>
+                            <div class="tick"></div>
+                            <div class="tick"></div>
+                            <div class="tick"></div>
+                            <div class="tick"></div>
+                            <div class="tick"></div>
+                        </div>
+
+                        <div id="calibration-spinner" aria-hidden="true" tabindex="0" role="button"
+                            title="Click to reset rotation to 0">
+                            <div id="calibration-rotor" aria-hidden="true"></div>
+                        </div>
+                    </div>
+
+                    <div class="controls">
+                        <div class="row row-compact mb-sm">
+                            <span class="muted">Measured BPM:</span>
+                            <strong id="measured-bpm">—</strong>
+                            <button id="save-point-btn" class="preset-btn btn-save" disabled>Save Point</button>
+                        </div>
+
+                        <div class="row mt-sm">
+                            <button id="start-button" class="preset-btn">Start</button>
+                            <button id="stop-button" class="preset-btn">Stop</button>
+                            <button id="reset-button" class="preset-btn">Reset Taps</button>
+                        </div>
+                    </div>
+
+                    <div id="info" class="small mt-md">
+                        <div>Selected preset: <span id="selected-preset">—</span>% intensity</div>
+                        <div>Sent intensity: <span id="sent-intensity">—</span></div>
+                        <div>Theoretical BPM: <span id="theoretical-bpm">—</span></div>
+                    </div>
+
+                    <div id="mapping-list" class="small"></div>
+                    <canvas id="mapping-canvas"></canvas>
+                </div>
+            </div>
+        </div>
     </div>
     <script src="/site/static/main.js" type="module"></script>
 </body>

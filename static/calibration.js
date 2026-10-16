@@ -15,6 +15,8 @@ const KEEPALIVE_MS = 1500;
 const calibratedBpms = {};
 let bpmMapping = [];
 let bpmLut = {};
+let calibrationProfiles = {};
+let listenersBound = false;
 
 const state = {
     selectedPreset: null,
@@ -230,7 +232,7 @@ function handleFullRotations(count) {
             playClick();
             if (els.spinner) {
                 els.spinner.classList.remove('spinner-flash');
-                void els.spinner.offsetWidth; // Trigger reflow
+                void els.spinner.offsetWidth;
                 els.spinner.classList.add('spinner-flash');
             }
         }, i * FLASH_DURATION_MS);
@@ -317,18 +319,16 @@ function sendLoop() {
     if (!state.running || !state.selectedPreset) return;
 
     const intensity = state.selectedPreset / 100.0;
-
     const stale = Date.now() - state.lastSendTime >= KEEPALIVE_MS;
 
     if (stale) {
         sendDeviceCommand(intensity, 0);
-
         state.lastSendTime = Date.now();
         updateInfoDisplays();
     }
 }
 
-function stopCalibration() {
+export function stopCalibration() {
     if (!state.running) return;
     state.running = false;
 
@@ -343,8 +343,8 @@ function stopCalibration() {
     state.lastSentIntensity = null;
     state.lastSendTime = 0;
 
-    els.startBtn.disabled = false;
-    els.stopBtn.disabled = true;
+    if (els.startBtn) els.startBtn.disabled = false;
+    if (els.stopBtn) els.stopBtn.disabled = true;
 }
 
 // ── Profiles ───────────────────────────────────────────────────────────
@@ -353,7 +353,7 @@ async function loadProfilesFromServer() {
         const resp = await fetch('/api/calibration-profiles');
         if (!resp.ok) return;
         const data = await resp.json();
-        window.__calibrationProfiles = data || {};
+        calibrationProfiles = data || {};
 
         if (!els.profileSelect) return;
         els.profileSelect.innerHTML = '';
@@ -394,8 +394,7 @@ async function saveProfileToServer(name) {
             body: JSON.stringify(payload)
         });
         if (!resp.ok) return;
-        window.__calibrationProfiles = window.__calibrationProfiles || {};
-        window.__calibrationProfiles[name] = payload.bpms;
+        calibrationProfiles[name] = payload.bpms;
         await loadProfilesFromServer();
         if (els.profileSelect) els.profileSelect.value = name;
     } catch (err) {
@@ -404,7 +403,7 @@ async function saveProfileToServer(name) {
 }
 
 function applyProfile(name) {
-    const profile = window.__calibrationProfiles?.[name];
+    const profile = calibrationProfiles[name];
     if (!profile) {
         resetBpms();
         syncActiveProfile({});
@@ -487,7 +486,6 @@ function resetBpms() {
     buildPresetButtons();
 
     els.selectedPreset.textContent = '—';
-
     els.sentIntensity.textContent = '—';
     els.theoreticalBpm.textContent = '—';
     els.measuredBpm.textContent = '—';
@@ -518,7 +516,6 @@ function renderMappingGraph() {
     const xFor = (i) => pad + (i / iRange) * (cssWidth - pad * 2);
     const yFor = (b) => cssHeight - pad - (b / bRange) * (cssHeight - pad * 2);
 
-    // Grid
     ctx.strokeStyle = '#333';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -553,15 +550,13 @@ function renderMappingGraph() {
         }
     }
 
-    // 1. Draw Baseline
     const baselinePoints = bpmMapping.map(([bpm, intensity]) => [
         intensity,
         bpm
     ]);
     drawPolyline(baselinePoints, 'rgba(0,200,0,0.95)', '#fff');
 
-    // 2. Draw Calibrated
-    const calPoints = getCalibratedPoints(); // [[bpm, intensity], ...]
+    const calPoints = getCalibratedPoints();
     const plottedCalPoints = calPoints.map(([bpm, intensity]) => [
         intensity,
         bpm
@@ -574,7 +569,6 @@ function renderMappingGraph() {
         );
     }
 
-    // Labels
     ctx.fillStyle = '#ddd';
     ctx.font = '10px sans-serif';
     ctx.fillText('0%', pad, cssHeight - 2);
@@ -587,7 +581,6 @@ function renderMappingGraph() {
     ctx.fillText('BPM', 0, 0);
     ctx.restore();
 
-    // Legend
     const legendLeft = cssWidth - pad - 120;
     const legendTop = 12;
     ctx.textBaseline = 'middle';
@@ -603,7 +596,7 @@ function renderMappingGraph() {
 }
 
 function getCalibratedPoints() {
-    const points = [[0.0, 0.0]]; // 0 BPM maps to 0% intensity
+    const points = [[0.0, 0.0]];
 
     const activePresets = PRESETS.filter(
         (p) =>
@@ -642,30 +635,16 @@ export async function syncActiveProfile(bpms) {
     }
 }
 
-export async function saveOnClose() {
+export async function saveCalibrationOnClose() {
     const name = getProfileName();
     if (name) {
         await saveProfileToServer(name);
     }
 }
 
-export async function setup() {
-    initElements();
-
-    for (const p of PRESETS) {
-        calibratedBpms[p] = null;
-    }
-
-    buildPresetButtons();
-    renderMappingList();
-
-    await loadBpmMapping();
-
-    loadProfilesFromServer().then(() => {
-        if (els.profileSelect && els.profileSelect.value) {
-            applyProfile(els.profileSelect.value);
-        }
-    });
+function bindEventListeners() {
+    if (listenersBound) return;
+    listenersBound = true;
 
     els.startBtn.addEventListener('click', startCalibration);
     els.stopBtn.addEventListener('click', stopCalibration);
@@ -700,6 +679,25 @@ export async function setup() {
             }
         }
     });
+}
+
+export async function setupCalibration() {
+    initElements();
+    bindEventListeners();
+
+    for (const p of PRESETS) {
+        calibratedBpms[p] = null;
+    }
+
+    buildPresetButtons();
+    renderMappingList();
+
+    await loadBpmMapping();
+
+    await loadProfilesFromServer();
+    if (els.profileSelect && els.profileSelect.value) {
+        applyProfile(els.profileSelect.value);
+    }
 
     els.stopBtn.disabled = true;
     els.startBtn.disabled = false;

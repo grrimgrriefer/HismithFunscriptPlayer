@@ -1,0 +1,177 @@
+// static/funscript_handler.js
+
+export let funscriptActions = [];
+export let intensityActions = [];
+
+let currentVideoRawMaxIntensity = 0;
+let maxIntensityLimit = 60;
+let vibrateMode = 'Rate';
+let selectedVariant = 'original';
+let selectedSpeed = 'normal';
+let lastBeatAt = null;
+let lastPeak = 0;
+let lastAvg = 0;
+let lastVolatility = 0;
+let lastDuration = 0;
+
+let beatTimes = [];
+
+function updateBeatTimes() {
+    beatTimes = [];
+    for (let i = 1; i < funscriptActions.length; i++) {
+        const prev = funscriptActions[i - 1];
+        const curr = funscriptActions[i];
+        if (prev.pos === 0 && curr.pos === 100) {
+            beatTimes.push(curr.at);
+        }
+    }
+}
+
+function findNextBeatIndex(currentTime) {
+    let low = 0;
+    let high = beatTimes.length;
+    while (low < high) {
+        const mid = (low + high) >>> 1;
+        if (beatTimes[mid] <= currentTime) {
+            low = mid + 1;
+        } else {
+            high = mid;
+        }
+    }
+    return low;
+}
+
+export async function loadFunscript(funscriptUrl) {
+    funscriptActions = [];
+    intensityActions = [];
+    beatTimes = [];
+    lastBeatAt = null;
+    currentVideoRawMaxIntensity = 0;
+    let fetchUrl = funscriptUrl;
+    const url = new URL(fetchUrl, window.location.origin);
+    url.searchParams.set('variant', selectedVariant);
+    url.searchParams.set('speed', selectedSpeed);
+    try {
+        const response = await fetch(url.toString());
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        if (data && data.original && Array.isArray(data.original.actions)) {
+            funscriptActions = data.original.actions;
+        } else {
+            funscriptActions = [];
+        }
+        updateBeatTimes();
+        if (data && data.intensity && Array.isArray(data.intensity.actions)) {
+            intensityActions = data.intensity.actions;
+            const positions = intensityActions.map((action) => action.pos);
+            if (positions.length > 0) {
+                currentVideoRawMaxIntensity = Math.max(...positions);
+            }
+        } else {
+            intensityActions = [];
+        }
+        lastPeak = data?.peak || 0;
+        lastAvg = data?.average || 0;
+        lastVolatility = data?.volatility || 0;
+        lastDuration = data?.duration || 0;
+    } catch (error) {
+        console.error('Failed to load funscript:', error);
+        funscriptActions = [];
+        intensityActions = [];
+        beatTimes = [];
+        lastBeatAt = null;
+        lastPeak = 0;
+        lastAvg = 0;
+        lastVolatility = 0;
+        lastDuration = 0;
+    }
+}
+
+export function getLastIntensityStats() {
+    return {
+        peak: lastPeak,
+        avg: lastAvg,
+        volatility: lastVolatility,
+        duration: lastDuration
+    };
+}
+
+export function getCurrentIntensity(currentTime) {
+    if (intensityActions.length === 0) return 0;
+
+    const idx = intensityActions.findIndex((a) => a.at > currentTime);
+
+    if (idx === 0) return intensityActions[0].pos;
+    if (idx === -1) return intensityActions[intensityActions.length - 1].pos;
+
+    const prev = intensityActions[idx - 1];
+    const next = intensityActions[idx];
+    const t = (currentTime - prev.at) / (next.at - prev.at);
+
+    return prev.pos + t * (next.pos - prev.pos);
+}
+
+export function getCurrentVideoMaxIntensity() {
+    return Math.floor(currentVideoRawMaxIntensity);
+}
+
+export function setVibrateMode(mode) {
+    vibrateMode = mode;
+}
+
+export function getVibrateMode() {
+    return vibrateMode;
+}
+
+export function setAbsoluteMaximum(max) {
+    maxIntensityLimit = max;
+}
+
+export function getAbsoluteMaximum() {
+    return maxIntensityLimit;
+}
+
+export function getFunscriptDuration() {
+    if (intensityActions.length === 0) return 0;
+    return intensityActions[intensityActions.length - 1].at;
+}
+
+export function getCurrentBeatValue(currentTime) {
+    if (beatTimes.length === 0) return 0;
+
+    const nextIdx = findNextBeatIndex(currentTime);
+    const lastBeatTime = nextIdx > 0 ? beatTimes[nextIdx - 1] : null;
+    const nextBeatTime = nextIdx < beatTimes.length ? beatTimes[nextIdx] : null;
+
+    if (lastBeatTime === null) return 0;
+
+    let vibrateValue = 0;
+    if (lastBeatAt !== lastBeatTime) {
+        vibrateValue = 1.0;
+        lastBeatAt = lastBeatTime;
+    } else {
+        const nextAt = nextBeatTime || currentTime + 500;
+        const t = Math.max(
+            0,
+            Math.min(1, (currentTime - lastBeatTime) / (nextAt - lastBeatTime))
+        );
+        vibrateValue = 1.0 - Math.sqrt(t);
+    }
+    return vibrateValue;
+}
+
+export function setSelectedFunscriptVariant(v) {
+    selectedVariant = v && v.length ? v : 'original';
+}
+
+export function getSelectedFunscriptVariant() {
+    return selectedVariant;
+}
+
+export function setSelectedSpeed(speed) {
+    selectedSpeed = speed;
+}
+
+export function getSelectedSpeed() {
+    return selectedSpeed;
+}

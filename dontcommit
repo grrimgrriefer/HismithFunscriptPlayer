@@ -1,0 +1,228 @@
+docker stop hismith-player || true && \ docker rm -f hismith-player || true && \
+docker build -t hismith-player-site:v1 . && \ docker run -d -p 5441:5441 \ -e
+HOST_IP=0.0.0.0 \ --user "$(id -u shared):$(id -g shared)" \ --mount
+type=bind,source=/media/overlord/ColdData/Porn,target=/media/overlord/ColdData/Porn,readonly
+\ --mount
+type=bind,source=/media/overlord/ColdData/Porn/funscripts,target=/media/overlord/ColdData/Porn/funscripts
+\ --name hismith-player hismith-player-site:v1
+
+
+ffmpeg -i "pmv-touch-my-body-rondoudou-media_1080p.mp4" -t 2:45 -c copy
+-avoid_negative_ts make_zero _0.mp4
+
+ffmpeg -i "EroticonVI_-_Clearly_Fucked_(An_Ode_to_TPE).mp4" -c:v libx264 -c:a
+copy _0.mp4
+
+ffmpeg -ss 0:45 -i HMV_-_Pump_Stroke_Edge_Repeat_by_Audiodude.mp4 -c copy
+-avoid_negative_ts make_zero output.mp4
+
+python3 check_durations.py /media/overlord/ColdData/Porn/videos
+/media/overlord/ColdData/Porn/funscripts
+
+cd /media/overlord/ColdData/Porn/videos && find ./ -depth -name "* *" -exec
+rename 's/ /_/g' {} +
+
+
+GIT_AUTHOR_DATE='20 Oct 2026 05:31' GIT_COMMITTER_DATE='20 Oct 2026 05:31' git commit -m "cleanup dead code"
+
+
+
+--
+
+TODOS:
+
+Paused: show which video is playing (the name)
+Paused: show option to display different video (up next screen toggle)
+
+
+
+---
+
+# Bart Verdonck
+**Principal Software Engineer**
+
+---
+
+## Summary
+
+Principal Software Engineer with deep expertise across the full stack. From Unity/C# XR applications with real-time socket-based AI integrations to .NET microservices, React/TypeScript frontends, and AWS-deployed serverless backends. Proven track record of shipping production features at every scale; from small 6-month projects up to 7+ year long-running B2B enterprise products. Comfortable owning architecture decisions, CI/CD pipelines, and cross-team technical coordination, with hands-on experience as tech lead for backlog grooming, sprint planning, and delivery estimations.
+
+---
+
+## Technical Skills
+
+**Main Language:** C#
+**Secondary Languages:** C++, Javascript, Typescript, Groovy, Rust (Actix-web, Tokio)
+**Unity:** Unity 5.1 – 6.3, Crossplatform: Standalone Win/Mac/Ubuntu + Mobile + VR + WebGL, Native plugins for iOS & Android, realtime AI STS (speech-to-speech) socket integrations, Voice Activity Detection (VAD), Git LFS setup
+**Backend:** .NET 9, ASP.NET Core, gRPC, .NET Aspire, Entity Framework, Microsoft SignalR
+**Frontend:**  React 17 - 19, Vite, Redux Toolkit, MUI, HTML5 Canvas
+**AI:** OpenAI Realtime WebSocket integration, Azure AI Foundry deployments with custom training sets, Azure Cognitive Services (TTS/STT)
+
+**CI/CD:** Jenkins (custom Groovy scripted-pipelines, shared libraries, multi-platform builds, Apple MacOS Notarization flow, setting up and maintaining VMs) and GitHub Actions
+**Cloud / Infra:** BrainCloud, AWS (Lambda & SAM, API Gateway, ECR, S3), Docker, Kubernetes + ArgoCD  
+**Databases / Storage:** MongoDB, PostgreSQL, Azure Blob Storage
+**Testing:** xUnit / .Net Testing, Unity Test Framework, Bruno / Postman (API testing), CucumberJS / Gherkin + Unium (WebSocket-driven integration tests against live Unity builds)
+**Analytics:** New Relic, PostHog, Unity Analytics, Crashlytics, Adobe Analytics, Google Analytics
+**Operating Systems**: Can comfortably develop on Windows, macOS (incl. Apple Silicon) and Linux (Ubuntu / Mint) machines.
+**Other:** ffmpeg, Unreal Engine 5.2 - 5.8 hobby projects
+
+
+---
+
+## Experience
+
+### Talespin / ITF (Immerse) — Principal Software Engineer
+*[Dates]*
+
+#### Copilot Designer Web (`talespin-copilot-designer-web`)
+React/TypeScript SPA — the browser-based authoring tool for building AI-driven VR training scenarios.
+
+- Implemented **OpenAI Realtime WebSocket** integration (`RealtimeGPTService`) with full voice activity  detection, microphone device selection, and configurable VAD thresholds — enabling direct browser-to-AI streaming without a relay server
+- Built **function-calling retry logic** (max-retry guard) to prevent runaway LLM function call loops in production (CPD-11020)
+- Implemented **response-done-without-output** handling to gracefully recover from incomplete GPT responses (CPD-10918)
+- Fixed **endpoint parameter extraction** bugs in GPT integration affecting production conversations
+- Added **multi-language support** via i18next with browser language detection and HTTP backend (feature/languages)
+- Fixed **malformed error handling** — added exhaustive property checks to prevent the app getting stuck on unexpected error shapes
+- Maintained Redux slices for flow editor, scene editor, animation editor, publication, and project management
+- Worked with ReactFlow for node-based conversation flow editing
+- Maintained Jenkins pipeline deploying Docker images to AWS ECR (dev + prod environments)
+
+#### Talespin Streaming Player (`talespin-streaming-player`)
+React/TypeScript WebGL host — embeds Unity WebGL builds and bridges browser ↔ Unity communication.
+
+- Implemented **microphone device selection** for direct streaming, with fallback logging when the preferred device is unavailable
+- Ported **NativeWebSocket** from Unity packages to a local package to decouple from upstream versioning
+- Synchronized all WebSocket-related logic with the React layer for consistent state management
+- Fixed **broken socket hotfix** in production (bugfix/broken-socket-hotfix)
+- Updated JWT decode and cookie handling to align with the `talespin-bc-authenticator` library
+- Maintained multi-environment build pipeline (dev/qa/uat/prod) via `env-cmd` and Vite
+
+#### Talespin Airframe (`talespin-airframe`)
+Unity C# XR application — the core VR training runtime for Meta Quest and WebGL.
+
+- Architected and implemented **WebSocket service layer** (`WebSocketService.cs`, `NativeWebSocketClient.cs`, `IWebSocketService`) for real-time AI conversation in VR
+- Moved NativeWebSocket from Unity packages into a local package (`feature/native-websocket-local-package`) for better version control
+- Implemented **direct streaming with correct microphone** — device-specific audio routing for AI speech input in VR (CPD-10695)
+- Added **max-retry for function calls** to prevent infinite LLM loops in the VR runtime (CPD-11020)
+- Implemented **transcription failure handling** with synchronized socket logic (CPD-11011)
+- Added **New Relic logging service** (`NewRelicLoggingService.cs`) for production observability, including exception forwarding to Unity Analytics
+- Fixed **broken JSON handling** for malformed LLM responses (TSA-1853)
+- Fixed **wrong AI endpoints** routing issue (TSA-1746)
+- Implemented **conversation transcript layout** updates (TSA-1663)
+- Built a **data migration app** (standalone Unity build) to migrate BrainCloud org data, including automated retry logic, S3 upload of build artifacts, and a dedicated Jenkins runner pipeline
+- Maintained the Jenkinsfile for multi-platform Unity builds (Win64 + macOS) with Azure external workspace storage, code signing, and App Center distribution
+
+#### Talespin Copilot Designer (`talespin-copilot-designer`)
+Unity C# desktop application — the native authoring tool for building VR training content.
+
+- Fixed **audio memory leak** in sound data handler by clearing internal cache alongside scene/VH cleanup (CPD-2932)
+- Fixed **broken TTS sync** and updated M1 speech library (CPD-2790)
+- Fixed **broken light probes** for virtual humans (CPD-815)
+- Implemented **org variable removal on import** — hides org var UI and fixes ID conflicts for duplicate org vars (CPD-2580)
+- Fixed **CSV export** missing data issues (CPD-664, CPD-2148)
+- Fixed **lipsync rebinding** after audio refactor (CPD-1060)
+- Fixed **undo/redo** issues and multi-node deletion bugs
+- Fixed **flow not opening on duplication** (CPD-3806)
+- Maintained and debugged Jenkins pipeline for Windows + macOS builds including code signing, notarization, and App Center distribution
+
+#### Talespin Services CPD (`talespin-services-cpd`)
+.NET microservice — backend for the Copilot Designer platform.
+
+- Migrated async operations (project duplicate, import, export, deploy, conversation playback) to a new **job queue system** with TTL, deduplication, timeout handling, and WebSocket notification callbacks
+- Added **job monitoring** for active jobs and structured job data wrappers
+- Implemented **ElevenLabs voice updates** including language filtering, fallbacks, and custom errors for orgs without voice access (IMM-12356)
+- Fixed **STT (speech-to-text)** integration and added keyword/conversion scripts
+- Fixed **non-existent Azure voices** and made voice language filtering stricter with fallbacks
+- Maintained Jenkins pipeline deploying to AWS ECR (dev + prod)
+
+#### Talespin Services Assets (`talespin-services-assets`)
+.NET microservice — asset management backend.
+
+- Implemented **list bakes API** with sorting options (CPD-3028)
+- Refactored **queue storage** layer (CPD-3141)
+- Added **Jenkins response deserialization** for all Jenkins API responses (CPD-3481)
+- Allowed **anonymous access** to asset bundle and thumbnail URIs (IMM-12068)
+- Maintained multi-environment Jenkins pipelines deploying to AWS ECR (dev/qa/uat/prod)
+
+#### ITF Immerse Services (`itf-immerse-services`)
+.NET 9 / Aspire microservices platform — the new Immerse backend (Pleiades).
+
+- Added **version endpoints** exposing git SHA, branch, and build timestamp for all services (IMM-10593)
+- Fixed **deep link URL generation** bugs (IMM-10593)
+- Updated **AI scoring model** deployment configuration (IMM-10593)
+- Added **logging to scoring API** for production debugging (IMM-10593)
+- Fixed **excessive saves conflicting with transaction pattern** (IMM-10924)
+- Implemented **module team assignment** API (IMM-11833)
+- Built **module users API** with test coverage (IMM-11829)
+- Added **org average skill scores** and **team average** endpoints (IMM-11829)
+- Fixed **race condition** on concurrent module queries (IMM-11829)
+- Fixed **LessonManifest resolution** to include asset entries for VH thumbnails (IMM-12068)
+
+#### ITF Immerse Apps (`itf-immerse-apps`)
+Nx monorepo — React 19 frontend apps (Dashboard, Passport, PAT) for the Immerse platform.
+
+- Maintained dependency hygiene: updated nuqs, React types, and resolved transitive Next.js vulnerabilities (TSAPP-17, TSAPP-18)
+- Stack: React 19, TanStack Query, TanStack Table, TanStack Form, Radix UI, Tailwind CSS 4, Zod, Nx, Vitest, Playwright, Storybook
+
+#### Talespin Admin Dashboard (`talespin-admin-dashboard`)
+React/TypeScript admin SPA for org and content management.
+
+- Fixed **XSS vulnerability** by wrapping `dangerouslySetInnerHTML` usage in a sanitized `SafeRichTextField` component
+- Readded **MD5 hashing** for BrainCloud app secret verification
+- Migrated from CRA to **Vite**, replacing legacy CRA syntax
+- Bumped Node to 20.19 and resolved Docker build errors
+- Fixed remaining dependency vulnerabilities
+
+#### Talespin BC Authenticator (`talespin-bc-authenticator`)
+Shared TypeScript/React authentication library (published as `.tgz` package) used across streaming player and other apps.
+
+- Maintained and versioned the library across multiple releases (0.3.x → 1.2.x)
+
+#### GenAI Services (`talespin-services-genai`)
+AWS Lambda / Node.js serverless monorepo (Turborepo/Yarn).
+
+- Architected services: **Speech Service** (Azure Cognitive Services TTS/STT proxy), **Conversation Service** (Azure OpenAI + ITF LLM proxy), **Conversation Session Service** (stateful multi-turn conversation management)
+- Deployed via **AWS SAM** with API Gateway (HTTP + WebSocket) and Lambda provisioned concurrency
+- GitHub Actions CI/CD for dev/qa/prod deployments
+
+#### GenAI WebGPU (`genai-webgpu`)
+React/Vite prototype — real-time AI virtual human with WebGPU rendering.
+
+- Built `RealtimeGPTService` using **OpenAI Realtime WebSocket** with function calling for dynamic emotion detection and conversation end detection
+- Integrated **Azure Speech synthesis** with blend shape animation (`blendShapeHandler`) for lip-sync driven by TTS audio
+- Implemented **emotion timeline generation** with validation and optimization
+- Used Zustand stores for conversation state, animation, and emotion management
+
+#### Embedded Streaming Player (`embedded-streamingplayer`)
+Minimal Node.js static file server (zero dependencies) for embedding the streaming player in iframes.
+
+- Built a path-traversal-safe HTTP server using only Node.js built-ins
+
+#### GitOps Services Pleiades (`gitops-services-pleiades`)
+Kubernetes GitOps configuration for Pleiades services.
+
+- Maintained `deployment.yaml` and `Jenkinsfile` for GitOps-driven deployments
+
+---
+
+### Sticky (Personal / Earlier Work) — Game Developer
+*[Dates]*
+
+#### Conan AR Experience (`conan`)
+Unity mobile AR game/experience.
+
+- Fixed video sync issues on low-end devices (downscaled to 1024×576 for improved audio/video sync)
+- Implemented manual rotation mode fallback when compass hardware is absent
+- Fixed AR video glitches (frozen frames, incorrect resets)
+- Added street names and improved top-down map quality
+- Fixed z-fighting and depth issues
+
+---
+
+## Education
+*[Your education details here]*
+
+---
+
+## Contact
+*[Your contact details here]*

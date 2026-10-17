@@ -2,7 +2,11 @@
 
 import { initDirectoryTree } from './directory_tree.js';
 import { initWebSocket } from './socket.js';
-import { createSettingsMenu, toggleSettingsMenu } from './settings_menu.js';
+import {
+    createSettingsMenu,
+    toggleSettingsMenu,
+    openCalibrationOverlay
+} from './settings_menu.js';
 import { setPlaybackData } from './video_player.js';
 
 let currentTreeData = null;
@@ -43,6 +47,14 @@ function renderCacheError(payload, treeContainer) {
 async function main() {
     initializeUI();
     initWebSocket();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    if (
+        urlParams.has('calibration') ||
+        window.location.hash === '#calibration'
+    ) {
+        openCalibrationOverlay();
+    }
 
     const treeContainer = document.getElementById('directory-tree');
     const sortButtons = document.querySelectorAll('#sort-buttons .sort-btn');

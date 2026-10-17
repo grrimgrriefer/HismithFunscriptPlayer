@@ -357,7 +357,8 @@ function initCalibrationOverlayEvents() {
     );
 }
 
-async function openCalibrationOverlay() {
+export async function openCalibrationOverlay() {
+    ensureInit();
     const overlay = document.getElementById('calibration-overlay');
     if (!overlay) return;
 
@@ -368,7 +369,7 @@ async function openCalibrationOverlay() {
     await setupCalibration();
 }
 
-async function closeCalibrationOverlay() {
+export async function closeCalibrationOverlay() {
     const overlay = document.getElementById('calibration-overlay');
     if (!overlay || overlay.classList.contains('hidden')) return;
 
@@ -389,4 +390,15 @@ async function closeCalibrationOverlay() {
     document.body.style.overflow = '';
     overlay.classList.add('hidden');
     overlay.setAttribute('aria-hidden', 'true');
+
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('calibration') || url.hash === '#calibration') {
+        url.searchParams.delete('calibration');
+        if (url.hash === '#calibration') url.hash = '';
+        window.history.replaceState(
+            {},
+            '',
+            url.pathname + (url.search ? url.search : '') + url.hash
+        );
+    }
 }

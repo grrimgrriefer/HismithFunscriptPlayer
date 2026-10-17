@@ -2,15 +2,15 @@
 
 //! Calibration profile and BPM mapping handler module
 //!
-//! This module serves the calibration UI page and exposes API endpoints for
-//! managing device calibration profiles. Profiles are stored as a JSON file
-//! (.calibration_profiles.json) under FUNSCRIPT_SHARE_PATH and map named
-//! profiles to per-range intensity actual measured BPMs.
+//! This module exposes API endpoints for managing device calibration profiles
+//! and redirects requests for the calibration page to the in-app modal overlay.
+//! Profiles are stored as a JSON file (.calibration_profiles.json) under
+//! FUNSCRIPT_SHARE_PATH and map named profiles to per-range intensity actual
+//! measured BPMs.
 
 use crate::AppConfig;
 use crate::utils;
-use actix_files::NamedFile;
-use actix_web::{Error, HttpResponse, Responder, web};
+use actix_web::{http::header, HttpResponse, Responder, web};
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::{Path, PathBuf}};
@@ -19,7 +19,6 @@ type ProfileBpms = HashMap<String, f64>;
 pub type CalibrationProfiles = HashMap<String, ProfileBpms>;
 
 const CALIBRATION_FILE_NAME: &str = ".calibration_profiles.json";
-const CALIBRATION_PAGE_PATH: &str = "./static/calibration.html";
 
 #[derive(Deserialize, Serialize)]
 pub struct SaveProfilePayload {
@@ -39,10 +38,10 @@ async fn write_profiles_file(base_dir: &Path, profiles: &CalibrationProfiles) ->
     utils::write_json_file(&profile_store_path(base_dir), profiles).await
 }
 
-pub async fn handle_calibration_page() -> Result<impl Responder, Error> {
-    Ok(NamedFile::open(CALIBRATION_PAGE_PATH)?
-        .customize()
-        .insert_header(("Cache-Control", "no-cache")))
+pub async fn handle_calibration_page() -> impl Responder {
+    HttpResponse::Found()
+        .insert_header((header::LOCATION, "/site/?calibration=1"))
+        .finish()
 }
 
 #[derive(Serialize)]

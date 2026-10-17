@@ -175,7 +175,6 @@ function triggerNextVideoOverlay(videoElement) {
     showNextVideoOverlay({
         currentVideoRelativePath: state.currentVideoRelativePath,
         playedVideos: getPlayedVideos(),
-        globalTree: state.globalTree,
         onSelectVideo: (candidate) => startNextVideo(candidate),
         onReplay: () => {
             if (videoElement) {
@@ -195,7 +194,6 @@ function triggerNextVideoOverlay(videoElement) {
 
 export function showFolderStartOverlay(folderPath) {
     openFolderStartOverlay(folderPath, {
-        globalTree: state.globalTree,
         onSelectVideo: (candidate) => startNextVideo(candidate),
         onCancel: () => {}
     });
@@ -225,7 +223,7 @@ export async function playVideo(
     sendDeviceCommand(0, 0);
     updateSbsPlayingState();
 
-    initVideoStats(relativePath, state.globalTree);
+    initVideoStats(relativePath);
 
     const videoPlayer = document.getElementById('video-player');
     const videoElement = document.createElement('video');
@@ -266,7 +264,7 @@ export async function playVideo(
         }
         cancelCurrentAnimation();
 
-        recordView(relativePath, state.globalTree);
+        recordView(relativePath);
 
         state.transitionStartTime = Date.now();
         state.transitionTargetValue = 0;

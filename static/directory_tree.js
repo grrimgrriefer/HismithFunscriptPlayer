@@ -9,6 +9,52 @@ import {
     formatDuration
 } from './utils.js';
 
+// ── Flat Tree Map (O(1) Lookups) ───────────────────────────────────────
+
+const nodeMap = new Map();
+
+const normalizePath = (p) => (p ? p.replace(/^\/+|\/+$/g, '') : '');
+
+export function indexTree(root) {
+    nodeMap.clear();
+    if (!root) return;
+
+    function traverse(node) {
+        if (node.path !== undefined) {
+            nodeMap.set(normalizePath(node.path), node);
+        }
+        if (node.children) {
+            for (const child of node.children) {
+                traverse(child);
+            }
+        }
+    }
+    traverse(root);
+}
+
+export function getNodeByPath(path) {
+    if (!path) return null;
+    return nodeMap.get(normalizePath(path)) || null;
+}
+
+export function collectFiles(node) {
+    if (!node) return [];
+    const files = [];
+
+    function traverse(curr) {
+        if (!curr.is_dir) {
+            files.push(curr);
+        } else if (curr.children) {
+            for (const child of curr.children) {
+                traverse(child);
+            }
+        }
+    }
+
+    traverse(node);
+    return files;
+}
+
 // ── Rendering ──────────────────────────────────────────────────────────
 
 function toggleFolder(id) {
@@ -196,6 +242,8 @@ export function initDirectoryTree(treeData, containerElement, sortBy = 'peak') {
         console.error('Directory tree data or container element is missing.');
         return;
     }
+
+    indexTree(treeData);
 
     const openFolders = new Set(
         Array.from(containerElement.querySelectorAll('ul:not(.hidden)'))

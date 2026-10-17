@@ -6,7 +6,7 @@ import {
     volatilityToColor,
     relativeIntensityToColor
 } from './utils.js';
-import { findNodeByPath } from './video_stats_tracker.js';
+import { getNodeByPath } from './directory_tree.js';
 
 const state = {
     nextVideoTimer: null,
@@ -29,14 +29,14 @@ export function hideNextVideoOverlay() {
     if (settingsBtn) settingsBtn.style.display = 'block';
 }
 
-function getStatHtml(candidate, globalTree, mode = 'relative') {
+function getStatHtml(candidate, mode = 'relative') {
     if (!candidate) return '';
 
     const durText = candidate.duration
         ? formatDuration(candidate.duration)
         : '—';
 
-    const node = findNodeByPath(globalTree, candidate.path);
+    const node = getNodeByPath(candidate.path);
     const views = node?.user_stats?.views ?? candidate.views ?? 0;
     const likes = node?.user_stats?.likes ?? candidate.likes ?? 0;
 
@@ -77,13 +77,7 @@ function getStatHtml(candidate, globalTree, mode = 'relative') {
     );
 }
 
-function updateOverlayButtons(
-    candidates,
-    labels,
-    statMode,
-    globalTree,
-    onSelectVideo
-) {
+function updateOverlayButtons(candidates, labels, statMode, onSelectVideo) {
     document.querySelector('#next-lower-btn .next-label').textContent =
         labels[0];
     document.querySelector('#next-similar-btn .next-label').textContent =
@@ -110,7 +104,7 @@ function updateOverlayButtons(
             thumbImg.style.display = 'block';
             thumbImg.src = `/site/thumbnails/${candidate.path}.jpg`;
         }
-        statsEl.innerHTML = getStatHtml(candidate, globalTree, statMode);
+        statsEl.innerHTML = getStatHtml(candidate, statMode);
         btn.onclick = () => onSelectVideo(candidate);
     };
 
@@ -122,7 +116,6 @@ function updateOverlayButtons(
 export async function showNextVideoOverlay({
     currentVideoRelativePath,
     playedVideos,
-    globalTree,
     onSelectVideo,
     onReplay,
     onCancel
@@ -159,7 +152,6 @@ export async function showNextVideoOverlay({
         candidates,
         ['Lower', 'Similar', 'Higher'],
         'relative',
-        globalTree,
         onSelectVideo
     );
 
@@ -199,7 +191,7 @@ export async function showNextVideoOverlay({
 
 export async function showFolderStartOverlay(
     folderPath,
-    { globalTree, onSelectVideo, onCancel }
+    { onSelectVideo, onCancel }
 ) {
     let candidates = { low: null, med: null, high: null };
 
@@ -235,7 +227,6 @@ export async function showFolderStartOverlay(
         },
         ['Low', 'Medium', 'High'],
         'absolute',
-        globalTree,
         onSelectVideo
     );
 

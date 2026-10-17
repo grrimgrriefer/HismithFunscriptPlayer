@@ -8,7 +8,7 @@
 
 use crate::handlers::video_stats::VideoUserStats;
 use crate::funscript::structs::FunscriptStats;
-use serde::{Serialize};
+use serde::Serialize;
 use std::collections::HashMap;
 use std::{
     fs, io,
@@ -25,6 +25,45 @@ pub struct FileNode {
     pub stats: Option<Vec<FunscriptStats>>,
     pub user_stats: Option<VideoUserStats>,
     pub children: Option<Vec<FileNode>>,
+}
+
+impl FileNode {
+    /// Recursively search for a node matching the specified relative path.
+    pub fn find_by_path(&self, path: &str) -> Option<&FileNode> {
+        let clean_path = path.trim_matches('/');
+        self.find_by_path_internal(clean_path)
+    }
+
+    fn find_by_path_internal(&self, path: &str) -> Option<&FileNode> {
+        if self.path == path {
+            return Some(self);
+        }
+        if let Some(ref children) = self.children {
+            for child in children {
+                if let Some(found) = child.find_by_path_internal(path) {
+                    return Some(found);
+                }
+            }
+        }
+        None
+    }
+
+    /// Recursively collect references to all non-directory (file) nodes under this node.
+    pub fn collect_files(&self) -> Vec<&FileNode> {
+        let mut files = Vec::new();
+        self.collect_files_into(&mut files);
+        files
+    }
+
+    fn collect_files_into<'a>(&'a self, files: &mut Vec<&'a FileNode>) {
+        if !self.is_dir {
+            files.push(self);
+        } else if let Some(ref children) = self.children {
+            for child in children {
+                child.collect_files_into(files);
+            }
+        }
+    }
 }
 
 fn join_relative_path(parent: &str, name: &str) -> String {

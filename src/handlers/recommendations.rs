@@ -244,25 +244,7 @@ pub async fn get_folder_start_recommendations(
 }
 
 fn get_videos_in_folder(tree: &FileNode, folder_path: &str) -> Vec<FileNode> {
-    fn find_node<'a>(node: &'a FileNode, path: &str) -> Option<&'a FileNode> {
-        if node.path == path && node.is_dir {
-            return Some(node);
-        }
-        if let Some(ref children) = node.children {
-            for child in children {
-                if let Some(found) = find_node(child, path) {
-                    return Some(found);
-                }
-            }
-        }
-        None
-    }
-
-    let target_node = if folder_path.is_empty() {
-        Some(tree)
-    } else {
-        find_node(tree, folder_path)
-    };
+    let target_node = tree.find_by_path(folder_path);
 
     let mut result = Vec::new();
     if let Some(node) = target_node {

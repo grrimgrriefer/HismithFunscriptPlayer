@@ -2,6 +2,7 @@
 
 import { getFunscriptDuration } from './funscript_handler.js';
 import { showTemporaryOverlayMessage } from './utils_ui.js';
+import { getNodeByPath } from './directory_tree.js';
 
 const state = {
     currentVideoRelativePath: null,
@@ -13,23 +14,11 @@ const state = {
     lastPlayTick: null
 };
 
-export function findNodeByPath(node, path) {
-    if (!node) return null;
-    if (node.path === path) return node;
-    if (node.children) {
-        for (const child of node.children) {
-            const found = findNodeByPath(child, path);
-            if (found) return found;
-        }
-    }
-    return null;
-}
-
 export function getPlayedVideos() {
     return state.playedVideos;
 }
 
-export function initVideoStats(relativePath, globalTree) {
+export function initVideoStats(relativePath) {
     state.currentVideoRelativePath = relativePath;
     state.playedVideos.add(relativePath);
     state.viewRecorded = false;
@@ -45,7 +34,7 @@ export function initVideoStats(relativePath, globalTree) {
     likeBtn.style.display = 'block';
     likeBtn.style.right = '110px';
 
-    const currentNode = findNodeByPath(globalTree, relativePath);
+    const currentNode = getNodeByPath(relativePath);
     const currentLikes = currentNode?.user_stats?.likes ?? 0;
     likeBtn.textContent = `❤️ ${currentLikes}`;
     likeBtn.disabled = alreadyLikedThisSession;
@@ -62,7 +51,7 @@ export function initVideoStats(relativePath, globalTree) {
         state.autoLikeRecorded = true;
         likeBtn.disabled = true;
 
-        const updated = await recordLike(relativePath, globalTree);
+        const updated = await recordLike(relativePath);
         if (updated) {
             showTemporaryOverlayMessage(`Liked ❤️ (${updated.likes})`, 1000);
         }
@@ -84,7 +73,7 @@ export function resetPlayTick() {
     state.lastPlayTick = null;
 }
 
-export function recordView(relativePath, globalTree) {
+export function recordView(relativePath) {
     if (state.viewRecorded || !relativePath) return;
     state.viewRecorded = true;
 
@@ -95,13 +84,13 @@ export function recordView(relativePath, globalTree) {
     })
         .then((res) => res.json())
         .then((updated) => {
-            const node = findNodeByPath(globalTree, relativePath);
+            const node = getNodeByPath(relativePath);
             if (node) node.user_stats = updated;
         })
         .catch((err) => console.error('Failed to record view', err));
 }
 
-export async function recordLike(relativePath, globalTree) {
+export async function recordLike(relativePath) {
     if (!relativePath || state.likedVideos.has(relativePath)) return null;
     state.likedVideos.add(relativePath);
 
@@ -113,7 +102,7 @@ export async function recordLike(relativePath, globalTree) {
         });
         if (res.ok) {
             const updated = await res.json();
-            const node = findNodeByPath(globalTree, relativePath);
+            const node = getNodeByPath(relativePath);
             if (node) node.user_stats = updated;
 
             const likeBtn = document.getElementById('like-button');

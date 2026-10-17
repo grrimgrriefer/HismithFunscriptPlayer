@@ -7,7 +7,7 @@
 //! (.funscripts_cache.json) beside the funscript base and maps relative file paths
 //! to computed entries (sha256, average/peak intensity, sample counts, timestamp).
 
-use crate::funscript::{self, FunscriptData, FunscriptStats};
+use crate::funscript::{self, structs::{FunscriptData, FunscriptStats}};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -83,9 +83,9 @@ fn build_entry(content: &str, sha256: String) -> Result<FunscriptCacheEntry, Str
     }
 
     let actions = data.actions.clone();
-    let intensity = funscript::actions_to_intensity_curve(&actions, &[]);
-    let (avg, peak) = funscript::calculate_intensity_stats(&intensity);
-    let volatility = funscript::calculate_volatility(&actions);
+    let intensity = funscript::curves::actions_to_intensity_curve(&actions, &[]);
+    let (avg, peak) = funscript::curves::calculate_intensity_stats(&intensity);
+    let volatility = funscript::volatility::calculate_volatility(&actions);
 
     Ok(FunscriptCacheEntry {
         sha256,

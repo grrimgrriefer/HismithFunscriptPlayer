@@ -3,9 +3,9 @@
 import {
     toVideoUrl,
     toFunscriptUrl,
-    isTextInput,
     intensityToColor,
-    volatilityToColor
+    volatilityToColor,
+    formatDuration
 } from './utils.js';
 import { showTemporaryOverlayMessage } from './utils_ui.js';
 

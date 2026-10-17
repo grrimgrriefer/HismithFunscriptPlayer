@@ -7,7 +7,7 @@
 
 use crate::AppConfig;
 use crate::directory_browser::{self, FileNode};
-use crate::funscript::FunscriptStats;
+use crate::funscript::structs::FunscriptStats;
 use crate::funscripts_cache;
 use crate::handlers::video_stats;
 use actix_web::{HttpResponse, Responder, web};

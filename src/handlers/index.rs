@@ -11,7 +11,7 @@ use crate::AppConfig;
 use crate::directory_browser::{self, FileNode};
 use crate::funscripts_cache;
 use crate::handlers::video_stats::{self, VideoStatsMap};
-use crate::funscript::FunscriptStats;
+use crate::funscript::structs::FunscriptStats;
 use crate::utils;
 use actix_files::NamedFile;
 use actix_web::{HttpResponse, Responder, Result, web};

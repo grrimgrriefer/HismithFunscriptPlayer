@@ -8,7 +8,7 @@
 
 use crate::AppConfig;
 use crate::device::device_manager;
-use crate::funscript::{self, FunscriptData};
+use crate::funscript::{self, structs::FunscriptData};
 use crate::utils;
 use actix_web::{HttpResponse, web};
 use log::{info, warn};
@@ -75,11 +75,11 @@ pub async fn handle_funscript(
 
     let speed = query.get("speed").map(|s| s.as_str()).unwrap_or("normal");
     if speed == "halfbeat" {
-        original.actions = funscript::half_beat_actions(&original.actions);
+        original.actions = funscript::generation::half_beat_actions(&original.actions);
     } else if speed == "quarterbeat" {
-        original.actions = funscript::quarter_beat_actions(&original.actions);
+        original.actions = funscript::generation::quarter_beat_actions(&original.actions);
     } else if speed == "doublebeat" {
-        original.actions = funscript::double_beat_actions(&original.actions);
+        original.actions = funscript::generation::double_beat_actions(&original.actions);
     }
 
     let cal_points = device_manager::get_active_calibration_points();
@@ -93,10 +93,10 @@ pub async fn handle_funscript(
 
     let (average, peak) = intensity
         .as_ref()
-        .map(|i| funscript::calculate_intensity_stats(&i.actions))
+        .map(|i| funscript::curves::calculate_intensity_stats(&i.actions))
         .unwrap_or((0.0, 0.0));
 
-    let volatility = funscript::calculate_volatility(&original.actions);
+    let volatility = funscript::volatility::calculate_volatility(&original.actions);
     let duration = original.actions.last().map(|a| a.at / 1000).unwrap_or(0);
 
     HttpResponse::Ok().json(FunscriptResponse {
@@ -185,7 +185,7 @@ fn generate_intensity(original: &FunscriptData, cal_points: &[(f64, f64)]) -> Re
     }
 
     let actions = original.actions.clone();
-    let intensity_actions = funscript::actions_to_intensity_curve(&actions, cal_points);
+    let intensity_actions = funscript::curves::actions_to_intensity_curve(&actions, cal_points);
 
     if intensity_actions.is_empty() {
         return Err(

@@ -40,9 +40,15 @@ pub use config::AppConfig;
 pub mod directory_browser;
 pub mod funscripts_cache;
 pub mod client_socket;
-pub mod funscript;
 pub mod utils;
 
 pub mod device {
     pub mod device_manager;
+}
+
+pub mod funscript {
+    pub mod curves;
+    pub mod generation;
+    pub mod structs;
+    pub mod volatility;
 }

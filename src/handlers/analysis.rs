@@ -4,7 +4,7 @@
 //! TODO: get this in the front end (maybe button in settings menu?)
 
 use crate::AppConfig;
-use crate::funscript::FunscriptData;
+use crate::funscript::structs::FunscriptData;
 use actix_web::{HttpResponse, Responder, web};
 use std::path::Path;
 use walkdir::WalkDir;

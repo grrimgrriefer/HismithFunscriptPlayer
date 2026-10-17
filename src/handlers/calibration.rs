@@ -47,15 +47,15 @@ pub async fn handle_calibration_page() -> Result<impl Responder, Error> {
 
 #[derive(Serialize)]
 pub struct BpmMappingResponse {
-    pub points: Vec<crate::funscript::BpmIntensityPoint>,
+    pub points: Vec<crate::funscript::structs::BpmIntensityPoint>,
     pub lut: HashMap<String, f64>,
 }
 
 pub async fn get_bpm_mapping() -> impl Responder {
-    let points = crate::funscript::get_bpm_intensity_mapping();
+    let points = crate::funscript::curves::get_bpm_intensity_mapping();
     let mut lut = HashMap::new();
     for i in 0..=100 {
-        let bpm = crate::funscript::intensity_to_bpm(i as f64);
+        let bpm = crate::funscript::curves::intensity_to_bpm(i as f64);
         lut.insert(i.to_string(), bpm);
     }
     HttpResponse::Ok().json(BpmMappingResponse { points, lut })

@@ -7,7 +7,7 @@
 //! to display video files in the web interface.
 
 use crate::handlers::video_stats::VideoUserStats;
-use crate::funscript::FunscriptStats;
+use crate::funscript::structs::FunscriptStats;
 use serde::{Serialize};
 use std::collections::HashMap;
 use std::{

@@ -206,3 +206,30 @@ pub fn get_cache_match_keys(file_path: &str) -> (String, String) {
 pub fn is_matching_key(key: &str, exact_match: &str, variant_prefix: &str) -> bool {
     key == exact_match || (key.starts_with(variant_prefix) && key.ends_with(".funscript"))
 }
+
+/// Queries the cache for all entries matching the given file path (exact match and variants).
+///
+/// If an exact match (`<stem>.funscript`) is present, it is positioned first in the returned vector.
+pub fn query_cache<'a, K, V>(
+    cache: impl IntoIterator<Item = (&'a K, &'a V)>,
+    file_path: &str,
+) -> Vec<(&'a K, &'a V)>
+where
+    K: AsRef<str> + 'a,
+    V: 'a,
+{
+    let (exact_match, variant_prefix) = get_cache_match_keys(file_path);
+    let mut matches: Vec<(&'a K, &'a V)> = cache
+        .into_iter()
+        .filter(|(key, _)| is_matching_key(key.as_ref(), &exact_match, &variant_prefix))
+        .collect();
+
+    // Ensure the exact match is first if present
+    if let Some(pos) = matches.iter().position(|(k, _)| k.as_ref() == exact_match) {
+        if pos != 0 {
+            matches.swap(0, pos);
+        }
+    }
+
+    matches
+}

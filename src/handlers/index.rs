@@ -82,28 +82,25 @@ fn extract_stats_for_file(
     file_path: &str,
     cache: &serde_json::Map<String, serde_json::Value>,
 ) -> Option<Vec<FunscriptStats>> {
-    let (exact_match, variant_prefix) = funscripts_cache::get_cache_match_keys(file_path);
     let mut stats = Vec::new();
 
-    for (key, val) in cache {
-        if funscripts_cache::is_matching_key(key, &exact_match, &variant_prefix) {
-            let peak = val.get("peak").and_then(|v| v.as_f64()).unwrap_or(0.0);
-            let avg = val.get("avg").and_then(|v| v.as_f64()).unwrap_or(0.0);
-            let volatility = val.get("volatility").and_then(|v| v.as_f64()).unwrap_or(0.0);
-            let duration = val.get("duration").and_then(|v| v.as_u64()).unwrap_or(0);
+    for (_key, val) in funscripts_cache::query_cache(cache, file_path) {
+        let peak = val.get("peak").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let avg = val.get("avg").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let volatility = val.get("volatility").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let duration = val.get("duration").and_then(|v| v.as_u64()).unwrap_or(0);
 
-            if peak.is_finite() || avg.is_finite() {
-                // Rounding required by JS badges
-                let rounded_peak = if peak.is_finite() { peak.round() } else { f64::NAN };
-                let rounded_avg = if avg.is_finite() { avg.round() } else { f64::NAN };
-                let rounded_vol = if volatility.is_finite() { (volatility * 10.0).round() / 10.0 } else { f64::NAN };
-                stats.push(FunscriptStats {
-                    peak: rounded_peak,
-                    avg: rounded_avg,
-                    volatility: rounded_vol,
-                    duration,
-                });
-            }
+        if peak.is_finite() || avg.is_finite() {
+            // Rounding required by JS badges
+            let rounded_peak = if peak.is_finite() { peak.round() } else { f64::NAN };
+            let rounded_avg = if avg.is_finite() { avg.round() } else { f64::NAN };
+            let rounded_vol = if volatility.is_finite() { (volatility * 10.0).round() / 10.0 } else { f64::NAN };
+            stats.push(FunscriptStats {
+                peak: rounded_peak,
+                avg: rounded_avg,
+                volatility: rounded_vol,
+                duration,
+            });
         }
     }
 
@@ -205,18 +202,10 @@ fn apply_cache_fallbacks(cache: &mut serde_json::Map<String, serde_json::Value>,
         if let Some(fallback_path) = utils::get_parent_fallback_path(rel_video) {
             let fallback_base = fallback_path.with_extension("").to_string_lossy().to_string();
 
-            let exact_match = format!("{}.funscript", fallback_base);
-            let variant_prefix = format!("{}.", fallback_base);
-
-            for (cache_key, stats) in cache.iter() {
-                let is_exact = cache_key == &exact_match;
-                let is_variant = cache_key.starts_with(&variant_prefix) && cache_key.ends_with(".funscript");
-
-                if is_exact || is_variant {
-                    let suffix = &cache_key[fallback_base.len()..];
-                    let alias_key = format!("{}{}", video_stem_str, suffix);
-                    aliases.push((alias_key, stats.clone()));
-                }
+            for (cache_key, stats) in funscripts_cache::query_cache(&*cache, &fallback_path.to_string_lossy()) {
+                let suffix = &cache_key[fallback_base.len()..];
+                let alias_key = format!("{}{}", video_stem_str, suffix);
+                aliases.push((alias_key, stats.clone()));
             }
         }
     }

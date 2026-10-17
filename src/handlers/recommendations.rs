@@ -281,14 +281,9 @@ fn get_stats_for_video(
     file_path: &str,
     cache: &funscripts_cache::FunscriptCache,
 ) -> Option<FunscriptStats> {
-    let (exact_match, variant_prefix) = funscripts_cache::get_cache_match_keys(file_path);
-
-    for (key, val) in cache {
-        if funscripts_cache::is_matching_key(key, &exact_match, &variant_prefix) {
-            return Some(val.stats);
-        }
-    }
-    None
+    funscripts_cache::query_cache(cache, file_path)
+        .first()
+        .map(|(_, val)| val.stats)
 }
 
 fn find_random_video(

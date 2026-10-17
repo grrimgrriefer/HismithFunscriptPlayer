@@ -28,6 +28,14 @@ pub struct FunscriptResponse {
     pub duration: u64,
 }
 
+fn is_valid_variant(variant: &str) -> bool {
+    variant.is_empty()
+        || variant == "original"
+        || variant
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
 pub async fn handle_funscript(
     config: web::Data<AppConfig>,
     path: web::Path<String>,
@@ -36,22 +44,34 @@ pub async fn handle_funscript(
     let video_path = path.into_inner();
     let base_path = &config.funscript_share_path;
 
-    if query.contains_key("list") {
-        let variants = list_variants(base_path, &video_path);
-        return HttpResponse::Ok().json(serde_json::json!({ "variants": variants }));
-    }
+    // Sanitize the relative path against the base share directory
+    let safe_video_path = match utils::resolve_safe_path(base_path, &video_path) {
+        Ok(p) => p,
+        Err(_) => {
+            return HttpResponse::BadRequest().body("Invalid video path");
+        }
+    };
 
     let variant = query
         .get("variant")
         .map(|s| s.as_str())
         .unwrap_or("original");
 
-    let funscript_path = build_funscript_path(&video_path, base_path, variant);
+    if !is_valid_variant(variant) {
+        return HttpResponse::BadRequest().body("Invalid variant parameter");
+    }
+
+    if query.contains_key("list") {
+        let variants = list_variants(base_path, &safe_video_path);
+        return HttpResponse::Ok().json(serde_json::json!({ "variants": variants }));
+    }
+
+    let funscript_path = build_funscript_path(&safe_video_path, variant);
 
     let mut original_res = read_funscript(&funscript_path).await;
 
     if original_res.is_err() {
-        if let Some(parent_path) = build_parent_funscript_path(&video_path, base_path, variant) {
+        if let Some(parent_path) = build_parent_funscript_path(&safe_video_path, base_path, variant) {
             if let Ok(data) = read_funscript(&parent_path).await {
                 original_res = Ok(data);
             }
@@ -109,25 +129,25 @@ pub async fn handle_funscript(
     })
 }
 
-fn list_variants(base_path: &Path, video_path: &str) -> Vec<String> {
-    let v_path = Path::new(video_path);
-    let stem = v_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+fn list_variants(base_path: &Path, safe_video_path: &Path) -> Vec<String> {
+    let stem = safe_video_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
     let mut variants = Vec::new();
 
-    let primary_dir = base_path
-        .join(v_path)
+    let primary_dir = safe_video_path
         .parent()
-        .unwrap_or(base_path)
-        .to_path_buf();
-    variants.extend(collect_variants_from_disk(&primary_dir, stem));
+        .unwrap_or(base_path);
+    variants.extend(collect_variants_from_disk(primary_dir, stem));
 
-    if let Some(fallback_rel) = utils::get_parent_fallback_path(v_path) {
-        let parent_dir = base_path
-            .join(fallback_rel)
-            .parent()
-            .unwrap_or(base_path)
-            .to_path_buf();
-        variants.extend(collect_variants_from_disk(&parent_dir, stem));
+    if let Ok(rel_path) = safe_video_path.strip_prefix(base_path) {
+        if let Some(fallback_rel) = utils::get_parent_fallback_path(rel_path) {
+            let parent_dir = base_path.join(fallback_rel);
+            if let Some(dir) = parent_dir.parent() {
+                variants.extend(collect_variants_from_disk(dir, stem));
+            }
+        }
     }
 
     variants.sort();
@@ -158,18 +178,23 @@ fn collect_variants_from_disk(dir: &Path, stem: &str) -> Vec<String> {
     variants
 }
 
-fn build_funscript_path(video_path: &str, base_path: &Path, variant: &str) -> PathBuf {
-    let full_path = base_path.join(video_path);
+fn build_funscript_path(safe_video_path: &Path, variant: &str) -> PathBuf {
     if variant.is_empty() || variant == "original" {
-        full_path.with_extension("funscript")
+        safe_video_path.with_extension("funscript")
     } else {
-        full_path.with_extension(format!("{}.funscript", variant))
+        safe_video_path.with_extension(format!("{}.funscript", variant))
     }
 }
 
-fn build_parent_funscript_path(video_path: &str, base_path: &Path, variant: &str) -> Option<PathBuf> {
-    let fallback_rel = utils::get_parent_fallback_path(Path::new(video_path))?;
-    Some(build_funscript_path(&fallback_rel.to_string_lossy(), base_path, variant))
+fn build_parent_funscript_path(
+    safe_video_path: &Path,
+    base_path: &Path,
+    variant: &str,
+) -> Option<PathBuf> {
+    let rel_path = safe_video_path.strip_prefix(base_path).ok()?;
+    let fallback_rel = utils::get_parent_fallback_path(rel_path)?;
+    let fallback_full = base_path.join(fallback_rel);
+    Some(build_funscript_path(&fallback_full, variant))
 }
 
 async fn read_funscript(path: &Path) -> Result<FunscriptData, String> {

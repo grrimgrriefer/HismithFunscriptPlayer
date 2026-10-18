@@ -1,7 +1,11 @@
 // static/video_stats_tracker.js
 
 import { getFunscriptDuration } from './funscript_handler.js';
-import { showTemporaryOverlayMessage } from './utils_ui.js';
+import {
+    showTemporaryOverlayMessage,
+    showAutoLikeToast,
+    dismissAutoLikeToast
+} from './utils_ui.js';
 import { getNodeByPath } from './directory_tree.js';
 
 const state = {
@@ -19,6 +23,7 @@ export function getPlayedVideos() {
 }
 
 export function initVideoStats(relativePath) {
+    dismissAutoLikeToast();
     state.currentVideoRelativePath = relativePath;
     state.playedVideos.add(relativePath);
     state.viewRecorded = false;
@@ -64,6 +69,10 @@ export function trackPlayTick(videoElement) {
         const dt = Math.min(now - state.lastPlayTick, 250);
         if (!videoElement.paused && !videoElement.seeking) {
             state.actualPlayTimeMs += dt;
+            checkAndTriggerAutoLike(
+                videoElement,
+                state.currentVideoRelativePath
+            );
         }
     }
     state.lastPlayTick = now;
@@ -119,11 +128,48 @@ export async function recordLike(relativePath) {
     return null;
 }
 
-export function checkAndTriggerAutoLike(
-    videoElement,
-    relativePath,
-    globalTree
-) {
+export async function recordUnlike(relativePath) {
+    if (!relativePath) return null;
+    state.likedVideos.delete(relativePath);
+
+    try {
+        const res = await fetch('/api/video-stats/unlike', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ video_path: relativePath })
+        });
+        if (res.ok) {
+            const updated = await res.json();
+            const node = getNodeByPath(relativePath);
+            if (node) node.user_stats = updated;
+
+            const likeBtn = document.getElementById('like-button');
+            if (likeBtn && state.currentVideoRelativePath === relativePath) {
+                likeBtn.textContent = `❤️ ${updated.likes}`;
+                likeBtn.disabled = false;
+                likeBtn.title = 'Like Video';
+            }
+            return updated;
+        }
+    } catch (err) {
+        console.error('Failed to record unlike', err);
+    }
+
+    const node = getNodeByPath(relativePath);
+    if (node?.user_stats && node.user_stats.likes > 0) {
+        node.user_stats.likes -= 1;
+    }
+    const currentLikes = node?.user_stats?.likes ?? 0;
+    const likeBtn = document.getElementById('like-button');
+    if (likeBtn && state.currentVideoRelativePath === relativePath) {
+        likeBtn.textContent = `❤️ ${currentLikes}`;
+        likeBtn.disabled = false;
+        likeBtn.title = 'Like Video';
+    }
+    return { likes: currentLikes };
+}
+
+export function checkAndTriggerAutoLike(videoElement, relativePath) {
     if (
         state.autoLikeRecorded ||
         !relativePath ||
@@ -133,21 +179,30 @@ export function checkAndTriggerAutoLike(
     }
 
     const durationMs =
-        videoElement?.duration && isFinite(videoElement.duration)
+        videoElement?.duration &&
+        isFinite(videoElement.duration) &&
+        videoElement.duration > 0
             ? videoElement.duration * 1000
             : getFunscriptDuration();
 
-    const minThresholdMs =
-        durationMs > 0 ? Math.min(durationMs * 0.4, 30000) : 15000;
+    if (!durationMs || durationMs <= 0) {
+        return;
+    }
+
+    // Must be watched for at least 90% of the whole video duration
+    const minThresholdMs = durationMs * 0.9;
 
     if (state.actualPlayTimeMs >= minThresholdMs) {
         state.autoLikeRecorded = true;
-        recordLike(relativePath, globalTree).then((updated) => {
+        recordLike(relativePath).then((updated) => {
             if (updated) {
-                showTemporaryOverlayMessage(
-                    `Auto-liked ❤️ (${updated.likes})`,
-                    1200
-                );
+                showAutoLikeToast({
+                    likes: updated.likes,
+                    durationMs: 15000,
+                    onUndo: async () => {
+                        await recordUnlike(relativePath);
+                    }
+                });
             }
         });
     }

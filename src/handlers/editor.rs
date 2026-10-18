@@ -16,7 +16,7 @@ use crate::utils;
 use actix_files::NamedFile;
 use actix_web::{Error, HttpResponse, Responder, web};
 use serde::Deserialize;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tokio::fs;
 
 /// Serve the in-browser funscript editor page (static HTML).

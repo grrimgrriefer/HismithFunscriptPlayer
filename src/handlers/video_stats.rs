@@ -57,6 +57,10 @@ pub enum StatsCommand {
         path: String,
         responder: oneshot::Sender<VideoUserStats>,
     },
+    RecordUnlike {
+        path: String,
+        responder: oneshot::Sender<VideoUserStats>,
+    },
     GetStats {
         responder: oneshot::Sender<VideoStatsMap>,
     },
@@ -85,6 +89,15 @@ impl StatsQueue {
         let (tx, rx) = oneshot::channel();
         self.sender
             .send(StatsCommand::RecordLike { path, responder: tx })
+            .await
+            .map_err(|_| "Stats worker disconnected")?;
+        rx.await.map_err(|_| "Failed to receive worker response")
+    }
+
+    pub async fn record_unlike(&self, path: String) -> Result<VideoUserStats, &'static str> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(StatsCommand::RecordUnlike { path, responder: tx })
             .await
             .map_err(|_| "Stats worker disconnected")?;
         rx.await.map_err(|_| "Failed to receive worker response")
@@ -126,6 +139,15 @@ pub async fn run_stats_worker(
             StatsCommand::RecordLike { path, responder } => {
                 let entry = stats.entry(path).or_default();
                 entry.likes += 1;
+                let updated = entry.clone();
+                if let Err(e) = write_video_stats(&base_dir, &stats).await {
+                    log::error!("Failed to persist stats: {e}");
+                }
+                let _ = responder.send(updated);
+            }
+            StatsCommand::RecordUnlike { path, responder } => {
+                let entry = stats.entry(path).or_default();
+                entry.likes = entry.likes.saturating_sub(1);
                 let updated = entry.clone();
                 if let Err(e) = write_video_stats(&base_dir, &stats).await {
                     log::error!("Failed to persist stats: {e}");
@@ -195,6 +217,21 @@ pub async fn record_like(
     }
 
     match queue.record_like(path).await {
+        Ok(entry) => HttpResponse::Ok().json(entry),
+        Err(e) => HttpResponse::InternalServerError().body(e),
+    }
+}
+
+pub async fn record_unlike(
+    queue: web::Data<StatsQueue>,
+    payload: web::Json<VideoActionPayload>,
+) -> impl Responder {
+    let path = payload.video_path.trim().to_string();
+    if path.is_empty() {
+        return HttpResponse::BadRequest().body("Missing video path");
+    }
+
+    match queue.record_unlike(path).await {
         Ok(entry) => HttpResponse::Ok().json(entry),
         Err(e) => HttpResponse::InternalServerError().body(e),
     }

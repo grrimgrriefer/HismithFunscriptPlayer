@@ -32,6 +32,7 @@ pub fn setup_routes(cfg: &mut web::ServiceConfig) {
                 .route("/video-stats", web::get().to(video_stats::get_stats))
                 .route("/video-stats/view", web::post().to(video_stats::record_view))
                 .route("/video-stats/like", web::post().to(video_stats::record_like))
+                .route("/video-stats/unlike", web::post().to(video_stats::record_unlike))
         )
         .service(
             web::scope("/site")

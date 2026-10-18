@@ -15,7 +15,7 @@ use log::{info, warn};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fs as stdfs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tokio::fs;
 
 #[derive(Serialize, Debug)]

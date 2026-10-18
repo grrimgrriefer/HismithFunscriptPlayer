@@ -1081,6 +1081,188 @@ button#toggle-directory {
     display: none;
 }
 
+/* ── Auto-like Toast ────────── */
+.autolike-toast {
+    position: fixed;
+    bottom: 100px;
+    right: 24px;
+    z-index: 2000;
+    user-select: none;
+    cursor: pointer;
+    transition:
+        transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+        opacity 0.3s ease;
+    animation: autolikeSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.autolike-toast.fade-out {
+    opacity: 0;
+    transform: translateY(12px) scale(0.95);
+    pointer-events: none;
+}
+
+@keyframes autolikeSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.autolike-pill {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(30, 30, 30, 0.88);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 64, 129, 0.35);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    border-radius: 20px;
+    padding: 6px 14px;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 500;
+    gap: 6px;
+    overflow: hidden;
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    max-width: 125px;
+    white-space: nowrap;
+}
+
+.autolike-toast:hover .autolike-pill,
+.autolike-toast.expanded .autolike-pill {
+    max-width: 280px;
+    background: rgba(35, 35, 35, 0.95);
+    border-color: rgba(255, 64, 129, 0.7);
+    box-shadow:
+        0 6px 20px rgba(255, 64, 129, 0.25),
+        0 4px 12px rgba(0, 0, 0, 0.6);
+}
+
+.autolike-heart {
+    font-size: 14px;
+    animation: autolikeHeartBeat 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes autolikeHeartBeat {
+    from {
+        transform: scale(1);
+    }
+    to {
+        transform: scale(1.15);
+    }
+}
+
+.autolike-text {
+    font-weight: 600;
+    color: #f0f0f0;
+}
+
+.autolike-expandable {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    max-width: 0;
+    overflow: hidden;
+    transition:
+        opacity 0.25s ease,
+        max-width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.autolike-toast:hover .autolike-expandable,
+.autolike-toast.expanded .autolike-expandable {
+    opacity: 1;
+    max-width: 140px;
+}
+
+.autolike-count {
+    color: #bbb;
+    font-size: 12px;
+}
+
+.autolike-undo-btn {
+    background: #ff4081;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    line-height: 1.2;
+    transition:
+        background-color 0.2s,
+        transform 0.1s;
+}
+
+.autolike-undo-btn:hover {
+    background: #f50057;
+    transform: scale(1.05);
+}
+
+.autolike-undo-btn:active {
+    transform: scale(0.96);
+}
+
+.autolike-toast.cancelled .autolike-pill {
+    border-color: #888;
+    background: rgba(45, 45, 45, 0.95);
+}
+
+.autolike-toast.cancelled .autolike-undo-btn {
+    background: #555;
+    cursor: default;
+    transform: none;
+}
+
+.autolike-progress-track {
+    position: absolute;
+    bottom: 0;
+    left: 10px;
+    right: 10px;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 1px;
+    overflow: hidden;
+}
+
+.autolike-progress-bar {
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(90deg, #ff4081, #ff80ab);
+    transform-origin: left center;
+    animation: autolikeProgress linear forwards;
+}
+
+.autolike-toast:hover .autolike-progress-bar {
+    animation-play-state: paused;
+}
+
+@keyframes autolikeProgress {
+    from {
+        transform: scaleX(1);
+    }
+    to {
+        transform: scaleX(0);
+    }
+}
+
+body.sbs-playing #autolike-toast {
+    display: none !important;
+}
+
+@media (max-width: 768px) {
+    .autolike-toast {
+        bottom: 16px;
+        right: 16px;
+    }
+}
+
 /* ── Mobile Responsiveness ────────────────────────────────────────────── */
 @media (max-width: 768px) {
     #directory-container {

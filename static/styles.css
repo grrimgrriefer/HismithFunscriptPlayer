@@ -1081,35 +1081,6 @@ button#toggle-directory {
     display: none;
 }
 
-.search-container {
-    padding: 10px;
-    background: rgba(40, 40, 40, 0.95);
-    border-bottom: 1px solid #3c3c3c;
-}
-
-.search-result-item {
-    padding: 8px;
-    border-bottom: 1px solid #3c3c3c;
-    transition: background-color 0.2s;
-}
-
-.search-result-item:hover {
-    background-color: #323232;
-}
-
-.video-metadata {
-    font-size: 0.9em;
-    color: #b4b4b4;
-    margin-top: 4px;
-}
-
-.video-metadata span {
-    margin-right: 12px;
-    color: #aaa;
-    font-size: 0.9em;
-    display: inline-block;
-}
-
 /* ── Mobile Responsiveness ────────────────────────────────────────────── */
 @media (max-width: 768px) {
     #directory-container {

@@ -3,7 +3,7 @@
 //! Funscript editor handler module
 //!
 //! Serves the in-browser funscript editor page and handles saving edited
-//! funscript data. Accepts a video path, action list, and optional variant
+//! funscript data. Accepts a video path, tap-timestamps list, and optional variant
 //! name, validates inputs for path safety and variant format, then writes
 //! the resulting .funscript file under FUNSCRIPT_SHARE_PATH. Triggers a
 //! background cache refresh after successful writes.
@@ -87,7 +87,7 @@ pub async fn save_funscript(
         Err(msg) => return HttpResponse::BadRequest().json(msg),
     };
 
-    let output_path = build_funscript_path(share_path, &relative_video_path, variant.as_deref());
+    let output_path = utils::build_funscript_path(share_path, &relative_video_path, variant.as_deref());
 
     let actions = funscript::generation::generate_funscript_actions_from_taps(&request.taps);
     let funscript_data = FunscriptData {
@@ -137,16 +137,6 @@ fn normalize_variant(variant: Option<&str>) -> Result<Option<String>, &'static s
     } else {
         Err("Invalid variant. Use letters, numbers, '_' or '-'.")
     }
-}
-
-fn build_funscript_path(root: &Path, relative_video_path: &Path, variant: Option<&str>) -> PathBuf {
-    let mut path = root.join(relative_video_path);
-    let extension = match variant {
-        Some(v) => format!("{v}.funscript"),
-        None => "funscript".to_string(),
-    };
-    path.set_extension(extension);
-    path
 }
 
 fn refresh_cache_in_background(share_path: PathBuf) {

@@ -8,6 +8,33 @@ use std::io::ErrorKind;
 use std::path::{Component, Path, PathBuf};
 use tokio::fs;
 
+/// Builds the path to a `.funscript` file given a base directory, a relative video path,
+/// and an optional variant name.
+///
+/// If `variant` is None, empty, or `"original"`, `.funscript` is used.
+/// Otherwise, `.{variant}.funscript` is used.
+pub fn build_funscript_path(
+    base_path: &Path,
+    relative_path: &Path,
+    variant: Option<&str>,
+) -> PathBuf {
+    let extension = match variant.map(str::trim).filter(|v| !v.is_empty() && *v != "original") {
+        Some(v) => format!("{v}.funscript"),
+        None => "funscript".to_string(),
+    };
+    base_path.join(relative_path).with_extension(extension)
+}
+
+/// Builds the parent fallback path to a `.funscript` file if a parent directory fallback exists.
+pub fn build_parent_funscript_path(
+    base_path: &Path,
+    relative_path: &Path,
+    variant: Option<&str>,
+) -> Option<PathBuf> {
+    let fallback_rel = get_parent_fallback_path(relative_path)?;
+    Some(build_funscript_path(base_path, &fallback_rel, variant))
+}
+
 /// Returns the fallback relative path by moving one level up to the grandparent directory.
 /// E.g. `category/nested/clip.mp4` -> `category/clip.mp4`
 pub fn get_parent_fallback_path(rel_path: &Path) -> Option<PathBuf> {

@@ -4,7 +4,8 @@ import { getFunscriptDuration } from './funscript_handler.js';
 import {
     showTemporaryOverlayMessage,
     showAutoLikeToast,
-    dismissAutoLikeToast
+    dismissAutoLikeToast,
+    markAutoLikeToastPrevious
 } from './utils_ui.js';
 import { getNodeByPath } from './directory_tree.js';
 
@@ -23,7 +24,8 @@ export function getPlayedVideos() {
 }
 
 export function initVideoStats(relativePath) {
-    dismissAutoLikeToast();
+    markAutoLikeToastPrevious(relativePath);
+
     state.currentVideoRelativePath = relativePath;
     state.playedVideos.add(relativePath);
     state.viewRecorded = false;
@@ -194,13 +196,24 @@ export function checkAndTriggerAutoLike(videoElement, relativePath) {
 
     if (state.actualPlayTimeMs >= minThresholdMs) {
         state.autoLikeRecorded = true;
-        recordLike(relativePath).then((updated) => {
+        const targetPath = relativePath;
+        const node = getNodeByPath(targetPath);
+        const videoTitle =
+            node?.name?.replace(/\.[^/.]+$/, '') ||
+            targetPath
+                .split('/')
+                .pop()
+                .replace(/\.[^/.]+$/, '');
+
+        recordLike(targetPath).then((updated) => {
             if (updated) {
                 showAutoLikeToast({
                     likes: updated.likes,
-                    durationMs: 15000,
+                    videoPath: targetPath,
+                    videoTitle,
+                    durationMs: 10000,
                     onUndo: async () => {
-                        await recordUnlike(relativePath);
+                        await recordUnlike(targetPath);
                     }
                 });
             }

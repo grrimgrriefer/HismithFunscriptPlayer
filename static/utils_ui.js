@@ -29,6 +29,7 @@ export function showTemporaryOverlayMessage(message, durationMs = 2000) {
 }
 
 let activeToast = null;
+let activeToastVideoPath = null;
 let toastDismissTimeout = null;
 
 export function dismissAutoLikeToast() {
@@ -39,6 +40,7 @@ export function dismissAutoLikeToast() {
         }
         const el = activeToast;
         activeToast = null;
+        activeToastVideoPath = null;
         el.classList.add('fade-out');
         setTimeout(() => {
             if (el.parentNode) {
@@ -48,8 +50,34 @@ export function dismissAutoLikeToast() {
     }
 }
 
-export function showAutoLikeToast({ likes, onUndo, durationMs = 15000 }) {
+export function markAutoLikeToastPrevious(newVideoPath) {
+    if (
+        activeToast &&
+        activeToastVideoPath &&
+        activeToastVideoPath !== newVideoPath
+    ) {
+        activeToast.classList.add('previous-video');
+        const textEl = activeToast.querySelector('.autolike-text');
+        if (textEl && !activeToast.classList.contains('cancelled')) {
+            textEl.textContent = 'Auto-liked previous';
+        }
+        const tagEl = activeToast.querySelector('.autolike-thumb-tag');
+        if (tagEl) {
+            tagEl.textContent = 'Previous Video';
+        }
+    }
+}
+
+export function showAutoLikeToast({
+    likes,
+    onUndo,
+    videoPath = '',
+    videoTitle = '',
+    durationMs = 10000
+}) {
     dismissAutoLikeToast();
+
+    activeToastVideoPath = videoPath;
 
     const toast = document.createElement('div');
     toast.id = 'autolike-toast';
@@ -57,7 +85,30 @@ export function showAutoLikeToast({ likes, onUndo, durationMs = 15000 }) {
     toast.setAttribute('role', 'status');
     toast.setAttribute('aria-live', 'polite');
 
+    const displayTitle =
+        videoTitle ||
+        (videoPath
+            ? videoPath
+                  .split('/')
+                  .pop()
+                  .replace(/\.[^/.]+$/, '')
+            : 'Video');
+    const thumbUrl = videoPath ? `/site/thumbnails/${videoPath}.jpg` : '';
+
     toast.innerHTML = `
+        <div class="autolike-thumb-popover">
+            <div class="autolike-thumb-header">
+                <span class="autolike-thumb-tag">Liked Video</span>
+            </div>
+            ${
+                thumbUrl
+                    ? `<div class="autolike-thumb-img-wrapper">
+                <img class="autolike-thumb-img" src="${thumbUrl}" alt="${displayTitle}" loading="lazy" onerror="this.parentElement.style.display='none'" />
+            </div>`
+                    : ''
+            }
+            <div class="autolike-thumb-title" title="${displayTitle}">${displayTitle}</div>
+        </div>
         <div class="autolike-pill" title="Click or hover to expand">
             <span class="autolike-heart">❤️</span>
             <span class="autolike-text">Auto-liked</span>

@@ -14,9 +14,38 @@ let lastAvg = 0;
 let lastVolatility = 0;
 let lastDuration = 0;
 
+let beatTimes = [];
+
+function updateBeatTimes() {
+    beatTimes = [];
+    for (let i = 1; i < funscriptActions.length; i++) {
+        const prev = funscriptActions[i - 1];
+        const curr = funscriptActions[i];
+        if (prev.pos === 0 && curr.pos === 100) {
+            beatTimes.push(curr.at);
+        }
+    }
+}
+
+function findNextBeatIndex(currentTime) {
+    let low = 0;
+    let high = beatTimes.length;
+    while (low < high) {
+        const mid = (low + high) >>> 1;
+        if (beatTimes[mid] <= currentTime) {
+            low = mid + 1;
+        } else {
+            high = mid;
+        }
+    }
+    return low;
+}
+
 export async function loadFunscript(funscriptUrl) {
     funscriptActions = [];
     intensityActions = [];
+    beatTimes = [];
+    lastBeatAt = null;
     currentVideoRawMaxIntensity = 0;
     let fetchUrl = funscriptUrl;
     const url = new URL(fetchUrl, window.location.origin);
@@ -31,6 +60,7 @@ export async function loadFunscript(funscriptUrl) {
         } else {
             funscriptActions = [];
         }
+        updateBeatTimes();
         if (data && data.intensity && Array.isArray(data.intensity.actions)) {
             intensityActions = data.intensity.actions;
             const positions = intensityActions.map((action) => action.pos);
@@ -48,6 +78,8 @@ export async function loadFunscript(funscriptUrl) {
         console.error('Failed to load funscript:', error);
         funscriptActions = [];
         intensityActions = [];
+        beatTimes = [];
+        lastBeatAt = null;
         lastPeak = 0;
         lastAvg = 0;
         lastVolatility = 0;
@@ -109,20 +141,11 @@ export function getFunscriptDuration() {
 }
 
 export function getCurrentBeatValue(currentTime) {
-    let lastBeatTime = null;
-    let nextBeatTime = null;
+    if (beatTimes.length === 0) return 0;
 
-    for (let i = 1; i < funscriptActions.length; i++) {
-        const prev = funscriptActions[i - 1];
-        const curr = funscriptActions[i];
-        if (prev.pos === 0 && curr.pos === 100) {
-            if (curr.at <= currentTime) lastBeatTime = curr.at;
-            else {
-                nextBeatTime = curr.at;
-                break;
-            }
-        }
-    }
+    const nextIdx = findNextBeatIndex(currentTime);
+    const lastBeatTime = nextIdx > 0 ? beatTimes[nextIdx - 1] : null;
+    const nextBeatTime = nextIdx < beatTimes.length ? beatTimes[nextIdx] : null;
 
     if (lastBeatTime === null) return 0;
 

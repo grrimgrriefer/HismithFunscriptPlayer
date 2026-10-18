@@ -17,6 +17,7 @@ use tokio::fs;
 use walkdir::WalkDir;
 
 const CURRENT_CACHE_VERSION: u32 = 4;
+pub const CACHE_FILE_NAME: &str = ".funscripts_cache.json";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FunscriptCacheFile {
@@ -51,7 +52,7 @@ fn is_funscript_file(path: &Path) -> bool {
             .unwrap_or(false)
 }
 
-fn cache_key(base: &Path, file: &Path) -> String {
+pub fn cache_key(base: &Path, file: &Path) -> String {
     file.strip_prefix(base)
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| file.to_string_lossy().to_string())
@@ -133,6 +134,20 @@ async fn write_cache(path: &Path, cache: &FunscriptCache) -> Result<(), String> 
         .map_err(|e| format!("Failed write cache {:?}: {}", path, e))
 }
 
+pub async fn update_single_entry(
+    cache_path: &Path,
+    rel_key: &str,
+    content: &str,
+) -> Result<(), String> {
+    let sha = sha256_hex(content.as_bytes());
+    let entry = build_entry(content, sha)?;
+
+    let mut cache = read_cache(cache_path).await?;
+    cache.insert(rel_key.to_string(), entry);
+    write_cache(cache_path, &cache).await?;
+    Ok(())
+}
+
 pub async fn scan_and_update_cache(
     base: &Path,
     cache_path: &Path,
@@ -189,7 +204,7 @@ pub async fn scan_and_update_cache(
 }
 
 pub async fn get_cache_for_base(funscript_base: &Path) -> Result<FunscriptCache, String> {
-    let cache_path = funscript_base.join(".funscripts_cache.json");
+    let cache_path = funscript_base.join(CACHE_FILE_NAME);
     scan_and_update_cache(funscript_base, &cache_path).await
 }
 

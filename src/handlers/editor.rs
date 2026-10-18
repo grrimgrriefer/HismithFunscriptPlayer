@@ -111,12 +111,14 @@ pub async fn save_funscript(
         }
     }
 
-    if let Err(err) = fs::write(&output_path, funscript_json).await {
+    if let Err(err) = fs::write(&output_path, &funscript_json).await {
         log::error!("Failed to write funscript file {:?}: {}", output_path, err);
         return HttpResponse::InternalServerError().json("Failed to save funscript file.");
     }
 
-    refresh_cache_in_background(share_path.clone());
+    let cache_path = share_path.join(funscripts_cache::CACHE_FILE_NAME);
+    let rel_key = funscripts_cache::cache_key(share_path, &output_path);
+    update_cache_in_background(cache_path, rel_key, funscript_json);
 
     log::info!("Saved funscript to {:?}", output_path);
     HttpResponse::Ok().json("Funscript saved successfully.")
@@ -139,8 +141,10 @@ fn normalize_variant(variant: Option<&str>) -> Result<Option<String>, &'static s
     }
 }
 
-fn refresh_cache_in_background(share_path: PathBuf) {
+fn update_cache_in_background(cache_path: PathBuf, rel_key: String, content: String) {
     tokio::spawn(async move {
-        let _ = funscripts_cache::get_cache_for_base(&share_path).await;
+        if let Err(e) = funscripts_cache::update_single_entry(&cache_path, &rel_key, &content).await {
+            log::warn!("Failed to update single funscript cache entry for {rel_key}: {e}");
+        }
     });
 }

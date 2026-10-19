@@ -266,6 +266,12 @@ button#toggle-directory {
     z-index: 3;
 }
 
+.btn:disabled,
+button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
 /* ── Container Cards, Modals, Overlays ────────────────────────────────── */
 .card,
 .overlay-card,

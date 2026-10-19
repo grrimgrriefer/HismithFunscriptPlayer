@@ -25,6 +25,7 @@ pub struct NextQuery {
 #[derive(Deserialize)]
 pub struct FolderStartQuery {
     pub folder: String,
+    pub exclude: Option<String>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -130,10 +131,20 @@ pub async fn get_next_recommendations(
         });
     };
 
-    let mut lower = find_random_video(&videos_with_stats, target_path, current_peak, -22.5, -7.5, &excluded_paths);
-    let mut similar = find_random_video(&videos_with_stats, target_path, current_peak, -7.5, 7.5, &excluded_paths)
-        .or_else(|| find_closest_video(&videos_with_stats, target_path, current_peak, &excluded_paths));
-    let mut higher = find_random_video(&videos_with_stats, target_path, current_peak, 7.5, 22.5, &excluded_paths);
+    let mut current_excluded = excluded_paths;
+
+    let mut lower = find_random_video(&videos_with_stats, target_path, current_peak, -22.5, -7.5, &current_excluded);
+    if let Some(ref r) = lower {
+        current_excluded.insert(r.path.clone());
+    }
+
+    let mut similar = find_random_video(&videos_with_stats, target_path, current_peak, -7.5, 7.5, &current_excluded)
+        .or_else(|| find_closest_video(&videos_with_stats, target_path, current_peak, &current_excluded));
+    if let Some(ref r) = similar {
+        current_excluded.insert(r.path.clone());
+    }
+
+    let mut higher = find_random_video(&videos_with_stats, target_path, current_peak, 7.5, 22.5, &current_excluded);
 
     if let (Some(cp), Some(ca), Some(cv)) = (current_video_peak, current_video_avg, current_video_volatility) {
         if let Some(ref mut r) = lower {
@@ -160,7 +171,7 @@ pub async fn get_next_recommendations(
     })
 }
 
-/// GET /api/recommendations/folder-start?folder=...
+/// GET /api/recommendations/folder-start?folder=...&exclude=...
 pub async fn get_folder_start_recommendations(
     config: web::Data<AppConfig>,
     query: web::Query<FolderStartQuery>,
@@ -222,7 +233,16 @@ pub async fn get_folder_start_recommendations(
     let med_slice = &videos_with_stats[low_end..high_start];
     let high_slice = &videos_with_stats[high_start..];
 
-    let mut selected_paths = HashSet::new();
+    let excluded_paths: HashSet<String> = query
+        .exclude
+        .as_deref()
+        .unwrap_or("")
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    let mut selected_paths = excluded_paths;
 
     let low = pick_random_from_bucket(low_slice, &videos_with_stats, &selected_paths);
     if let Some(ref r) = low {
@@ -318,6 +338,17 @@ fn find_closest_video(
             diff_a.partial_cmp(&diff_b).unwrap_or(std::cmp::Ordering::Equal)
         })
         .cloned()
+        .or_else(|| {
+            videos
+                .iter()
+                .filter(|v| v.path != current_path)
+                .min_by(|a, b| {
+                    let diff_a = (a.stats.peak - current_peak).abs();
+                    let diff_b = (b.stats.peak - current_peak).abs();
+                    diff_a.partial_cmp(&diff_b).unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .cloned()
+        })
 }
 
 fn pick_random_from_bucket(

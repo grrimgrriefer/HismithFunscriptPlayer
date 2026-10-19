@@ -96,6 +96,7 @@ function updateOverlayButtons(candidates, labels, statMode, onSelectVideo) {
             btn.disabled = true;
             statsEl.textContent = 'N/A';
             if (thumbImg) thumbImg.style.display = 'none';
+            btn.onclick = null;
             return;
         }
 
@@ -122,11 +123,19 @@ export async function showNextVideoOverlay({
 }) {
     if (state.isOverlayVisible) return;
     state.isOverlayVisible = true;
-    if (state.nextVideoTimer) clearTimeout(state.nextVideoTimer);
+    if (state.nextVideoTimer) {
+        clearTimeout(state.nextVideoTimer);
+        state.nextVideoTimer = null;
+    }
 
     const overlay = document.getElementById('next-video-overlay');
     const timerEl = document.getElementById('next-timer');
     if (!overlay) return;
+
+    const titleEl =
+        document.getElementById('next-overlay-title') ||
+        overlay.querySelector('h3');
+    if (titleEl) titleEl.textContent = 'Up Next';
 
     overlay.classList.remove('hidden');
 
@@ -134,19 +143,39 @@ export async function showNextVideoOverlay({
         document.exitFullscreen()?.catch(() => {});
     }
 
-    const played = Array.from(playedVideos).join(',');
-    let candidates = { lower: null, similar: null, higher: null };
+    const excludedPaths = new Set(playedVideos);
 
-    try {
-        const resp = await fetch(
-            `/api/recommendations/next?video=${encodeURIComponent(currentVideoRelativePath)}&exclude=${encodeURIComponent(played)}`
-        );
-        if (resp.ok) {
-            candidates = await resp.json();
+    async function fetchNextCandidates() {
+        const excludeStr = Array.from(excludedPaths).join(',');
+        try {
+            const resp = await fetch(
+                `/api/recommendations/next?video=${encodeURIComponent(currentVideoRelativePath)}&exclude=${encodeURIComponent(excludeStr)}`
+            );
+            if (resp.ok) {
+                return await resp.json();
+            }
+        } catch (err) {
+            console.error('Failed to fetch next recommendations:', err);
         }
-    } catch (err) {
-        console.error('Failed to fetch next recommendations:', err);
+        return { lower: null, similar: null, higher: null };
     }
+
+    let candidates = await fetchNextCandidates();
+
+    function recordCandidates(c) {
+        const paths = [c.lower?.path, c.similar?.path, c.higher?.path].filter(
+            Boolean
+        );
+        const allAlreadyExcluded =
+            paths.length > 0 && paths.every((p) => excludedPaths.has(p));
+        if (allAlreadyExcluded) {
+            excludedPaths.clear();
+            playedVideos.forEach((p) => excludedPaths.add(p));
+        }
+        paths.forEach((p) => excludedPaths.add(p));
+    }
+
+    recordCandidates(candidates);
 
     updateOverlayButtons(
         candidates,
@@ -154,6 +183,77 @@ export async function showNextVideoOverlay({
         'relative',
         onSelectVideo
     );
+
+    let currentFallback =
+        candidates.similar || candidates.higher || candidates.lower;
+    let timeLeft = 6;
+
+    function startTimer() {
+        if (state.nextVideoTimer) {
+            clearTimeout(state.nextVideoTimer);
+            state.nextVideoTimer = null;
+        }
+        timeLeft = 6;
+        currentFallback =
+            candidates.similar || candidates.higher || candidates.lower;
+
+        const tick = () => {
+            if (!state.isOverlayVisible) return;
+            if (timerEl) {
+                timerEl.innerHTML = `Starting random video in ${timeLeft}s...`;
+            }
+            if (timeLeft <= 0) {
+                if (currentFallback) onSelectVideo(currentFallback);
+                else hideNextVideoOverlay();
+                return;
+            }
+            timeLeft--;
+            state.nextVideoTimer = setTimeout(tick, 1000);
+        };
+        tick();
+    }
+
+    const rerollBtn = document.getElementById('next-reroll-btn');
+    if (rerollBtn) {
+        rerollBtn.style.display = 'inline-block';
+        rerollBtn.disabled = false;
+        rerollBtn.textContent = '🎲 Reroll';
+        rerollBtn.onclick = async () => {
+            rerollBtn.disabled = true;
+            rerollBtn.textContent = '🎲 Rerolling...';
+            if (state.nextVideoTimer) {
+                clearTimeout(state.nextVideoTimer);
+                state.nextVideoTimer = null;
+            }
+            if (timerEl) {
+                timerEl.textContent = 'Finding new recommendations...';
+            }
+
+            try {
+                const newCandidates = await fetchNextCandidates();
+                if (
+                    newCandidates.lower ||
+                    newCandidates.similar ||
+                    newCandidates.higher
+                ) {
+                    candidates = newCandidates;
+                    recordCandidates(candidates);
+                    updateOverlayButtons(
+                        candidates,
+                        ['Lower', 'Similar', 'Higher'],
+                        'relative',
+                        onSelectVideo
+                    );
+                }
+            } finally {
+                rerollBtn.disabled = false;
+                rerollBtn.textContent = '🎲 Reroll';
+                if (state.isOverlayVisible) {
+                    startTimer();
+                }
+            }
+        };
+    }
 
     const replayBtn = document.getElementById('next-replay-btn');
     if (replayBtn) {
@@ -172,45 +272,59 @@ export async function showNextVideoOverlay({
         };
     }
 
-    const fallbackVideo =
-        candidates.similar || candidates.higher || candidates.lower;
-    let timeLeft = 6;
-    const updateTimer = () => {
-        if (!state.isOverlayVisible) return;
-        timerEl.innerHTML = `Starting random video in ${timeLeft}s...`;
-        if (timeLeft <= 0) {
-            if (fallbackVideo) onSelectVideo(fallbackVideo);
-            else hideNextVideoOverlay();
-            return;
-        }
-        timeLeft--;
-        state.nextVideoTimer = setTimeout(updateTimer, 1000);
-    };
-    updateTimer();
+    startTimer();
 }
 
 export async function showFolderStartOverlay(
     folderPath,
     { onSelectVideo, onCancel }
 ) {
-    let candidates = { low: null, med: null, high: null };
+    const excludedPaths = new Set();
 
-    try {
-        const resp = await fetch(
-            `/api/recommendations/folder-start?folder=${encodeURIComponent(folderPath)}`
-        );
-        if (resp.ok) {
-            candidates = await resp.json();
+    async function fetchFolderCandidates() {
+        const excludeStr = Array.from(excludedPaths).join(',');
+        try {
+            const resp = await fetch(
+                `/api/recommendations/folder-start?folder=${encodeURIComponent(folderPath)}&exclude=${encodeURIComponent(excludeStr)}`
+            );
+            if (resp.ok) {
+                return await resp.json();
+            }
+        } catch (err) {
+            console.error('Failed to fetch folder start recommendations:', err);
         }
-    } catch (err) {
-        console.error('Failed to fetch folder start recommendations:', err);
+        return { low: null, med: null, high: null };
     }
+
+    let candidates = await fetchFolderCandidates();
 
     if (!candidates.low && !candidates.med && !candidates.high) return;
 
+    function recordFolderCandidates(c) {
+        const paths = [c.low?.path, c.med?.path, c.high?.path].filter(Boolean);
+        const allAlreadyExcluded =
+            paths.length > 0 && paths.every((p) => excludedPaths.has(p));
+        if (allAlreadyExcluded) {
+            excludedPaths.clear();
+        }
+        paths.forEach((p) => excludedPaths.add(p));
+    }
+
+    recordFolderCandidates(candidates);
+
     state.isOverlayVisible = true;
+    if (state.nextVideoTimer) {
+        clearTimeout(state.nextVideoTimer);
+        state.nextVideoTimer = null;
+    }
+
     const overlay = document.getElementById('next-video-overlay');
     if (!overlay) return;
+
+    const titleEl =
+        document.getElementById('next-overlay-title') ||
+        overlay.querySelector('h3');
+    if (titleEl) titleEl.textContent = 'Select Starting Video';
 
     overlay.classList.remove('hidden');
     document.getElementById('video-container')?.classList.remove('hidden');
@@ -233,6 +347,49 @@ export async function showFolderStartOverlay(
     const timerEl = document.getElementById('next-timer');
     if (timerEl) {
         timerEl.innerHTML = 'Select a starting intensity to begin...';
+    }
+
+    const rerollBtn = document.getElementById('next-reroll-btn');
+    if (rerollBtn) {
+        rerollBtn.style.display = 'inline-block';
+        rerollBtn.disabled = false;
+        rerollBtn.textContent = '🎲 Reroll';
+        rerollBtn.onclick = async () => {
+            rerollBtn.disabled = true;
+            rerollBtn.textContent = '🎲 Rerolling...';
+            if (timerEl) {
+                timerEl.textContent = 'Finding new recommendations...';
+            }
+
+            try {
+                const newCandidates = await fetchFolderCandidates();
+                if (
+                    newCandidates.low ||
+                    newCandidates.med ||
+                    newCandidates.high
+                ) {
+                    candidates = newCandidates;
+                    recordFolderCandidates(candidates);
+                    updateOverlayButtons(
+                        {
+                            lower: candidates.low,
+                            similar: candidates.med,
+                            higher: candidates.high
+                        },
+                        ['Low', 'Medium', 'High'],
+                        'absolute',
+                        onSelectVideo
+                    );
+                }
+            } finally {
+                rerollBtn.disabled = false;
+                rerollBtn.textContent = '🎲 Reroll';
+                if (timerEl && state.isOverlayVisible) {
+                    timerEl.innerHTML =
+                        'Select a starting intensity to begin...';
+                }
+            }
+        };
     }
 
     const replayBtn = document.getElementById('next-replay-btn');

@@ -41,6 +41,15 @@
     }
 }
 
+@keyframes pauseOverlayFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
 @keyframes spinner-flash {
     0% {
         filter: none;
@@ -205,7 +214,8 @@ body.sbs-playing #toggle-directory,
 body.sbs-playing #settings-button,
 body.sbs-playing #settings-menu,
 body.sbs-playing #funscript-box,
-body.sbs-playing #directory-container {
+body.sbs-playing #directory-container,
+body.sbs-playing #video-pause-overlay {
     display: none !important;
 }
 
@@ -1413,6 +1423,128 @@ body.sbs-playing #autolike-toast {
     user-select: none;
 }
 
+/* ── Paused Video Banner (YouTube Style) ──────────────────────────────── */
+.video-pause-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    box-sizing: border-box;
+    padding: 55px 24px 30px;
+    background: linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0.88) 0%,
+        rgba(0, 0, 0, 0.55) 60%,
+        rgba(0, 0, 0, 0) 100%
+    );
+    z-index: 10;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    animation: pauseOverlayFadeIn 0.25s ease-out forwards;
+}
+
+.video-pause-overlay.hidden {
+    display: none !important;
+}
+
+.pause-info-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    max-width: min(750px, 100%);
+    width: 100%;
+    pointer-events: none;
+}
+
+.pause-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    width: 100%;
+}
+
+.pause-title-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+}
+
+.pause-now-watching {
+    font-size: 0.72em;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--accent-yellow);
+    font-weight: 700;
+    opacity: 0.95;
+    text-align: left;
+}
+
+.pause-video-title {
+    margin: 0;
+    font-size: 1.25em;
+    color: #ffffff;
+    font-weight: 700;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+}
+
+.pause-up-next-btn {
+    pointer-events: auto;
+    background: rgba(50, 50, 50, 0.85);
+    border: 1px solid var(--border-light);
+    backdrop-filter: blur(4px);
+    font-weight: 600;
+    font-size: 0.85em;
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    transition:
+        background-color 0.2s,
+        border-color 0.2s,
+        transform 0.1s;
+}
+
+.pause-up-next-btn:hover {
+    background-color: var(--bg-hover);
+    border-color: #888;
+    transform: translateY(-1px);
+}
+
+.pause-up-next-btn:active {
+    transform: translateY(0);
+}
+
+.pause-stats-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.pause-stat-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.65);
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    color: #e0e0e0;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 /* ── Mobile Responsiveness ────────────────────────────────────────────── */
 @media (max-width: 768px) {
     #directory-container {
@@ -1501,5 +1633,22 @@ body.sbs-playing #autolike-toast {
 
     .card {
         padding: 15px !important;
+    }
+
+    .video-pause-overlay {
+        padding: 50px 14px 20px 14px;
+    }
+
+    .pause-info-content {
+        max-width: 100%;
+    }
+
+    .pause-video-title {
+        font-size: 1.05em;
+    }
+
+    .pause-stat-badge {
+        font-size: 0.75em;
+        padding: 2px 6px;
     }
 }

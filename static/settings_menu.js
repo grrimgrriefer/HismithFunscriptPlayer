@@ -123,21 +123,38 @@ export async function refreshVariantsForCurrentVideo() {
 
 export function updateIntensityDisplay() {
     const stats = getLastIntensityStats();
-    const peakEl = document.getElementById('settings-peak-val');
-    const avgEl = document.getElementById('settings-avg-val');
-    const volEl = document.getElementById('settings-vol-val');
-    const durEl = document.getElementById('settings-dur-val');
+    const peakEl = document.getElementById('pause-peak-val');
+    const avgEl = document.getElementById('pause-avg-val');
+    const volEl = document.getElementById('pause-vol-val');
+    const durEl = document.getElementById('pause-dur-val');
 
-    peakEl.textContent = Math.round(stats.peak);
-    peakEl.style.color = intensityToColor(stats.peak);
-
-    avgEl.textContent = Math.round(stats.avg);
-    avgEl.style.color = intensityToColor(stats.avg);
-
-    volEl.textContent = Number(stats.volatility).toFixed(1);
-    volEl.style.color = volatilityToColor(stats.volatility || 0);
-
-    durEl.textContent = formatDuration(stats.duration);
+    if (peakEl) {
+        peakEl.textContent = isFinite(stats.peak)
+            ? Math.round(stats.peak)
+            : '--';
+        peakEl.style.color = isFinite(stats.peak)
+            ? intensityToColor(stats.peak)
+            : '';
+    }
+    if (avgEl) {
+        avgEl.textContent = isFinite(stats.avg) ? Math.round(stats.avg) : '--';
+        avgEl.style.color = isFinite(stats.avg)
+            ? intensityToColor(stats.avg)
+            : '';
+    }
+    if (volEl) {
+        volEl.textContent = isFinite(stats.volatility)
+            ? Number(stats.volatility).toFixed(1)
+            : '--';
+        volEl.style.color = isFinite(stats.volatility)
+            ? volatilityToColor(stats.volatility || 0)
+            : '';
+    }
+    if (durEl) {
+        durEl.textContent = stats.duration
+            ? formatDuration(stats.duration)
+            : '--';
+    }
 }
 
 export function setSBSMode(enabled) {

@@ -43,6 +43,7 @@ import {
     hideNextVideoOverlay,
     isOverlayVisible
 } from './recommendation_overlay.js';
+import { getNodeByPath } from './directory_tree.js';
 
 const urlParams = new URLSearchParams(window.location.search);
 const DISABLE_FULLSCREEN = ['1', 'true', 'yes'].includes(
@@ -61,6 +62,120 @@ const state = {
     funscriptEndCancelled: false,
     videoEndedCancelled: false
 };
+
+// ── Pause Overlay Management ───────────────────────────────────────────
+
+function updatePauseOverlayInfo(relativePath) {
+    const titleEl = document.getElementById('pause-video-title');
+    if (!titleEl) return;
+    if (!relativePath) {
+        titleEl.textContent = '';
+        titleEl.removeAttribute('title');
+        return;
+    }
+
+    const node = getNodeByPath(relativePath);
+    let name = node?.name;
+    if (!name) {
+        const rawPart = relativePath.split('/').pop() || relativePath;
+        try {
+            name = decodeURIComponent(rawPart);
+        } catch {
+            name = rawPart;
+        }
+    }
+    const cleanTitle = name.replace(/\.[^/.]+$/, '');
+    titleEl.textContent = cleanTitle;
+    titleEl.title = cleanTitle;
+}
+
+export function showPauseOverlay() {
+    if (isOverlayVisible()) return;
+    const videoElement = document.querySelector('#video-player video');
+    if (!videoElement || videoElement.ended || !videoElement.paused) return;
+
+    const overlay = document.getElementById('video-pause-overlay');
+    if (!overlay) return;
+
+    updatePauseOverlayPosition();
+    updatePauseOverlayInfo(state.currentVideoRelativePath);
+    updateIntensityDisplay();
+    overlay.classList.remove('hidden');
+}
+
+export function hidePauseOverlay() {
+    const overlay = document.getElementById('video-pause-overlay');
+    if (overlay) {
+        overlay.classList.add('hidden');
+    }
+}
+
+function initPauseOverlayEvents() {
+    const nextBtn = document.getElementById('pause-up-next-btn');
+    if (nextBtn) {
+        nextBtn.onclick = (e) => {
+            e.stopPropagation();
+            const videoElement = document.querySelector('#video-player video');
+            if (videoElement) {
+                triggerNextVideoOverlay(videoElement);
+            }
+        };
+    }
+
+    window.addEventListener('resize', () => {
+        const overlay = document.getElementById('video-pause-overlay');
+        if (overlay && !overlay.classList.contains('hidden')) {
+            updatePauseOverlayPosition();
+        }
+    });
+}
+
+if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initPauseOverlayEvents);
+    } else {
+        initPauseOverlayEvents();
+    }
+}
+
+function updatePauseOverlayPosition() {
+    const overlay = document.getElementById('video-pause-overlay');
+    const videoElement = document.querySelector('#video-player video');
+    if (!overlay || !videoElement) return;
+
+    if (!videoElement.videoWidth || !videoElement.videoHeight) {
+        overlay.style.setProperty('--video-offset-x', '0px');
+        return;
+    }
+
+    const isSbs = document
+        .getElementById('video-container')
+        ?.classList.contains('sbs-mode');
+    if (isSbs) {
+        overlay.style.setProperty('--video-offset-x', '0px');
+        return;
+    }
+
+    const containerWidth = videoElement.clientWidth;
+    const containerHeight = videoElement.clientHeight;
+    if (!containerWidth || !containerHeight) return;
+
+    const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
+    const containerRatio = containerWidth / containerHeight;
+
+    if (containerRatio > videoRatio) {
+        const renderedWidth = containerHeight * videoRatio;
+        const leftOffset = Math.max(0, (containerWidth - renderedWidth) / 2);
+        overlay.style.setProperty(
+            '--video-offset-x',
+            `${Math.round(leftOffset)}px`
+        );
+    } else {
+        overlay.style.setProperty('--video-offset-x', '0px');
+    }
+}
+
+// ── Playback & Device Control Loop ─────────────────────────────────────
 
 function computeThrustIntensity(intensity, progress) {
     if (intensity === undefined) return 0;
@@ -171,6 +286,7 @@ function startNextVideo(videoNode) {
 }
 
 function triggerNextVideoOverlay(videoElement) {
+    hidePauseOverlay();
     exitFullscreen();
     showNextVideoOverlay({
         currentVideoRelativePath: state.currentVideoRelativePath,
@@ -188,14 +304,23 @@ function triggerNextVideoOverlay(videoElement) {
             } else {
                 state.funscriptEndCancelled = true;
             }
+            if (videoElement && videoElement.paused && !videoElement.ended) {
+                showPauseOverlay();
+            }
         }
     });
 }
 
 export function showFolderStartOverlay(folderPath) {
+    hidePauseOverlay();
     openFolderStartOverlay(folderPath, {
         onSelectVideo: (candidate) => startNextVideo(candidate),
-        onCancel: () => {}
+        onCancel: () => {
+            const videoElement = document.querySelector('#video-player video');
+            if (videoElement && videoElement.paused && !videoElement.ended) {
+                showPauseOverlay();
+            }
+        }
     });
 }
 
@@ -215,6 +340,7 @@ export async function playVideo(
     state.videoEndedCancelled = false;
 
     hideNextVideoOverlay();
+    hidePauseOverlay();
 
     const errorOverlay = document.getElementById('video-error-overlay');
     if (errorOverlay) errorOverlay.classList.add('hidden');
@@ -258,6 +384,8 @@ export async function playVideo(
             return;
         }
 
+        hidePauseOverlay();
+
         if (state.cancelAnimationTimeout) {
             clearTimeout(state.cancelAnimationTimeout);
             state.cancelAnimationTimeout = null;
@@ -290,6 +418,8 @@ export async function playVideo(
             exitFullscreen();
         });
         updateSbsPlayingState();
+
+        showPauseOverlay();
     };
 
     videoElement.onerror = () => {
@@ -344,6 +474,8 @@ export async function playVideo(
             videoElement
                 .play()
                 .catch((e) => console.warn('Autoplay blocked:', e));
+        } else {
+            showPauseOverlay();
         }
     };
 

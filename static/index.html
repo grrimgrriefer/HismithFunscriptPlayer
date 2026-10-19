@@ -30,6 +30,26 @@
         <div id="video-container" class="hidden">
             <div id="video-wrapper">
                 <div id="video-player"></div>
+                <div id="video-pause-overlay" class="video-pause-overlay hidden">
+                    <div class="pause-info-content">
+                        <div class="pause-header-row">
+                            <div class="pause-title-wrap">
+                                <span class="pause-now-watching">Now Watching</span>
+                                <h2 id="pause-video-title" class="pause-video-title"></h2>
+                            </div>
+                            <button id="pause-up-next-btn" class="btn btn-sm pause-up-next-btn" title="Show Up Next suggestions">
+                                🎲 Up Next
+                            </button>
+                        </div>
+                        <div id="pause-stats-row" class="pause-stats-row">
+                            <span class="pause-stat-badge">🔺 <span id="pause-peak-val" class="bold-val">--</span> peak</span>
+                            <span class="pause-stat-badge">🌡️ <span id="pause-avg-val" class="bold-val">--</span> avg</span>
+                            <span class="pause-stat-badge">⚡️ <span id="pause-vol-val" class="bold-val">--</span> vol</span>
+                            <span class="pause-stat-badge">⏱️ <span id="pause-dur-val" class="bold-val">--</span> dur</span>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="video-error-overlay" class="hidden">
                     <div class="error-content">
                         <h3>Playback Error</h3>
@@ -121,13 +141,6 @@
                 <option value="normal">Normal (1.0x)</option>
                 <option value="doublebeat">Double-beat (2.0x)</option>
             </select>
-
-            <div id="settings-intensity-info" class="form-group">
-                Intensity: <span id="settings-peak-val" class="bold-val">--</span> peak,
-                <span id="settings-avg-val" class="bold-val">--</span> avg,
-                <span id="settings-vol-val" class="bold-val">--</span> vol,
-                <span id="settings-dur-val" class="bold-val">--</span> dur
-            </div>
 
             <div class="mt-sm">
                 <button id="open-editor-button" class="btn">Open Editor</button>

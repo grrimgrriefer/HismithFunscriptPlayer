@@ -1369,6 +1369,50 @@ body.sbs-playing #autolike-toast {
     }
 }
 
+/* ── Current & Watched Video Items in Directory Tree ──────────────── */
+
+#directory-tree li.is-current-video {
+    background: rgba(0, 120, 215, 0.35) !important;
+    border-left: 4px solid var(--accent-blue);
+    padding-left: 6px;
+    box-shadow: inset 0 0 10px rgba(0, 120, 215, 0.25);
+}
+
+#directory-tree li.is-current-video .file-row a {
+    color: #ffffff !important;
+    font-weight: bold;
+    text-shadow: 0 0 6px rgba(0, 120, 215, 0.7);
+}
+
+.current-video-indicator {
+    color: #64b5f6;
+    font-size: 0.85em;
+    margin-right: 2px;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+#directory-tree li.is-watched:not(.is-current-video) {
+    opacity: 0.65;
+    transition: opacity 0.2s ease;
+}
+
+#directory-tree li.is-watched:not(.is-current-video):hover {
+    opacity: 0.95;
+}
+
+#directory-tree li.is-watched:not(.is-current-video) .file-row a {
+    color: #9cb89c;
+}
+
+.watched-video-indicator {
+    color: #888888;
+    font-size: 0.85em;
+    margin-right: 2px;
+    flex-shrink: 0;
+    user-select: none;
+}
+
 /* ── Mobile Responsiveness ────────────────────────────────────────────── */
 @media (max-width: 768px) {
     #directory-container {

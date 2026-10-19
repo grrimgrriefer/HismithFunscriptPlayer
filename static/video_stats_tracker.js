@@ -23,6 +23,15 @@ export function getPlayedVideos() {
     return state.playedVideos;
 }
 
+export function getCurrentVideoRelativePath() {
+    return state.currentVideoRelativePath;
+}
+
+export function isVideoWatched(relativePath) {
+    if (!relativePath) return false;
+    return state.playedVideos.has(relativePath);
+}
+
 export function initVideoStats(relativePath) {
     markAutoLikeToastPrevious(relativePath);
 
@@ -31,6 +40,12 @@ export function initVideoStats(relativePath) {
     state.viewRecorded = false;
     state.actualPlayTimeMs = 0;
     state.lastPlayTick = null;
+
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+            new CustomEvent('video-played', { detail: { path: relativePath } })
+        );
+    }
 
     const alreadyLikedThisSession = state.likedVideos.has(relativePath);
     state.autoLikeRecorded = alreadyLikedThisSession;

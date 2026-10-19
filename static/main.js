@@ -1,6 +1,9 @@
 // static/main.js
 
-import { initDirectoryTree } from './directory_tree.js';
+import {
+    initDirectoryTree,
+    refreshDirectoryTreeStats
+} from './directory_tree.js';
 import { initWebSocket } from './socket.js';
 import {
     createSettingsMenu,
@@ -20,10 +23,13 @@ function initializeUI() {
     settingsBtn.style.display = 'block';
     settingsBtn.classList.add('player-button', 'btn');
 
-    document.getElementById('toggle-directory').onclick = () => {
-        document
-            .getElementById('directory-container')
-            .classList.toggle('hidden');
+    document.getElementById('toggle-directory').onclick = async () => {
+        const dirContainer = document.getElementById('directory-container');
+        const willBeVisible = dirContainer.classList.contains('hidden');
+        dirContainer.classList.toggle('hidden');
+        if (willBeVisible) {
+            await refreshDirectoryTreeStats();
+        }
     };
 }
 

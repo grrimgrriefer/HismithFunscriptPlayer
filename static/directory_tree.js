@@ -8,10 +8,17 @@ import {
     volatilityToColor,
     formatDuration
 } from './utils.js';
+import {
+    getPlayedVideos,
+    getCurrentVideoRelativePath
+} from './video_stats_tracker.js';
 
-// ── Flat Tree Map (O(1) Lookups) ───────────────────────────────────────
+// ── Flat Tree Map (O(1) Lookups) & State ───────────────────────────────
 
 const nodeMap = new Map();
+let currentRootData = null;
+let currentContainer = null;
+let currentSortKey = 'peak';
 
 const normalizePath = (p) => (p ? p.replace(/^\/+|\/+$/g, '') : '');
 
@@ -53,6 +60,81 @@ export function collectFiles(node) {
 
     traverse(node);
     return files;
+}
+
+function ensureParentFoldersOpen(path, openFolders) {
+    if (!path) return;
+    const normalized = normalizePath(path);
+    const parts = normalized.split('/');
+    let acc = '';
+    for (let i = 0; i < parts.length - 1; i++) {
+        acc = acc ? `${acc}/${parts[i]}` : parts[i];
+        openFolders.add(acc);
+    }
+}
+
+export function updateTreeUserStats(statsMap) {
+    if (!statsMap) return;
+    for (const [normPath, node] of nodeMap.entries()) {
+        if (!node.is_dir) {
+            const s = statsMap[node.path] || statsMap[normPath];
+            if (s) {
+                node.user_stats = s;
+            }
+        }
+    }
+}
+
+// ── Active Video DOM Synchronization ───────────────────────────────────
+
+export function updateDirectoryActiveStates() {
+    const container =
+        currentContainer || document.getElementById('directory-tree');
+    if (!container) return;
+
+    const currentPath = getCurrentVideoRelativePath();
+    const playedVideos = getPlayedVideos();
+    const normCurrent = currentPath ? normalizePath(currentPath) : null;
+
+    const items = container.querySelectorAll('li[data-path]');
+    items.forEach((li) => {
+        const p = li.getAttribute('data-path');
+        const normP = normalizePath(p);
+        const isCurrent = normCurrent !== null && normP === normCurrent;
+        const isWatched =
+            (playedVideos && playedVideos.has(p)) ||
+            (playedVideos && playedVideos.has(normP));
+
+        li.classList.toggle('is-current-video', Boolean(isCurrent));
+        li.classList.toggle('is-watched', Boolean(isWatched));
+
+        const row = li.querySelector('.file-row');
+        if (row) {
+            row.querySelector('.current-video-indicator')?.remove();
+            row.querySelector('.watched-video-indicator')?.remove();
+
+            const link = row.querySelector('a');
+            if (isCurrent) {
+                const icon = document.createElement('span');
+                icon.className = 'current-video-indicator';
+                icon.textContent = '▶';
+                icon.title = 'Currently Playing';
+                row.insertBefore(icon, link);
+            } else if (isWatched) {
+                const icon = document.createElement('span');
+                icon.className = 'watched-video-indicator';
+                icon.textContent = '✓';
+                icon.title = 'Watched this session';
+                row.insertBefore(icon, link);
+            }
+        }
+    });
+}
+
+if (typeof window !== 'undefined') {
+    window.addEventListener('video-played', () => {
+        updateDirectoryActiveStates();
+    });
 }
 
 // ── Rendering ──────────────────────────────────────────────────────────
@@ -144,11 +226,44 @@ function renderTree(node, parent, openFolders = new Set()) {
         );
         li.appendChild(ul);
     } else {
+        li.setAttribute('data-path', node.path);
+
+        const currentVideoPath = getCurrentVideoRelativePath();
+        const playedVideos = getPlayedVideos();
+        const normPath = normalizePath(node.path);
+
+        const isCurrent =
+            currentVideoPath && normPath === normalizePath(currentVideoPath);
+        const isWatched =
+            (playedVideos && playedVideos.has(node.path)) ||
+            (playedVideos && playedVideos.has(normPath));
+
+        if (isCurrent) {
+            li.classList.add('is-current-video');
+        }
+        if (isWatched) {
+            li.classList.add('is-watched');
+        }
+
         const row = document.createElement('div');
         row.className = 'file-row';
 
         const badge = buildIntensityBadge(node.stats, node.user_stats);
         if (badge) row.appendChild(badge);
+
+        if (isCurrent) {
+            const icon = document.createElement('span');
+            icon.className = 'current-video-indicator';
+            icon.textContent = '▶';
+            icon.title = 'Currently Playing';
+            row.appendChild(icon);
+        } else if (isWatched) {
+            const icon = document.createElement('span');
+            icon.className = 'watched-video-indicator';
+            icon.textContent = '✓';
+            icon.title = 'Watched this session';
+            row.appendChild(icon);
+        }
 
         const link = document.createElement('a');
         link.textContent = node.name;
@@ -243,6 +358,10 @@ export function initDirectoryTree(treeData, containerElement, sortBy = 'peak') {
         return;
     }
 
+    currentRootData = treeData;
+    currentContainer = containerElement;
+    currentSortKey = sortBy;
+
     indexTree(treeData);
 
     const openFolders = new Set(
@@ -250,6 +369,11 @@ export function initDirectoryTree(treeData, containerElement, sortBy = 'peak') {
             .map((el) => el.id)
             .filter(Boolean)
     );
+
+    const currentPath = getCurrentVideoRelativePath();
+    if (currentPath) {
+        ensureParentFoldersOpen(currentPath, openFolders);
+    }
 
     const treeCopy = JSON.parse(JSON.stringify(treeData));
     sortTreeNodes(treeCopy, sortBy);
@@ -262,4 +386,40 @@ export function initDirectoryTree(treeData, containerElement, sortBy = 'peak') {
         renderTree(child, rootUl, openFolders)
     );
     containerElement.appendChild(rootUl);
+}
+
+export async function refreshDirectoryTreeStats() {
+    if (!currentRootData) return;
+
+    try {
+        const resp = await fetch('/api/video-stats');
+        if (resp.ok) {
+            const statsMap = await resp.json();
+            updateTreeUserStats(statsMap);
+        }
+    } catch (err) {
+        console.error('Failed to refresh video stats for directory tree:', err);
+    }
+
+    const container =
+        currentContainer || document.getElementById('directory-tree');
+    const dirContainer = document.getElementById('directory-container');
+    const prevScrollTop = dirContainer ? dirContainer.scrollTop : 0;
+
+    if (container) {
+        initDirectoryTree(currentRootData, container, currentSortKey);
+    }
+
+    if (dirContainer) {
+        dirContainer.scrollTop = prevScrollTop;
+        if (!dirContainer.classList.contains('hidden')) {
+            const currentEl = container?.querySelector('li.is-current-video');
+            if (currentEl) {
+                currentEl.scrollIntoView({
+                    block: 'nearest',
+                    behavior: 'smooth'
+                });
+            }
+        }
+    }
 }

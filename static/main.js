@@ -10,7 +10,6 @@ import {
     toggleSettingsMenu,
     openCalibrationOverlay
 } from './settings_menu.js';
-import { setPlaybackData } from './video_player.js';
 
 let currentTreeData = null;
 
@@ -83,7 +82,6 @@ async function main() {
         currentTreeData = payload.tree || payload;
         const funscriptMap = payload.funscripts || {};
 
-        setPlaybackData(currentTreeData, funscriptMap);
         renderCacheError(payload, treeContainer);
 
         initDirectoryTree(currentTreeData, treeContainer, currentSort);

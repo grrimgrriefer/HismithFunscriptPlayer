@@ -56,7 +56,6 @@ const state = {
     cancelAnimationTimeout: null,
     transitionStartTime: Date.now(),
     transitionTargetValue: 1,
-    globalTree: null,
     currentVideoRelativePath: null,
     funscriptEndCancelled: false,
     videoEndedCancelled: false
@@ -224,11 +223,7 @@ function startNextVideo(videoNode) {
     }
 
     const currentVideoEl = document.querySelector('#video-player video');
-    checkAndTriggerAutoLike(
-        currentVideoEl,
-        state.currentVideoRelativePath,
-        state.globalTree
-    );
+    checkAndTriggerAutoLike(currentVideoEl, state.currentVideoRelativePath);
 
     hideNextVideoOverlay();
     playVideo(
@@ -278,10 +273,6 @@ export function showFolderStartOverlay(folderPath) {
     });
 }
 
-export function setPlaybackData(tree, map) {
-    state.globalTree = tree;
-}
-
 export async function playVideo(
     videoUrl,
     funscriptUrl,
@@ -318,7 +309,6 @@ export async function playVideo(
     if (!spinner) {
         spinner = document.createElement('div');
         spinner.id = 'loading-spinner';
-        spinner.className = 'loading-spinner';
         videoPlayer.appendChild(spinner);
     }
     spinner.style.display = 'block';

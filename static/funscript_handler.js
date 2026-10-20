@@ -47,8 +47,7 @@ export async function loadFunscript(funscriptUrl) {
     beatTimes = [];
     lastBeatAt = null;
     currentVideoRawMaxIntensity = 0;
-    let fetchUrl = funscriptUrl;
-    const url = new URL(fetchUrl, window.location.origin);
+    const url = new URL(funscriptUrl, window.location.origin);
     url.searchParams.set('variant', selectedVariant);
     url.searchParams.set('speed', selectedSpeed);
     try {

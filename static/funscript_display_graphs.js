@@ -23,18 +23,6 @@ export function initIntensityGraphHUD() {
 
     box = document.createElement('div');
     box.id = 'funscript-box';
-    Object.assign(box.style, {
-        position: 'absolute',
-        bottom: '0',
-        left: '0',
-        padding: '0',
-        width: '100%',
-        backgroundColor: 'rgba(0, 0, 0, 0)',
-        overflow: 'hidden',
-        pointerEvents: 'none',
-        justifyContent: 'center',
-        display: 'flex'
-    });
 
     const canvas = document.createElement('canvas');
     canvas.id = 'funscript-canvas';

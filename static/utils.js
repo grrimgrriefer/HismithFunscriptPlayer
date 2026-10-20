@@ -53,10 +53,6 @@ export function clamp(v, min, max) {
     return Math.min(max, Math.max(min, v));
 }
 
-export function smoothstep(t) {
-    return t * t * (3 - 2 * t);
-}
-
 export function formatDuration(sec) {
     if (!sec || !isFinite(sec) || sec <= 0) return '—';
     const totalSec = Math.round(sec);
@@ -74,19 +70,6 @@ export function formatDuration(sec) {
 
 export function toFunscriptPath(videoPath) {
     return videoPath.replace(/\.[^/.]+$/, '.funscript');
-}
-
-export function getFunscriptStats(entry) {
-    if (!entry) return { peak: 0, avg: 0 };
-    const peak =
-        entry.peak_intensity ??
-        entry.peak ??
-        entry.peakIntensity ??
-        entry.max_intensity ??
-        0;
-    const avg =
-        entry.average_intensity ?? entry.avg ?? entry.averageIntensity ?? 0;
-    return { peak: Number(peak) || 0, avg: Number(avg) || 0 };
 }
 
 export function isTextInput(target) {

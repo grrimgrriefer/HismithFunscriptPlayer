@@ -131,10 +131,6 @@ export function getAbsoluteMaximum() {
     return maxIntensityLimit;
 }
 
-export function getCurrentVideoRawMaxIntensity() {
-    return currentVideoRawMaxIntensity;
-}
-
 export function getFunscriptDuration() {
     if (intensityActions.length === 0) return 0;
     return intensityActions[intensityActions.length - 1].at;

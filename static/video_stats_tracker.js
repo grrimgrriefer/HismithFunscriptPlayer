@@ -4,7 +4,6 @@ import { getFunscriptDuration } from './funscript_handler.js';
 import {
     showTemporaryOverlayMessage,
     showAutoLikeToast,
-    dismissAutoLikeToast,
     markAutoLikeToastPrevious
 } from './utils_ui.js';
 import { getNodeByPath } from './directory_tree.js';
@@ -25,11 +24,6 @@ export function getPlayedVideos() {
 
 export function getCurrentVideoRelativePath() {
     return state.currentVideoRelativePath;
-}
-
-export function isVideoWatched(relativePath) {
-    if (!relativePath) return false;
-    return state.playedVideos.has(relativePath);
 }
 
 export function initVideoStats(relativePath) {

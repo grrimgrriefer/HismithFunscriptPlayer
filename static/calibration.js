@@ -27,7 +27,6 @@ const state = {
     spinnerAccum: 0,
     lastTs: null,
     lastSpinCount: 0,
-    lastSentIntensity: null,
     lastSendTime: 0,
 
     audioCtx: null,
@@ -59,7 +58,7 @@ async function loadBpmMapping() {
     }
 }
 
-export function intensityToBpm(intensity) {
+function intensityToBpm(intensity) {
     const val = Math.round(clamp(intensity, 0, 100));
     return bpmLut[String(val)] ?? 0.0;
 }
@@ -192,7 +191,6 @@ function savePoint() {
 
     buildPresetButtons();
     refreshDisplays();
-    getActiveCalibratedBpms();
 }
 
 // ── Audio ──────────────────────────────────────────────────────────────
@@ -299,7 +297,6 @@ function startCalibration() {
     if (state.audioCtx?.state === 'suspended') state.audioCtx.resume();
 
     state.running = true;
-    state.lastSentIntensity = 0;
     state.lastSendTime = Date.now();
 
     const intensity = state.selectedPreset / 100.0;
@@ -340,7 +337,6 @@ export function stopCalibration() {
     state.lastTs = null;
 
     sendDeviceCommand(0, 0);
-    state.lastSentIntensity = null;
     state.lastSendTime = 0;
 
     if (els.startBtn) els.startBtn.disabled = false;
@@ -421,7 +417,6 @@ function applyProfile(name) {
         }
     }
     buildPresetButtons();
-    getActiveCalibratedBpms();
 
     const first = PRESETS.find(
         (p) => calibratedBpms[p] !== undefined && calibratedBpms[p] !== null
@@ -436,15 +431,6 @@ function applyProfile(name) {
         updateInfoDisplays();
     }
     refreshDisplays();
-}
-
-function getActiveCalibratedBpms() {
-    return Object.fromEntries(
-        PRESETS.filter((p) => calibratedBpms[p] != null).map((p) => [
-            String(p),
-            calibratedBpms[p]
-        ])
-    );
 }
 
 function getProfileName() {
@@ -613,8 +599,6 @@ function getCalibratedPoints() {
     return points;
 }
 
-// ── Public API ─────────────────────────────────────────────────────────
-
 async function reloadActiveFunscript() {
     const baseUrl = getCurrentFunscriptUrl();
     if (baseUrl) {
@@ -622,7 +606,7 @@ async function reloadActiveFunscript() {
     }
 }
 
-export async function syncActiveProfile(bpms) {
+async function syncActiveProfile(bpms) {
     try {
         await fetch('/api/calibration-activate', {
             method: 'POST',
@@ -632,13 +616,6 @@ export async function syncActiveProfile(bpms) {
         await reloadActiveFunscript();
     } catch (err) {
         console.error('Failed to sync active profile to server', err);
-    }
-}
-
-export async function saveCalibrationOnClose() {
-    const name = getProfileName();
-    if (name) {
-        await saveProfileToServer(name);
     }
 }
 
@@ -679,6 +656,15 @@ function bindEventListeners() {
             }
         }
     });
+}
+
+// ── Public API ─────────────────────────────────────────────────────────
+
+export async function saveCalibrationOnClose() {
+    const name = getProfileName();
+    if (name) {
+        await saveProfileToServer(name);
+    }
 }
 
 export async function setupCalibration() {

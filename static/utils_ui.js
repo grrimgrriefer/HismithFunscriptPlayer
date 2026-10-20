@@ -32,7 +32,7 @@ let activeToast = null;
 let activeToastVideoPath = null;
 let toastDismissTimeout = null;
 
-export function dismissAutoLikeToast() {
+function dismissAutoLikeToast() {
     if (activeToast) {
         if (toastDismissTimeout) {
             clearTimeout(toastDismissTimeout);

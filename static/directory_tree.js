@@ -22,7 +22,7 @@ let currentSortKey = 'peak';
 
 const normalizePath = (p) => (p ? p.replace(/^\/+|\/+$/g, '') : '');
 
-export function indexTree(root) {
+function indexTree(root) {
     nodeMap.clear();
     if (!root) return;
 
@@ -42,24 +42,6 @@ export function indexTree(root) {
 export function getNodeByPath(path) {
     if (!path) return null;
     return nodeMap.get(normalizePath(path)) || null;
-}
-
-export function collectFiles(node) {
-    if (!node) return [];
-    const files = [];
-
-    function traverse(curr) {
-        if (!curr.is_dir) {
-            files.push(curr);
-        } else if (curr.children) {
-            for (const child of curr.children) {
-                traverse(child);
-            }
-        }
-    }
-
-    traverse(node);
-    return files;
 }
 
 function ensureParentFoldersOpen(path, openFolders) {
@@ -87,7 +69,7 @@ export function updateTreeUserStats(statsMap) {
 
 // ── Active Video DOM Synchronization ───────────────────────────────────
 
-export function updateDirectoryActiveStates() {
+function updateDirectoryActiveStates() {
     const container =
         currentContainer || document.getElementById('directory-tree');
     if (!container) return;
@@ -284,9 +266,7 @@ function renderTree(node, parent, openFolders = new Set()) {
     parent.appendChild(li);
 }
 
-// ── Public API ─────────────────────────────────────────────────────────
-
-export function sortTreeNodes(node, sortBy = 'peak') {
+function sortTreeNodes(node, sortBy = 'peak') {
     if (!node.children || node.children.length === 0) return;
 
     const getMetric = (fileNode, key) => {
@@ -351,6 +331,8 @@ export function sortTreeNodes(node, sortBy = 'peak') {
         }
     }
 }
+
+// ── Public API ─────────────────────────────────────────────────────────
 
 export function initDirectoryTree(treeData, containerElement, sortBy = 'peak') {
     if (!treeData || !containerElement) {

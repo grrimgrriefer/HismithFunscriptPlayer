@@ -57,7 +57,6 @@ const state = {
     transitionStartTime: Date.now(),
     transitionTargetValue: 1,
     globalTree: null,
-    globalFunscriptMap: null,
     currentVideoRelativePath: null,
     funscriptEndCancelled: false,
     videoEndedCancelled: false
@@ -89,7 +88,7 @@ function updatePauseOverlayInfo(relativePath) {
     titleEl.title = cleanTitle;
 }
 
-export function showPauseOverlay() {
+function showPauseOverlay() {
     if (isOverlayVisible()) return;
     const videoElement = document.querySelector('#video-player video');
     if (!videoElement || videoElement.ended || !videoElement.paused) return;
@@ -97,13 +96,12 @@ export function showPauseOverlay() {
     const overlay = document.getElementById('video-pause-overlay');
     if (!overlay) return;
 
-    updatePauseOverlayPosition();
     updatePauseOverlayInfo(state.currentVideoRelativePath);
     updateIntensityDisplay();
     overlay.classList.remove('hidden');
 }
 
-export function hidePauseOverlay() {
+function hidePauseOverlay() {
     const overlay = document.getElementById('video-pause-overlay');
     if (overlay) {
         overlay.classList.add('hidden');
@@ -121,13 +119,6 @@ function initPauseOverlayEvents() {
             }
         };
     }
-
-    window.addEventListener('resize', () => {
-        const overlay = document.getElementById('video-pause-overlay');
-        if (overlay && !overlay.classList.contains('hidden')) {
-            updatePauseOverlayPosition();
-        }
-    });
 }
 
 if (typeof document !== 'undefined') {
@@ -135,43 +126,6 @@ if (typeof document !== 'undefined') {
         document.addEventListener('DOMContentLoaded', initPauseOverlayEvents);
     } else {
         initPauseOverlayEvents();
-    }
-}
-
-function updatePauseOverlayPosition() {
-    const overlay = document.getElementById('video-pause-overlay');
-    const videoElement = document.querySelector('#video-player video');
-    if (!overlay || !videoElement) return;
-
-    if (!videoElement.videoWidth || !videoElement.videoHeight) {
-        overlay.style.setProperty('--video-offset-x', '0px');
-        return;
-    }
-
-    const isSbs = document
-        .getElementById('video-container')
-        ?.classList.contains('sbs-mode');
-    if (isSbs) {
-        overlay.style.setProperty('--video-offset-x', '0px');
-        return;
-    }
-
-    const containerWidth = videoElement.clientWidth;
-    const containerHeight = videoElement.clientHeight;
-    if (!containerWidth || !containerHeight) return;
-
-    const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
-    const containerRatio = containerWidth / containerHeight;
-
-    if (containerRatio > videoRatio) {
-        const renderedWidth = containerHeight * videoRatio;
-        const leftOffset = Math.max(0, (containerWidth - renderedWidth) / 2);
-        overlay.style.setProperty(
-            '--video-offset-x',
-            `${Math.round(leftOffset)}px`
-        );
-    } else {
-        overlay.style.setProperty('--video-offset-x', '0px');
     }
 }
 
@@ -326,7 +280,6 @@ export function showFolderStartOverlay(folderPath) {
 
 export function setPlaybackData(tree, map) {
     state.globalTree = tree;
-    state.globalFunscriptMap = map;
 }
 
 export async function playVideo(

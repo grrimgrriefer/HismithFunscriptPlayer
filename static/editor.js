@@ -5,7 +5,8 @@ import {
     toFunscriptUrl,
     intensityToColor,
     volatilityToColor,
-    formatDuration
+    formatDuration,
+    isTextInput
 } from './utils.js';
 import { showTemporaryOverlayMessage } from './utils_ui.js';
 

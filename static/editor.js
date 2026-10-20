@@ -196,11 +196,6 @@ function applyIntensityStats(stats) {
     draw();
 }
 
-async function updateBackendIntensityStats(taps) {
-    const stats = await fetchDraftIntensity(taps);
-    applyIntensityStats(stats);
-}
-
 // ── UI Updates ─────────────────────────────────────────────────────────
 
 function updateCounter(triggerFetch = true) {
@@ -211,8 +206,8 @@ function updateCounter(triggerFetch = true) {
 
     if (triggerFetch) {
         clearTimeout(state.calcDebounceTimer);
-        state.calcDebounceTimer = setTimeout(() => {
-            updateBackendIntensityStats(editing);
+        state.calcDebounceTimer = setTimeout(async () => {
+            applyIntensityStats(await fetchDraftIntensity(editing));
         }, 150);
     }
 }

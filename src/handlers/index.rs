@@ -70,7 +70,6 @@ fn populate_and_sort_tree(node: &mut FileNode, cache: &serde_json::Map<String, s
             for child in children.iter_mut() {
                 populate_and_sort_tree(child, cache, user_stats);
             }
-            sort_file_nodes(children);
         }
     } else {
         node.stats = extract_stats_for_file(&node.path, cache);
@@ -142,19 +141,6 @@ fn extract_stats_for_file(
     }
 }
 
-fn sort_file_nodes(children: &mut [FileNode]) {
-    children.sort_by(|a, b| {
-        if a.is_dir != b.is_dir {
-            if a.is_dir {
-                return std::cmp::Ordering::Less;
-            } else {
-                return std::cmp::Ordering::Greater;
-            }
-        }
-        a.name.to_lowercase().cmp(&b.name.to_lowercase())
-    });
-}
-
 async fn load_funscripts_cache(base: &Path) -> (Value, Option<String>) {
     match funscripts_cache::get_cache_for_base(base).await {
         Ok(cache_map) => (json!(cache_map), None),
@@ -178,14 +164,11 @@ fn is_permission_like_error(error_text: &str) -> bool {
 }
 
 fn apply_cache_fallbacks(cache: &mut serde_json::Map<String, serde_json::Value>, video_base: &Path) {
-    let video_files = match directory_browser::get_all_files_with_size(video_base) {
-        Ok(f) => f,
-        Err(_) => return,
-    };
+    let video_files = directory_browser::get_all_file_paths(video_base);
 
     let mut aliases = Vec::new();
 
-    for video_full_path in video_files.keys() {
+    for video_full_path in &video_files {
         let rel_video = match video_full_path.strip_prefix(video_base) {
             Ok(p) => p,
             Err(_) => continue,

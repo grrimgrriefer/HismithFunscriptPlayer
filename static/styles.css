@@ -250,10 +250,7 @@ button:hover,
     border-radius: var(--radius-md);
 }
 
-.preset-btn.active {
-    background: var(--accent-blue);
-}
-
+.preset-btn.active,
 .preset-btn.btn-save {
     background: var(--accent-blue);
 }
@@ -280,8 +277,7 @@ button:disabled {
 
 /* ── Container Cards, Modals, Overlays ────────────────────────────────── */
 .card,
-.overlay-card,
-.modal-content {
+.overlay-card {
     background: var(--bg-secondary);
     padding: 20px;
     border-radius: var(--radius-lg);
@@ -1010,13 +1006,15 @@ button:disabled {
 /* ── Auxiliary Widgets ────────────────────────────────────────────────── */
 #funscript-box {
     position: absolute;
-    bottom: 10px;
-    right: 10px;
-    background-color: rgba(0, 0, 0, 0.7);
-    padding: 10px;
-    font-size: 16px;
-    color: var(--color-white);
-    border-radius: 5px;
+    bottom: 0;
+    left: 0;
+    padding: 0;
+    width: 100%;
+    background-color: rgba(0, 0, 0, 0);
+    overflow: hidden;
+    pointer-events: none;
+    justify-content: center;
+    display: flex;
     z-index: 3;
 }
 
@@ -1029,8 +1027,7 @@ button:disabled {
     font-weight: 600;
 }
 
-#loading-spinner,
-.loading-spinner {
+#loading-spinner {
     position: absolute;
     top: 50%;
     left: 50%;

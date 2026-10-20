@@ -9,7 +9,6 @@
 use crate::handlers::video_stats::VideoUserStats;
 use crate::funscript::structs::FunscriptStats;
 use serde::Serialize;
-use std::collections::HashMap;
 use std::{
     fs, io,
     path::{Path, PathBuf},
@@ -46,23 +45,6 @@ impl FileNode {
             }
         }
         None
-    }
-
-    /// Recursively collect references to all non-directory (file) nodes under this node.
-    pub fn collect_files(&self) -> Vec<&FileNode> {
-        let mut files = Vec::new();
-        self.collect_files_into(&mut files);
-        files
-    }
-
-    fn collect_files_into<'a>(&'a self, files: &mut Vec<&'a FileNode>) {
-        if !self.is_dir {
-            files.push(self);
-        } else if let Some(ref children) = self.children {
-            for child in children {
-                child.collect_files_into(files);
-            }
-        }
     }
 }
 
@@ -122,19 +104,11 @@ pub fn build_directory_tree(path: &Path, relative_path: &str) -> io::Result<File
     })
 }
 
-pub fn get_all_files_with_size(base_path: &Path) -> io::Result<HashMap<PathBuf, u64>> {
-    let mut file_map = HashMap::new();
-
-    let walker = WalkDir::new(base_path)
+pub fn get_all_file_paths(base_path: &Path) -> Vec<PathBuf> {
+    WalkDir::new(base_path)
         .into_iter()
         .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().is_file());
-
-    for entry in walker {
-        if let Ok(meta) = entry.metadata() {
-            file_map.insert(entry.path().to_path_buf(), meta.len());
-        }
-    }
-
-    Ok(file_map)
+        .filter(|e| e.file_type().is_file())
+        .map(|e| e.into_path())
+        .collect()
 }

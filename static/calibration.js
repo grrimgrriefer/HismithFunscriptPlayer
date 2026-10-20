@@ -599,13 +599,6 @@ function getCalibratedPoints() {
     return points;
 }
 
-async function reloadActiveFunscript() {
-    const baseUrl = getCurrentFunscriptUrl();
-    if (baseUrl) {
-        await loadFunscript(baseUrl);
-    }
-}
-
 async function syncActiveProfile(bpms) {
     try {
         await fetch('/api/calibration-activate', {
@@ -613,7 +606,9 @@ async function syncActiveProfile(bpms) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ bpms })
         });
-        await reloadActiveFunscript();
+        if (getCurrentFunscriptUrl()) {
+            await loadFunscript(getCurrentFunscriptUrl());
+        }
     } catch (err) {
         console.error('Failed to sync active profile to server', err);
     }

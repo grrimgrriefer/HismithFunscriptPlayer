@@ -397,6 +397,174 @@ function applyVolatilityUI() {
     updateActiveSectionHighlight(video.currentTime);
 }
 
+// ── Section Peak Detection ─────────────────────────────────────────────
+
+/**
+ * Finds the two consecutive taps with the shortest interval (highest BPM/intensity)
+ * belonging to the given section.
+ */
+function getSectionPeakTaps(section, taps) {
+    if (!taps || taps.length < 2) return null;
+
+    const secStartMs = section.start * 1000;
+    const secEndMs = section.end * 1000;
+
+    let bestPair = null;
+    let minInterval = Infinity;
+
+    for (let i = 0; i < taps.length - 1; i++) {
+        const t1 = taps[i];
+        const t2 = taps[i + 1];
+        const interval = t2 - t1;
+        if (interval <= 0) continue;
+
+        // Pair belongs to this section if its midpoint is within bounds
+        // or both taps fall inside the section range
+        const mid = (t1 + t2) / 2;
+        const inside =
+            (mid >= secStartMs && mid <= secEndMs) ||
+            (t1 >= secStartMs - 50 && t2 <= secEndMs + 50);
+
+        if (inside && interval < minInterval) {
+            minInterval = interval;
+            bestPair = {
+                t1,
+                t2,
+                interval,
+                bpm: Math.round(60000 / interval)
+            };
+        }
+    }
+
+    // Fallback if no pair midpoint fell strictly inside
+    if (!bestPair) {
+        for (let i = 0; i < taps.length; i++) {
+            if (taps[i] >= secStartMs && taps[i] <= secEndMs) {
+                if (i > 0 && taps[i] - taps[i - 1] < minInterval) {
+                    const intv = taps[i] - taps[i - 1];
+                    minInterval = intv;
+                    bestPair = {
+                        t1: taps[i - 1],
+                        t2: taps[i],
+                        interval: intv,
+                        bpm: Math.round(60000 / intv)
+                    };
+                }
+                if (
+                    i < taps.length - 1 &&
+                    taps[i + 1] - taps[i] < minInterval
+                ) {
+                    const intv = taps[i + 1] - taps[i];
+                    minInterval = intv;
+                    bestPair = {
+                        t1: taps[i],
+                        t2: taps[i + 1],
+                        interval: intv,
+                        bpm: Math.round(60000 / intv)
+                    };
+                }
+            }
+        }
+    }
+
+    return bestPair;
+}
+
+/**
+ * Renders the peak caliper bracket, badge, and glowing rings for each visible section.
+ */
+function drawSectionPeakIndicators() {
+    if (!state.pendingVolatilityData?.sections) return;
+    const sections = state.pendingVolatilityData.sections;
+    const taps = getEditingArray();
+    if (!taps || taps.length < 2) return;
+
+    const viewStartMs = getViewStartMs();
+    const viewEndMs = viewStartMs + VIEW_WINDOW_MS;
+    const yDot = canvas.height * 0.1;
+
+    sections.forEach((sec) => {
+        const secStartMs = sec.start * 1000;
+        const secEndMs = sec.end * 1000;
+        if (secEndMs < viewStartMs || secStartMs > viewEndMs) return;
+
+        const peak = getSectionPeakTaps(sec, taps);
+        if (!peak) return;
+
+        const x1 = msToPx(peak.t1);
+        const x2 = msToPx(peak.t2);
+
+        // Skip if outside canvas viewport
+        if (Math.max(x1, x2) < -80 || Math.min(x1, x2) > canvas.width + 80)
+            return;
+
+        const xMid = (x1 + x2) / 2;
+
+        ctx.save();
+
+        // 1. Faint vertical column over the peak stroke
+        ctx.fillStyle = 'rgba(0, 229, 255, 0.07)';
+        ctx.fillRect(
+            x1,
+            yDot - 14,
+            Math.max(2, x2 - x1),
+            canvas.height - yDot + 14
+        );
+
+        // 2. Caliper bracket line connecting the two dots
+        ctx.strokeStyle = '#00e5ff';
+        ctx.lineWidth = 1.75;
+        ctx.beginPath();
+        ctx.moveTo(x1, yDot - 3);
+        ctx.lineTo(x1, yDot - 11);
+        ctx.lineTo(x2, yDot - 11);
+        ctx.lineTo(x2, yDot - 3);
+        ctx.stroke();
+
+        // 3. Peak Pill Badge
+        const peakVal = Math.round(sec.peak_intensity || 0);
+        const label = peakVal > 0 ? `▲ PEAK ${peakVal}` : '▲ PEAK';
+        ctx.font = 'bold 9px sans-serif';
+        const metrics = ctx.measureText(label);
+        const badgeW = metrics.width + 8;
+        const badgeH = 13;
+        const badgeX = xMid - badgeW / 2;
+        const badgeY = Math.max(1, yDot - 25);
+
+        ctx.fillStyle = 'rgba(20, 25, 30, 0.9)';
+        ctx.strokeStyle = '#00e5ff';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        if (ctx.roundRect) {
+            ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 3);
+        } else {
+            ctx.rect(badgeX, badgeY, badgeW, badgeH);
+        }
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#00e5ff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, xMid, badgeY + badgeH / 2);
+
+        // 4. Outer glowing halo rings around each dot
+        ctx.strokeStyle = '#00e5ff';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = '#00e5ff';
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.arc(x1, yDot, 8.5, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(x2, yDot, 8.5, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.restore();
+    });
+}
+
 // ── Drawing ────────────────────────────────────────────────────────────
 
 function drawWave(actions, color = '#4CAF50') {
@@ -496,9 +664,12 @@ function draw() {
     drawSectionsOnCanvas();
 
     if (isEditingVariant() && state.baseActions && state.baseActions.length > 0)
-        drawWave(state.baseActions, '#777');
+        drawWave(state.baseActions, '#666');
     if (state.editingActions && state.editingActions.length > 0)
         drawWave(state.editingActions, '#4CAF50');
+
+    // Draw the peak caliper brackets and halo indicators
+    drawSectionPeakIndicators();
 
     if (isEditingVariant()) {
         drawTaps(state.baseTapsMs, false);
@@ -517,10 +688,13 @@ function draw() {
 
     // Selection box
     if (state.selecting) {
-        const rx = Math.min(state.selectionStartX, state.selectionEndX);
-        const rw = Math.abs(state.selectionStartX - state.selectionEndX);
-        ctx.fillStyle = 'rgba(0, 150, 255, 0.2)';
-        ctx.fillRect(rx, 0, rw, canvas.height);
+        ctx.fillStyle = 'rgba(255, 255, 0, 0.2)';
+        ctx.fillRect(
+            Math.min(state.selectionStartX, state.selectionEndX),
+            0,
+            Math.abs(state.selectionEndX - state.selectionStartX),
+            canvas.height
+        );
     }
 
     // Synchronize active section highlights on minimap & UI

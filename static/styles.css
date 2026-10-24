@@ -1003,6 +1003,22 @@ button:disabled {
     margin-right: 6px;
 }
 
+.section-peak-btn {
+    border: 1px solid rgba(0, 229, 255, 0.4);
+    background: rgba(0, 229, 255, 0.15);
+    color: #00e5ff;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    padding: 2px 5px;
+    font-size: 0.85em;
+    transition: all 0.2s ease;
+}
+
+.section-peak-btn:hover {
+    background: rgba(0, 229, 255, 0.35);
+    border-color: #00e5ff;
+}
+
 /* ── Auxiliary Widgets ────────────────────────────────────────────────── */
 #funscript-box {
     position: absolute;

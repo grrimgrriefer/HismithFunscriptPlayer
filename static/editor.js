@@ -372,24 +372,30 @@ function applyVolatilityUI() {
         if (sectionsListEl) {
             const item = document.createElement('div');
             item.className = 'section-item';
-            const avgColor = intensityToColor(sec.mean_intensity);
-            const peakColor = intensityToColor(sec.peak_intensity);
-
             item.innerHTML = `
-                <div>
-                    <span class="section-badge" style="background-color: ${avgColor}"></span>
-                    <strong>#${idx + 1}</strong> (${formatDuration(sec.start)} - ${formatDuration(sec.end)})
-                </div>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <span style="color: #bbb;">⏱ ${sec.duration.toFixed(1)}s</span>
-                    <span style="color: ${avgColor}; font-weight: bold;">🌡️ Avg ${Math.round(sec.mean_intensity)}</span>
-                    <span style="color: ${peakColor}; font-weight: bold;">🔺 Peak ${Math.round(sec.peak_intensity)}</span>
-                </div>
+                <span class="section-idx">#${idx + 1}</span>
+                <span class="section-range">${formatDuration(sec.start)} – ${formatDuration(sec.end)}</span>
+                <span class="section-badge" style="background-color:${intensityToColor(sec.mean_intensity)}">🌡️ ${Math.round(sec.mean_intensity)}</span>
+                <button type="button" class="section-badge section-peak-btn" title="Click to jump to Peak on timeline">🔺 ${Math.round(sec.peak_intensity)}</button>
             `;
+
             item.onclick = () => {
                 video.currentTime = sec.start;
                 draw();
             };
+
+            const peakBtn = item.querySelector('.section-peak-btn');
+            if (peakBtn) {
+                peakBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    const peakPair = getSectionPeakTaps(sec, getEditingArray());
+                    if (peakPair) {
+                        video.currentTime = (peakPair.t1 + peakPair.t2) / 2000;
+                        draw();
+                    }
+                };
+            }
+
             sectionsListEl.appendChild(item);
         }
     });

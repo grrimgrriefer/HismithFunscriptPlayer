@@ -370,13 +370,27 @@ function applyVolatilityUI() {
         if (heatmapEl) heatmapEl.appendChild(div);
 
         if (sectionsListEl) {
+            const avgColor = intensityToColor(sec.mean_intensity);
+            const peakColor = intensityToColor(sec.peak_intensity);
+
+            const toAlpha = (hsl, a) =>
+                hsl.replace('hsl', 'hsla').replace(')', `, ${a})`);
+
             const item = document.createElement('div');
             item.className = 'section-item';
+            item.style.borderLeftColor = avgColor;
             item.innerHTML = `
                 <span class="section-idx">#${idx + 1}</span>
-                <span class="section-range">${formatDuration(sec.start)} – ${formatDuration(sec.end)}</span>
-                <span class="section-badge" style="background-color:${intensityToColor(sec.mean_intensity)}">🌡️ ${Math.round(sec.mean_intensity)}</span>
-                <button type="button" class="section-badge section-peak-btn" title="Click to jump to Peak on timeline">🔺 ${Math.round(sec.peak_intensity)}</button>
+                <div class="section-timing">
+                    <span class="section-range">${formatDuration(sec.start)} – ${formatDuration(sec.end)}</span>
+                    <span class="section-dur">(${sec.duration.toFixed(1)}s)</span>
+                </div>
+                <span class="section-avg-badge" style="background-color: ${toAlpha(avgColor, 0.18)}; border-color: ${toAlpha(avgColor, 0.6)}; color: ${avgColor};">
+                    🌡️ ${Math.round(sec.mean_intensity)}
+                </span>
+                <button type="button" class="section-peak-btn" style="background-color: ${toAlpha(peakColor, 0.22)}; border-color: ${toAlpha(peakColor, 0.75)}; color: ${peakColor};" title="Click to jump to Peak on timeline">
+                    🔺 ${Math.round(sec.peak_intensity)}
+                </button>
             `;
 
             item.onclick = () => {

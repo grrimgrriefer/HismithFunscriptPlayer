@@ -2,7 +2,7 @@
 
 import { sendDeviceCommand } from './socket.js';
 import { loadFunscript } from './funscript_handler.js';
-import { clamp, getCurrentFunscriptUrl } from './utils.js';
+import { clamp, getCurrentFunscriptUrl, addPressListener } from './utils.js';
 
 // ── Constants ──────────────────────────────────────────────────────────
 const PRESETS = [10, 20, 30, 40, 50];
@@ -597,7 +597,7 @@ function buildPresetButtons() {
             btn.classList.add('active');
         }
 
-        btn.addEventListener('click', () => selectPreset(p, btn));
+        addPressListener(btn, () => selectPreset(p, btn));
         els.presetsContainer.appendChild(btn);
     }
 }
@@ -759,21 +759,19 @@ function bindEventListeners() {
     if (listenersBound) return;
     listenersBound = true;
 
-    els.startBtn.addEventListener('click', startCalibration);
-    els.stopBtn.addEventListener('click', stopCalibration);
-    els.resetBtn.addEventListener('click', clearTaps);
-    els.syncSpinnerBtn?.addEventListener('click', () => {
-        resetSpinner(true);
-    });
+    addPressListener(els.startBtn, startCalibration);
+    addPressListener(els.stopBtn, stopCalibration);
+    addPressListener(els.resetBtn, clearTaps);
+    addPressListener(els.syncSpinnerBtn, () => resetSpinner(true));
+    addPressListener(els.savePointBtn, savePoint);
 
-    els.bpmDec5Btn?.addEventListener('click', () => adjustManualBpm(-5));
-    els.bpmDecBtn?.addEventListener('click', () => adjustManualBpm(-1));
-    els.bpmIncBtn?.addEventListener('click', () => adjustManualBpm(1));
-    els.bpmInc5Btn?.addEventListener('click', () => adjustManualBpm(5));
+    addPressListener(els.bpmDec5Btn, () => adjustManualBpm(-5));
+    addPressListener(els.bpmDecBtn, () => adjustManualBpm(-1));
+    addPressListener(els.bpmIncBtn, () => adjustManualBpm(1));
+    addPressListener(els.bpmInc5Btn, () => adjustManualBpm(5));
 
-    els.savePointBtn.addEventListener('click', savePoint);
+    addPressListener(els.spinner, handleSpinnerTap);
 
-    els.spinner.addEventListener('click', handleSpinnerTap);
     els.spinner.addEventListener('keydown', (e) => {
         if (e.key === ' ' || e.key === 'Spacebar') {
             e.preventDefault();

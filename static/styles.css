@@ -1790,3 +1790,14 @@ body.sbs-playing #autolike-toast {
         flex-wrap: wrap;
     }
 }
+
+/* Prevent VR browsers from interpreting button presses as drags/scrolls */
+button,
+.btn,
+.preset-btn,
+#calibration-spinner,
+.bpm-adjust-btn {
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+}

@@ -135,3 +135,22 @@ export function getCurrentFunscriptUrl(selector = '#video-player video') {
     const path = getCurrentVideoPath(selector);
     return path ? toFunscriptUrl(path) : null;
 }
+
+export function addPressListener(element, callback) {
+    if (!element) return;
+    let handledByPointer = false;
+
+    element.addEventListener('pointerdown', (e) => {
+        if (e.button !== undefined && e.button !== 0) return;
+        handledByPointer = true;
+        callback(e);
+    });
+
+    element.addEventListener('click', (e) => {
+        if (handledByPointer) {
+            handledByPointer = false;
+            return;
+        }
+        callback(e);
+    });
+}

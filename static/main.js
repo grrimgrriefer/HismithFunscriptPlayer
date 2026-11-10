@@ -10,6 +10,7 @@ import {
     toggleSettingsMenu,
     openCalibrationOverlay
 } from './settings_menu.js';
+import { initActiveProfile } from './calibration.js';
 
 let currentTreeData = null;
 
@@ -52,6 +53,7 @@ function renderCacheError(payload, treeContainer) {
 async function main() {
     initializeUI();
     initWebSocket();
+    await initActiveProfile();
 
     const urlParams = new URLSearchParams(window.location.search);
     if (

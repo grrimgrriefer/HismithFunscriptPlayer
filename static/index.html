@@ -119,6 +119,10 @@
 
             <div class="form-group mt-sm">
                 <button id="calibration-button" class="btn btn-sm">Calibration</button>
+                <div class="settings-active-profile-wrap mt-xs">
+                    <span class="muted small">Active Profile:</span>
+                    <strong id="settings-active-profile" class="settings-profile-name">(none)</strong>
+                </div>
             </div>
 
             <label class="settings-label mt-sm">Max Intensity Limit:</label>
@@ -174,21 +178,41 @@
                         </div>
 
                         <div id="calibration-spinner" aria-hidden="true" tabindex="0" role="button"
-                            title="Click to reset rotation to 0">
+                            title="Click to reset rotation to 0 and record beat">
                             <div id="calibration-rotor" aria-hidden="true"></div>
                         </div>
                     </div>
 
+                    <div id="beat-visualizer" class="beat-visualizer">
+                        <div class="beat-header">
+                            <span class="muted small">Tapped Beats:</span>
+                            <span id="beat-count" class="beat-count">0 beats</span>
+                            <span id="beat-avg-interval" class="muted small"></span>
+                        </div>
+                        <div id="beat-dots" class="beat-dots">
+                            <span class="beat-placeholder">Tap spinner or spacebar to measure BPM</span>
+                        </div>
+                    </div>
+
                     <div class="controls">
-                        <div class="row row-compact mb-sm">
-                            <span class="muted">Measured BPM:</span>
-                            <strong id="measured-bpm">—</strong>
+                        <div class="row row-bpm">
+                            <div class="bpm-measure-group">
+                                <span class="muted">Measured BPM:</span>
+                                <strong id="measured-bpm">—</strong>
+                                <div class="bpm-manual-controls">
+                                    <button id="bpm-dec5-btn" class="btn btn-sm bpm-adjust-btn" title="Decrease BPM by 5" disabled>-5</button>
+                                    <button id="bpm-dec-btn" class="btn btn-sm bpm-adjust-btn" title="Decrease BPM by 1" disabled>-1</button>
+                                    <button id="bpm-inc-btn" class="btn btn-sm bpm-adjust-btn" title="Increase BPM by 1" disabled>+1</button>
+                                    <button id="bpm-inc5-btn" class="btn btn-sm bpm-adjust-btn" title="Increase BPM by 5" disabled>+5</button>
+                                </div>
+                            </div>
                             <button id="save-point-btn" class="preset-btn btn-save" disabled>Save Point</button>
                         </div>
 
-                        <div class="row mt-sm">
+                        <div class="row row-actions">
                             <button id="start-button" class="preset-btn">Start</button>
                             <button id="stop-button" class="preset-btn">Stop</button>
+                            <button id="sync-spinner-btn" class="preset-btn" title="Reset spinner angle to 0 without affecting BPM">Sync Spinner</button>
                             <button id="reset-button" class="preset-btn">Reset Taps</button>
                         </div>
                     </div>

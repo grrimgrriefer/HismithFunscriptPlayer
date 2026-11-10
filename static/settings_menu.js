@@ -26,7 +26,8 @@ import { renderIntensityGraphHUD } from './funscript_display_graphs.js';
 import {
     setupCalibration,
     stopCalibration,
-    saveCalibrationOnClose
+    saveCalibrationOnClose,
+    updateSettingsActiveProfileDisplay
 } from './calibration.js';
 
 let initialized = false;
@@ -50,6 +51,7 @@ export function toggleSettingsMenu() {
     }
 
     updateIntensityDisplay();
+    updateSettingsActiveProfileDisplay();
     document.body.style.overflow = 'hidden';
 
     const cleanup = () => {
@@ -203,6 +205,7 @@ function ensureInit() {
     initVibrateMode(menu);
     initSpeedMode(menu);
     initEditorButton(menu);
+    updateSettingsActiveProfileDisplay();
 }
 
 function initSBSToggle(menu) {
@@ -399,6 +402,7 @@ export async function closeCalibrationOverlay() {
     }
 
     updateIntensityDisplay();
+    updateSettingsActiveProfileDisplay();
     const videoEl = document.querySelector('#video-player video');
     if (videoEl) {
         renderIntensityGraphHUD(videoEl.currentTime * 1000);

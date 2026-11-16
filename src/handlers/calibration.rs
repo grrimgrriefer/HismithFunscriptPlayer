@@ -10,7 +10,8 @@
 
 use crate::AppConfig;
 use crate::utils;
-use actix_web::{http::header, HttpResponse, Responder, web};
+use actix_files::NamedFile;
+use actix_web::{Error, http::header, HttpResponse, Responder, web};
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::{Path, PathBuf}};
@@ -42,6 +43,13 @@ pub async fn handle_calibration_page() -> impl Responder {
     HttpResponse::Found()
         .insert_header((header::LOCATION, "/site/?calibration=1"))
         .finish()
+}
+
+/// Serves the dedicated mobile calibration page (static HTML).
+pub async fn handle_mobile_calibration_page() -> Result<impl Responder, Error> {
+    Ok(NamedFile::open("./static/calibration_mobile.html")?
+        .customize()
+        .insert_header(("Cache-Control", "no-cache")))
 }
 
 #[derive(Serialize)]

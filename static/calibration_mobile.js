@@ -23,6 +23,29 @@ function updateWsBadge(status) {
     }
 }
 
+export function autoScaleToFit() {
+    const card = document.querySelector('.mobile-cal-card');
+    if (!card) return;
+
+    card.style.transform = 'none';
+
+    const vh = window.innerHeight;
+    const vw = window.innerWidth;
+    const cardH = card.scrollHeight;
+    const cardW = card.scrollWidth;
+
+    const margin = 10;
+    const scaleY = (vh - margin) / cardH;
+    const scaleX = (vw - margin) / cardW;
+    const scale = Math.min(1.0, scaleY, scaleX);
+
+    if (scale < 0.99) {
+        card.style.transform = `scale(${scale.toFixed(4)})`;
+    } else {
+        card.style.transform = 'none';
+    }
+}
+
 async function initMobileCalibration() {
     updateWsBadge('connecting');
 
@@ -45,13 +68,32 @@ async function initMobileCalibration() {
     window.addEventListener('pagehide', () => stopCalibration());
 
     // Redraw graph crispness on orientation change or window resize
-    window.addEventListener('resize', () => refreshDisplays());
-    window.addEventListener('orientationchange', () => {
-        setTimeout(refreshDisplays, 120);
+    window.addEventListener('resize', () => {
+        autoScaleToFit();
+        refreshDisplays();
     });
+
+    window.addEventListener('orientationchange', () => {
+        setTimeout(() => {
+            autoScaleToFit();
+            refreshDisplays();
+        }, 120);
+    });
+
+    const curveDrawer = document.getElementById('curve-details');
+    if (curveDrawer) {
+        curveDrawer.addEventListener('toggle', () => {
+            if (curveDrawer.open) {
+                refreshDisplays();
+            }
+            autoScaleToFit();
+        });
+    }
 
     // Initialize calibration components and profiles
     await setupCalibration();
+
+    autoScaleToFit();
 }
 
 if (document.readyState === 'loading') {

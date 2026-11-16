@@ -4,7 +4,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Device Calibration (Mobile)</title>
     <link rel="stylesheet" href="/site/static/styles.css">
 </head>
@@ -12,81 +12,58 @@
 <body class="mobile-calibration-page">
     <div class="mobile-cal-card">
         <div class="mobile-cal-top-bar">
-            <a href="/site/" class="mobile-nav-link">← Back to Player</a>
+            <a href="/site/" class="mobile-nav-link">← Player</a>
+            <h1 class="mobile-cal-title">Calibration</h1>
             <span id="ws-status-badge" class="mobile-ws-badge disconnected">WS Offline</span>
         </div>
 
-        <div class="mobile-cal-header">
-            <h1>Mobile Calibration</h1>
+        <div class="card-section mobile-profile-row">
+            <select id="profile-select" class="profile-select"></select>
+            <input id="profile-name" type="text" placeholder="New profile..." class="profile-name-input" />
+            <button id="save-profile-btn" type="button" class="btn btn-sm btn-save" title="Save Profile">💾 Save</button>
         </div>
 
-        <p class="small">
-            Select an intensity preset, press <strong>Start</strong> to test physical motion, and tap in sync with strokes on the tap pad or spinner.
-        </p>
-
-        <!-- Profile selection & saving -->
-        <div class="card-section mt-sm">
-            <label class="control-label" for="profile-select">Calibration Profile:</label>
-            <div class="row row-compact">
-                <select id="profile-select" class="profile-select" style="flex:1; max-width:none;"></select>
-            </div>
-            <div class="row row-compact mt-sm">
-                <input id="profile-name" type="text" placeholder="New profile name..." class="profile-name-input" style="flex:1; max-width:none; margin:0;" />
-                <button id="save-profile-btn" type="button" class="btn btn-sm btn-save">💾 Save Profile</button>
-            </div>
-        </div>
-
-        <!-- Presets -->
-        <div class="card-section mt-md">
-            <label class="control-label">Intensity Presets:</label>
+        <div class="card-section mobile-action-strip">
             <div class="preset-row" id="preset-buttons"></div>
-        </div>
-
-        <!-- Hardware Start / Stop controls -->
-        <div class="card-section mt-sm">
-            <div class="row row-actions" style="margin-top: 0;">
-                <button id="start-button" class="btn btn-mobile-start">▶ Start Device</button>
-                <button id="stop-button" class="btn btn-mobile-stop" disabled>⏹ Stop Device</button>
+            <div class="mobile-device-btns">
+                <button id="start-button" class="btn btn-mobile-start">▶ Start</button>
+                <button id="stop-button" class="btn btn-mobile-stop" disabled>⏹ Stop</button>
             </div>
         </div>
 
-        <!-- Visual Spinner -->
-        <div id="spinner-wrap">
-            <div class="spinner-ring" aria-hidden="true">
-                <div class="tick"></div>
-                <div class="tick"></div>
-                <div class="tick"></div>
-                <div class="tick"></div>
-                <div class="tick"></div>
-                <div class="tick"></div>
-            </div>
-
-            <div id="calibration-spinner" aria-hidden="true" tabindex="0" role="button"
-                title="Click or tap to record beat">
-                <div id="calibration-rotor" aria-hidden="true"></div>
-            </div>
-        </div>
-
-        <!-- Touch-Friendly Tap Pad -->
         <div id="tap-pad" class="mobile-tap-pad" role="button" tabindex="0" title="Tap here in rhythm with device stroke">
-            <span class="mobile-tap-pad-text">👆 TAP WITH STROKE</span>
-            <span class="mobile-tap-pad-hint">or tap the spinner above</span>
+            <div id="spinner-wrap" class="mobile-spinner-wrap">
+                <div class="spinner-ring" aria-hidden="true">
+                    <div class="tick"></div>
+                    <div class="tick"></div>
+                    <div class="tick"></div>
+                    <div class="tick"></div>
+                    <div class="tick"></div>
+                    <div class="tick"></div>
+                </div>
+                <div id="calibration-spinner" aria-hidden="true" tabindex="0" role="button" title="Click or tap to record beat">
+                    <div id="calibration-rotor" aria-hidden="true"></div>
+                </div>
+            </div>
+            <div class="mobile-tap-pad-labels">
+                <span class="mobile-tap-pad-text">👆 TAP IN RHYTHM</span>
+                <span class="mobile-tap-pad-hint">tap pad or spacebar</span>
+            </div>
         </div>
 
         <!-- Beat tracking visualizer -->
-        <div id="beat-visualizer" class="beat-visualizer">
+        <div id="beat-visualizer" class="beat-visualizer mobile-beat-visualizer">
             <div class="beat-header">
-                <span class="muted small">Tapped Beats:</span>
                 <span id="beat-count" class="beat-count">0 beats</span>
                 <span id="beat-avg-interval" class="muted small"></span>
             </div>
             <div id="beat-dots" class="beat-dots">
-                <span class="beat-placeholder">Tap pad or spinner to measure BPM</span>
+                <span class="beat-placeholder">Tap pad to measure BPM</span>
             </div>
         </div>
 
         <!-- Measured BPM and Adjustments -->
-        <div class="controls mt-md">
+        <div class="controls mobile-controls-box">
             <div class="row row-bpm mobile-bpm-group">
                 <div class="mobile-bpm-display">
                     <span class="muted small">Measured:</span>
@@ -96,36 +73,36 @@
                 <button id="save-point-btn" class="preset-btn btn-save mobile-save-point-btn" disabled>✔ Save Point</button>
             </div>
 
-            <div class="mobile-fine-tune-row mt-sm">
-                <span class="small muted">Fine-tune:</span>
+            <div class="mobile-fine-tune-row">
                 <div class="bpm-manual-controls">
                     <button id="bpm-dec5-btn" class="btn btn-sm bpm-adjust-btn" title="Decrease BPM by 5" disabled>-5</button>
                     <button id="bpm-dec-btn" class="btn btn-sm bpm-adjust-btn" title="Decrease BPM by 1" disabled>-1</button>
                     <button id="bpm-inc-btn" class="btn btn-sm bpm-adjust-btn" title="Increase BPM by 1" disabled>+1</button>
                     <button id="bpm-inc5-btn" class="btn btn-sm bpm-adjust-btn" title="Increase BPM by 5" disabled>+5</button>
                 </div>
-            </div>
-
-            <div class="row row-actions mt-sm">
-                <button id="sync-spinner-btn" class="btn btn-sm mobile-secondary-btn" title="Reset spinner angle to 0 without affecting BPM">Sync Spinner</button>
-                <button id="reset-button" class="btn btn-sm mobile-secondary-btn">Reset Taps</button>
+                <div class="mobile-secondary-btns">
+                    <button id="sync-spinner-btn" class="btn btn-sm mobile-secondary-btn" title="Reset spinner angle to 0">Sync</button>
+                    <button id="reset-button" class="btn btn-sm mobile-secondary-btn">Reset</button>
+                </div>
             </div>
         </div>
 
         <!-- Status Info Box -->
-        <div id="info" class="small mt-md mobile-info-box">
-            <div>Selected preset: <strong id="selected-preset">—</strong>% intensity</div>
-            <div>Sent intensity: <strong id="sent-intensity">—</strong></div>
-            <div>Theoretical BPM: <strong id="theoretical-bpm">—</strong></div>
-            <div class="mt-xs">Active Profile: <strong id="settings-active-profile" class="settings-profile-name">(none)</strong></div>
+        <div id="info" class="mobile-info-hud">
+            <span>Preset: <strong id="selected-preset">—</strong>%</span>
+            <span>Sent: <strong id="sent-intensity">—</strong></span>
+            <span>Theory: <strong id="theoretical-bpm">—</strong></span>
+            <span>Profile: <strong id="settings-active-profile" class="settings-profile-name">(none)</strong></span>
         </div>
 
         <!-- Live Mapping Graph & Points -->
-        <div class="mt-md">
-            <label class="control-label">Calibration Curve:</label>
-            <div id="mapping-list" class="small mobile-mapping-list"></div>
-            <canvas id="mapping-canvas"></canvas>
-        </div>
+        <details id="curve-details" class="mobile-curve-drawer">
+            <summary class="mobile-curve-summary">📈 Calibration Curve &amp; Points</summary>
+            <div class="mobile-curve-body">
+                <div id="mapping-list" class="small mobile-mapping-list"></div>
+                <canvas id="mapping-canvas"></canvas>
+            </div>
+        </details>
     </div>
 
     <script src="/site/static/calibration_mobile.js" type="module"></script>

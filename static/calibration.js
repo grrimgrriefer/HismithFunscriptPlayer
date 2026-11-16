@@ -3,6 +3,7 @@
 import { sendDeviceCommand } from './socket.js';
 import { loadFunscript } from './funscript_handler.js';
 import { clamp, getCurrentFunscriptUrl, addPressListener } from './utils.js';
+import { showTemporaryOverlayMessage } from './utils_ui.js';
 
 // ── Constants ──────────────────────────────────────────────────────────
 const PRESETS = [10, 20, 30, 40, 50];
@@ -142,22 +143,26 @@ function initElements() {
 
 function updateInfoDisplays() {
     if (!state.selectedPreset) {
-        els.selectedPreset.textContent = '—';
-        els.sentIntensity.textContent = '—';
-        els.theoreticalBpm.textContent = '—';
+        if (els.selectedPreset) els.selectedPreset.textContent = '—';
+        if (els.sentIntensity) els.sentIntensity.textContent = '—';
+        if (els.theoreticalBpm) els.theoreticalBpm.textContent = '—';
         return;
     }
 
-    els.selectedPreset.textContent = `${state.selectedPreset}`;
-    els.theoreticalBpm.textContent = String(
-        roundBpm(intensityToBpm(state.selectedPreset))
-    );
+    if (els.selectedPreset)
+        els.selectedPreset.textContent = `${state.selectedPreset}`;
+    if (els.theoreticalBpm) {
+        els.theoreticalBpm.textContent = String(
+            roundBpm(intensityToBpm(state.selectedPreset))
+        );
+    }
 
     const val = state.running ? state.selectedPreset / 100.0 : 0;
-    els.sentIntensity.textContent = val.toFixed(2);
+    if (els.sentIntensity) els.sentIntensity.textContent = val.toFixed(2);
 }
 
 function renderMappingList() {
+    if (!els.mappingList) return;
     const presetText = PRESETS.map((p) =>
         calibratedBpms[p] === undefined || calibratedBpms[p] === null
             ? `${p}%: (not calibrated)`
@@ -167,7 +172,7 @@ function renderMappingList() {
     els.mappingList.innerHTML = presetText;
 }
 
-function refreshDisplays() {
+export function refreshDisplays() {
     updateInfoDisplays();
     renderMappingList();
     renderMappingGraph();
@@ -198,16 +203,16 @@ function adjustManualBpm(delta) {
 
     const next = Math.max(1, Math.min(300, current + delta));
     state.measuredBpmVal = next;
-    els.measuredBpm.textContent = String(next);
-    els.savePointBtn.disabled = false;
+    if (els.measuredBpm) els.measuredBpm.textContent = String(next);
+    if (els.savePointBtn) els.savePointBtn.disabled = false;
 }
 
 // ── Beat Tracking & Visualizer (Requirement 4) ─────────────────────────
 function clearTaps() {
     state.tapTimes = [];
     state.measuredBpmVal = null;
-    els.measuredBpm.textContent = '—';
-    els.savePointBtn.disabled = true;
+    if (els.measuredBpm) els.measuredBpm.textContent = '—';
+    if (els.savePointBtn) els.savePointBtn.disabled = true;
     updateBeatVisualizer();
 }
 
@@ -219,7 +224,7 @@ function updateBeatVisualizer(avgIntervalMs = null) {
         els.beatCount.textContent = '0 beats';
         if (els.beatAvgInterval) els.beatAvgInterval.textContent = '';
         els.beatDots.innerHTML =
-            '<span class="beat-placeholder">Tap spinner or spacebar to measure BPM</span>';
+            '<span class="beat-placeholder">Tap pad, spinner or spacebar to measure BPM</span>';
         return;
     }
 
@@ -261,11 +266,18 @@ function selectPreset(preset, btn) {
 
     state.selectedPreset = preset;
 
-    for (const b of els.presetsContainer.children) b.classList.remove('active');
+    if (els.presetsContainer) {
+        for (const b of els.presetsContainer.children)
+            b.classList.remove('active');
+    }
     btn.classList.add('active');
 
-    els.selectedPreset.textContent = `${preset}`;
-    els.theoreticalBpm.textContent = String(roundBpm(intensityToBpm(preset)));
+    if (els.selectedPreset) els.selectedPreset.textContent = `${preset}`;
+    if (els.theoreticalBpm) {
+        els.theoreticalBpm.textContent = String(
+            roundBpm(intensityToBpm(preset))
+        );
+    }
 
     enableManualBpmButtons(true);
     refreshDisplays();
@@ -276,8 +288,14 @@ function selectPreset(preset, btn) {
     }
 }
 
-function handleSpinnerTap() {
+export function handleSpinnerTap() {
     resetSpinner(true);
+
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try {
+            navigator.vibrate(25);
+        } catch (_) {}
+    }
 
     const now = performance.now();
 
@@ -289,12 +307,11 @@ function handleSpinnerTap() {
         return;
     }
 
-    // Do NOT discard after 3000ms: maintain all taps until manual reset (Requirement 4)
     state.tapTimes.push(now);
 
     if (state.tapTimes.length < 2) {
-        els.measuredBpm.textContent = '—';
-        els.savePointBtn.disabled = true;
+        if (els.measuredBpm) els.measuredBpm.textContent = '—';
+        if (els.savePointBtn) els.savePointBtn.disabled = true;
         state.measuredBpmVal = null;
         updateBeatVisualizer();
         return;
@@ -307,10 +324,10 @@ function handleSpinnerTap() {
     const tappedBpm = roundBpm(60000 / avgIntervalMs);
 
     state.measuredBpmVal = tappedBpm;
-    els.measuredBpm.textContent = String(tappedBpm);
+    if (els.measuredBpm) els.measuredBpm.textContent = String(tappedBpm);
 
     if (state.selectedPreset) {
-        els.savePointBtn.disabled = false;
+        if (els.savePointBtn) els.savePointBtn.disabled = false;
         enableManualBpmButtons(true);
     }
 
@@ -320,11 +337,14 @@ function handleSpinnerTap() {
 function savePoint() {
     if (!state.selectedPreset || !state.measuredBpmVal) return;
 
-    calibratedBpms[state.selectedPreset] = roundBpm(state.measuredBpmVal);
+    const savedPreset = state.selectedPreset;
+    const savedBpm = roundBpm(state.measuredBpmVal);
+    calibratedBpms[savedPreset] = savedBpm;
     clearTaps();
 
     buildPresetButtons();
     refreshDisplays();
+    showTemporaryOverlayMessage(`Saved ${savedPreset}%: ${savedBpm} BPM`, 1500);
 }
 
 // ── Audio ──────────────────────────────────────────────────────────────
@@ -413,7 +433,6 @@ function startSpinner() {
     state.spinnerAnimId = requestAnimationFrame(spinnerFrame);
 }
 
-// Spinner reset without touching calibration (Requirement 6)
 function resetSpinner(flash = true) {
     state.spinnerAccum = 0;
     state.spinnerAngle = 0;
@@ -424,7 +443,7 @@ function resetSpinner(flash = true) {
 }
 
 // ── Calibration Start/Stop ─────────────────────────────────────────────
-function startCalibration() {
+export function startCalibration() {
     if (!state.selectedPreset || state.running) return;
 
     ensureAudioContext();
@@ -442,8 +461,8 @@ function startCalibration() {
     state.sendInterval = setInterval(sendLoop, SEND_INTERVAL_MS);
 
     startSpinner();
-    els.startBtn.disabled = true;
-    els.stopBtn.disabled = false;
+    if (els.startBtn) els.startBtn.disabled = true;
+    if (els.stopBtn) els.stopBtn.disabled = false;
 }
 
 function sendLoop() {
@@ -504,7 +523,7 @@ async function loadProfilesFromServer() {
     }
 }
 
-async function saveProfileToServer(name) {
+export async function saveProfileToServer(name) {
     if (!name) return;
     const payload = {
         name,
@@ -533,7 +552,7 @@ async function saveProfileToServer(name) {
     }
 }
 
-function applyProfile(name) {
+export function applyProfile(name) {
     const profile = calibrationProfiles[name];
     if (!profile) {
         resetBpms();
@@ -561,7 +580,7 @@ function applyProfile(name) {
     const first = PRESETS.find(
         (p) => calibratedBpms[p] !== undefined && calibratedBpms[p] !== null
     );
-    if (first) {
+    if (first && els.presetsContainer) {
         const btn = els.presetsContainer.querySelector(
             `button[data-preset="${first}"]`
         );
@@ -580,6 +599,7 @@ function getProfileName() {
 
 // ── Preset Buttons ─────────────────────────────────────────────────────
 function buildPresetButtons() {
+    if (!els.presetsContainer) return;
     els.presetsContainer.innerHTML = '';
     for (const p of PRESETS) {
         const btn = document.createElement('button');
@@ -612,11 +632,11 @@ function resetBpms() {
     enableManualBpmButtons(false);
     buildPresetButtons();
 
-    els.selectedPreset.textContent = '—';
-    els.sentIntensity.textContent = '—';
-    els.theoreticalBpm.textContent = '—';
-    els.measuredBpm.textContent = '—';
-    els.savePointBtn.disabled = true;
+    if (els.selectedPreset) els.selectedPreset.textContent = '—';
+    if (els.sentIntensity) els.sentIntensity.textContent = '—';
+    if (els.theoreticalBpm) els.theoreticalBpm.textContent = '—';
+    if (els.measuredBpm) els.measuredBpm.textContent = '—';
+    if (els.savePointBtn) els.savePointBtn.disabled = true;
     refreshDisplays();
 }
 
@@ -759,40 +779,81 @@ function bindEventListeners() {
     if (listenersBound) return;
     listenersBound = true;
 
-    addPressListener(els.startBtn, startCalibration);
-    addPressListener(els.stopBtn, stopCalibration);
-    addPressListener(els.resetBtn, clearTaps);
-    addPressListener(els.syncSpinnerBtn, () => resetSpinner(true));
-    addPressListener(els.savePointBtn, savePoint);
+    if (els.startBtn) addPressListener(els.startBtn, startCalibration);
+    if (els.stopBtn) addPressListener(els.stopBtn, stopCalibration);
+    if (els.resetBtn) addPressListener(els.resetBtn, clearTaps);
+    if (els.syncSpinnerBtn)
+        addPressListener(els.syncSpinnerBtn, () => resetSpinner(true));
+    if (els.savePointBtn) addPressListener(els.savePointBtn, savePoint);
 
-    addPressListener(els.bpmDec5Btn, () => adjustManualBpm(-5));
-    addPressListener(els.bpmDecBtn, () => adjustManualBpm(-1));
-    addPressListener(els.bpmIncBtn, () => adjustManualBpm(1));
-    addPressListener(els.bpmInc5Btn, () => adjustManualBpm(5));
+    if (els.bpmDec5Btn)
+        addPressListener(els.bpmDec5Btn, () => adjustManualBpm(-5));
+    if (els.bpmDecBtn)
+        addPressListener(els.bpmDecBtn, () => adjustManualBpm(-1));
+    if (els.bpmIncBtn)
+        addPressListener(els.bpmIncBtn, () => adjustManualBpm(1));
+    if (els.bpmInc5Btn)
+        addPressListener(els.bpmInc5Btn, () => adjustManualBpm(5));
 
-    addPressListener(els.spinner, handleSpinnerTap);
-
-    els.spinner.addEventListener('keydown', (e) => {
-        if (e.key === ' ' || e.key === 'Spacebar') {
-            e.preventDefault();
-            handleSpinnerTap();
-        }
-    });
-
-    els.profileSelect.addEventListener('change', () => {
-        applyProfile(els.profileSelect.value);
-    });
-
-    els.profileName.addEventListener('keyup', (e) => {
-        if (e.key === 'Enter') {
-            const name = els.profileName.value.trim();
-            if (name) {
-                saveProfileToServer(name).then(() => {
-                    els.profileName.value = '';
-                });
+    if (els.spinner) {
+        addPressListener(els.spinner, handleSpinnerTap);
+        els.spinner.addEventListener('keydown', (e) => {
+            if (e.key === ' ' || e.key === 'Spacebar') {
+                e.preventDefault();
+                handleSpinnerTap();
             }
-        }
-    });
+        });
+    }
+
+    // Mobile Big Tap Pad
+    const tapPad = document.getElementById('tap-pad');
+    if (tapPad) {
+        addPressListener(tapPad, handleSpinnerTap);
+    }
+
+    if (els.profileSelect) {
+        els.profileSelect.addEventListener('change', () => {
+            applyProfile(els.profileSelect.value);
+        });
+    }
+
+    if (els.profileName) {
+        els.profileName.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') {
+                const name = els.profileName.value.trim();
+                if (name) {
+                    saveProfileToServer(name).then(() => {
+                        els.profileName.value = '';
+                        showTemporaryOverlayMessage(
+                            `Profile "${name}" saved & active!`,
+                            2500
+                        );
+                    });
+                }
+            }
+        });
+    }
+
+    // Dedicated Save Profile Button (mobile-friendly)
+    const saveProfileBtn = document.getElementById('save-profile-btn');
+    if (saveProfileBtn) {
+        addPressListener(saveProfileBtn, async () => {
+            const name = getProfileName();
+            if (name) {
+                await saveProfileToServer(name);
+                if (els.profileName) els.profileName.value = '';
+                showTemporaryOverlayMessage(
+                    `Profile "${name}" saved & active!`,
+                    2500
+                );
+            } else {
+                showTemporaryOverlayMessage(
+                    'Please enter a profile name',
+                    2000
+                );
+            }
+        });
+    }
 }
 
 // ── Public API ─────────────────────────────────────────────────────────
@@ -828,19 +889,23 @@ export async function setupCalibration() {
         updateSettingsActiveProfileDisplay();
     }
 
-    els.stopBtn.disabled = true;
-    els.startBtn.disabled = false;
-    els.savePointBtn.disabled = true;
+    if (els.stopBtn) els.stopBtn.disabled = true;
+    if (els.startBtn) els.startBtn.disabled = false;
+    if (els.savePointBtn) els.savePointBtn.disabled = true;
     enableManualBpmButtons(Boolean(state.selectedPreset));
 
-    els.selectedPreset.textContent = state.selectedPreset
-        ? `${state.selectedPreset}`
-        : '—';
-    els.sentIntensity.textContent = '—';
-    els.theoreticalBpm.textContent = state.selectedPreset
-        ? String(roundBpm(intensityToBpm(state.selectedPreset)))
-        : '—';
-    els.measuredBpm.textContent = '—';
+    if (els.selectedPreset) {
+        els.selectedPreset.textContent = state.selectedPreset
+            ? `${state.selectedPreset}`
+            : '—';
+    }
+    if (els.sentIntensity) els.sentIntensity.textContent = '—';
+    if (els.theoreticalBpm) {
+        els.theoreticalBpm.textContent = state.selectedPreset
+            ? String(roundBpm(intensityToBpm(state.selectedPreset)))
+            : '—';
+    }
+    if (els.measuredBpm) els.measuredBpm.textContent = '—';
     clearTaps();
     refreshDisplays();
 }

@@ -40,6 +40,7 @@ pub fn setup_routes(cfg: &mut web::ServiceConfig) {
                 .route("/analysis/durations", web::get().to(analysis::handle_check_durations))
                 .route("/editor", web::get().to(editor::handle_editor_page))
                 .route("/calibration", web::get().to(calibration::handle_calibration_page))
+                .route("/calibration/mobile", web::get().to(calibration::handle_mobile_calibration_page))
                 .route("/video/{filename:.*}", web::get().to(video::handle_video))
                 .route("/funscripts/{filename:.*}", web::get().to(funscript::handle_funscript))
                 .route("/thumbnails/{filename:.*}", web::get().to(thumbnail::handle_thumbnail))

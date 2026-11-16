@@ -15,22 +15,51 @@ export function initWebSocket() {
         (ws.readyState === WebSocket.OPEN ||
             ws.readyState === WebSocket.CONNECTING)
     ) {
-        console.error('WebSocket connection already exists');
-        return Promise.reject(new Error('WebSocket connection already exists'));
+        return;
     }
 
     try {
-        ws = new WebSocket(`ws://${window.location.hostname}:${WS_PORT}/ws`);
-        ws.onopen = () => console.log('WebSocket connected');
-        ws.onerror = (error) => console.error('WebSocket error:', error);
+        const port = window.location.port ? window.location.port : WS_PORT;
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(
+            `${protocol}//${window.location.hostname}:${port}/ws`
+        );
+        ws.onopen = () => {
+            console.log('WebSocket connected');
+            window.dispatchEvent(
+                new CustomEvent('ws-status', {
+                    detail: { status: 'connected' }
+                })
+            );
+        };
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            window.dispatchEvent(
+                new CustomEvent('ws-status', {
+                    detail: { status: 'disconnected' }
+                })
+            );
+        };
         ws.onclose = (event) => {
             console.log(`WebSocket closed: ${event.code} ${event.reason}`);
+            window.dispatchEvent(
+                new CustomEvent('ws-status', {
+                    detail: { status: 'disconnected' }
+                })
+            );
             setTimeout(initWebSocket, RECONNECT_DELAY_MS);
         };
         ws.onmessage = (event) => console.log('WebSocket message:', event.data);
     } catch (e) {
         console.error('WebSocket initialization error:', e);
+        window.dispatchEvent(
+            new CustomEvent('ws-status', { detail: { status: 'disconnected' } })
+        );
     }
+}
+
+export function isWebSocketConnected() {
+    return ws !== null && ws.readyState === WebSocket.OPEN;
 }
 
 export function sendDeviceCommand(thrustIntensity, vibrateIntensity) {
